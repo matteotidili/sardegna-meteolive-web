@@ -67,7 +67,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · intensità di precipitazione al suolo<br>animazione ultime 3 ore · passo 5 min · © Radar-DPC</div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1 · 1 h</button><button class="cumopt" data-cum="cum3">CUM3 · 3 h</button><button class="cumopt" data-cum="cum6">CUM6 · 6 h</button><button class="cumopt" data-cum="cum12">CUM12 · 12 h</button><button class="cumopt" data-cum="cum24">CUM24 · 24 h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn disabled">Satellite meteo <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<br>cache WebP · animazione ultime 3 ore · © Radar-DPC</div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1 · 1 h</button><button class="cumopt" data-cum="cum3">CUM3 · 3 h</button><button class="cumopt" data-cum="cum6">CUM6 · 6 h</button><button class="cumopt" data-cum="cum12">CUM12 · 12 h</button><button class="cumopt" data-cum="cum24">CUM24 · 24 h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn disabled">Satellite meteo <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
 <div class="styles"><button class="base" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
 <div class="timeline" id="radarTimeline"><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="status" id="status">Caricamento dati MeteoHub…</div>
@@ -94,41 +94,94 @@ const dark=L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/res
 const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
-const RADAR_WMS='https://radar-geowebcache.protezionecivile.it/service/wms';
-const RADAR_WMTS='https://radar-geowebcache.protezionecivile.it/service/wmts';
-function radarWmtsUrl(layerName,time=null){
-  let u=RADAR_WMTS+'?service=WMTS&request=GetTile&version=1.0.0&layer='+encodeURIComponent(layerName)+'&style=&tilematrixset=EPSG%3A900913&format=image%2Fpng&TileMatrix=EPSG%3A900913%3A{z}&TileCol={x}&TileRow={y}';
-  if(time)u+='&time='+encodeURIComponent(time);
-  return u
-}
-const radarLayer=L.tileLayer(radarWmtsUrl('radar:sri'),{
-  pane:'weather',
-  opacity:.88,
-  minNativeZoom:9,
-  maxNativeZoom:18,
-  maxZoom:18,
-  updateWhenZooming:true,
-  updateWhenIdle:false,
-  keepBuffer:4,
-  attribution:'© Radar-DPC · Dipartimento della Protezione Civile'
-});
-const cumLayer=L.tileLayer(radarWmtsUrl('radar:srt1'),{
-  pane:'weather',
-  opacity:.84,
-  minNativeZoom:7,
-  maxNativeZoom:18,
-  maxZoom:18,
-  updateWhenZooming:true,
-  keepBuffer:4,
-  attribution:'© Radar-DPC · Dipartimento della Protezione Civile'
-});
-const CUM_PRODUCTS={
-  cum1:{label:'1 h',api:'SRT1',layer:'radar:srt1'},
-  cum3:{label:'3 h',api:'CUM3',layer:'radar:srt3'},
-  cum6:{label:'6 h',api:'CUM6',layer:'radar:srt6'},
-  cum12:{label:'12 h',api:'CUM12',layer:'radar:srt12'},
-  cum24:{label:'24 h',api:'CUM24',layer:'radar:srt24'}
+const RADAR_API='https://radar-api.protezionecivile.it';
+const RADAR_V2_TILES='https://s3-prod-dpc-radar-webp-cache.s3.eu-south-1.amazonaws.com';
+const DPC_PRODUCTS={
+  SRI:{path:'SRI',file:'sri',min:0,max:100,palette:'sri'},
+  SRT1:{path:'SRT1',file:'srt1',min:0,max:200,palette:'acc'},
+  CUM3:{path:'CUM3',file:'cum3',min:0,max:200,palette:'acc'},
+  CUM6:{path:'CUM6',file:'cum6',min:0,max:200,palette:'acc'},
+  CUM12:{path:'CUM12',file:'cum12',min:0,max:200,palette:'acc'},
+  CUM24:{path:'CUM24',file:'cum24',min:0,max:200,palette:'acc'}
 };
+const CUM_PRODUCTS={
+  cum1:{label:'1 h',api:'SRT1'},
+  cum3:{label:'3 h',api:'CUM3'},
+  cum6:{label:'6 h',api:'CUM6'},
+  cum12:{label:'12 h',api:'CUM12'},
+  cum24:{label:'24 h',api:'CUM24'}
+};
+function dpcTileUrl(productKey,time,z,x,y){
+  const p=DPC_PRODUCTS[productKey],d=new Date(time);
+  const yy=d.getUTCFullYear(),mo=String(d.getUTCMonth()+1).padStart(2,'0'),da=String(d.getUTCDate()).padStart(2,'0');
+  const hh=String(d.getUTCHours()).padStart(2,'0'),mi=String(d.getUTCMinutes()).padStart(2,'0');
+  return RADAR_V2_TILES+'/'+p.path+'/'+yy+'/'+mo+'/'+da+'/'+hh+mi+'/'+z+'/'+x+'/'+y+'/'+p.file+'.webp'
+}
+function clamp01(v){return Math.max(0,Math.min(1,v))}
+function mix1(a,b,t){return a+(b-a)*t}
+function smooth01(a,b,v){const t=clamp01((v-a)/Math.max(1e-9,b-a));return t*t*(3-2*t)}
+function mixRgb(a,b,t){return a.map((v,i)=>Math.round(mix1(v,b[i],t)))}
+function colorStops(value,stops){
+  if(value<=stops[0][0])return stops[0].slice(1);
+  for(let i=0;i<stops.length-1;i++){
+    if(value<=stops[i+1][0]){
+      const t=smooth01(stops[i][0],stops[i+1][0],value);
+      return [...mixRgb(stops[i][1],stops[i+1][1],t),Math.round(mix1(stops[i][2],stops[i+1][2],t))]
+    }
+  }
+  return stops.at(-1).slice(1)
+}
+function dpcColor(productKey,value){
+  if(productKey==='SRI'){
+    return colorStops(value,[
+      [0,[190,225,125],0],[0.1,[0,205,250],85],[2,[0,205,250],150],
+      [10,[0,210,70],185],[25,[245,235,20],195],[40,[250,140,35],220],
+      [70,[245,25,45],230],[100,[155,0,205],235]
+    ])
+  }
+  return colorStops(value,[
+    [0,[255,255,255],0],[0.1,[0,220,250],95],[10,[0,210,70],180],
+    [20,[245,235,20],190],[40,[250,140,35],220],[60,[245,25,45],230],
+    [100,[235,0,220],230],[200,[130,0,180],235]
+  ])
+}
+function dpcSourceTile(coords){
+  const maxNative=7;
+  if(coords.z<=maxNative)return {z:coords.z,x:coords.x,y:coords.y,scale:1,ox:0,oy:0};
+  const scale=2**(coords.z-maxNative);
+  return {z:maxNative,x:Math.floor(coords.x/scale),y:Math.floor(coords.y/scale),scale,ox:coords.x%scale,oy:coords.y%scale}
+}
+const DpcV2Layer=L.GridLayer.extend({
+  setProductFrame:function(productKey,time){this._productKey=productKey;this._frame=time?new Date(time):null;this.redraw();return this},
+  createTile:function(coords,done){
+    const canvas=L.DomUtil.create('canvas','leaflet-tile');canvas.width=256;canvas.height=256;
+    const productKey=this._productKey,frame=this._frame,p=DPC_PRODUCTS[productKey];
+    if(!p||!frame){setTimeout(()=>done(null,canvas),0);return canvas}
+    const src=dpcSourceTile(coords),img=new Image();img.crossOrigin='anonymous';
+    img.onload=()=>{
+      try{
+        const off=document.createElement('canvas');off.width=256;off.height=256;
+        const ox=off.getContext('2d',{willReadFrequently:true});ox.drawImage(img,0,0,256,256);
+        const data=ox.getImageData(0,0,256,256),px=data.data;
+        for(let i=0;i<px.length;i+=4){
+          if(px[i+3]<2){px[i+3]=0;continue}
+          const value=p.min+(px[i]/255)*(p.max-p.min),col=dpcColor(productKey,value);
+          px[i]=col[0];px[i+1]=col[1];px[i+2]=col[2];px[i+3]=Math.min(px[i+3],col[3])
+        }
+        ox.putImageData(data,0,0);
+        const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
+        const crop=256/src.scale,sx=src.ox*crop,sy=src.oy*crop;
+        ctx.drawImage(off,sx,sy,crop,crop,0,0,256,256)
+      }catch(e){}
+      done(null,canvas)
+    };
+    img.onerror=()=>done(null,canvas);
+    img.src=dpcTileUrl(productKey,frame,src.z,src.x,src.y);
+    return canvas
+  }
+});
+const radarLayer=new DpcV2Layer({pane:'weather',opacity:.92,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
+const cumLayer=new DpcV2Layer({pane:'weather',opacity:.88,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
 let base=sat,landOverlay=null;sat.addTo(map);satShade.addTo(map);
 fetch('data/sardegna.geojson').then(r=>r.json()).then(g=>{landOverlay=L.geoJSON(g,{pane:'land',interactive:false,style:{color:'#4d7189',weight:1.05,opacity:.8,fillColor:'#1a3a4f',fillOpacity:.42}});if(base===dark)landOverlay.addTo(map)}).catch(()=>{});
@@ -244,8 +297,7 @@ function setRadarFrame(i){
   radarIndex=Math.max(0,Math.min(radarFrames.length-1,i));
   radarRange.value=String(radarIndex);
   const d=radarFrames[radarIndex];
-  radarLayer.setUrl(radarWmtsUrl('radar:sri',iso5(d)),false);
-  radarLayer.redraw();
+  radarLayer.setProductFrame('SRI',d);
   radarTime.textContent=radarLabel(d)
 }
 async function loadRadarTimeline(){
@@ -286,7 +338,7 @@ document.getElementById('radarNext').onclick=()=>{stopRadarAnimation();setRadarF
 radarPlay.onclick=()=>radarTimer?stopRadarAnimation():startRadarAnimation();
 radarRange.oninput=()=>{stopRadarAnimation();setRadarFrame(Number(radarRange.value))};
 async function latestProductTime(apiType){
-  const api='https://radar-api.protezionecivile.it/findLastProductByType?type='+encodeURIComponent(apiType)+'&origin='+encodeURIComponent(window.location.origin);
+  const api=RADAR_API+'/findLastProductByType?type='+encodeURIComponent(apiType)+'&lang=it';
   try{
     const r=await fetch(api,{cache:'no-store'});
     if(!r.ok)throw new Error('API '+r.status);
@@ -308,9 +360,8 @@ async function setCumState(code){
     if(radarOn)setRadarState(false);
     cumStamp.textContent='Ricerca ultimo '+code.toUpperCase()+'…';
     const t=await latestProductTime(product.api);
-    const time=t?iso5(t):null;
-    cumLayer.setUrl(radarWmtsUrl(product.layer,time),false);
-    cumLayer.redraw();
+    if(!t){cumStamp.textContent=code.toUpperCase()+' · dato non disponibile';return}
+    cumLayer.setProductFrame(product.api,t);
     if(!map.hasLayer(cumLayer))cumLayer.addTo(map);
     cumBtn.classList.add('active');cumBtn.lastElementChild.textContent=product.label;
     if(t){
