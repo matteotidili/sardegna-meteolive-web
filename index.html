@@ -84,7 +84,7 @@ const P={
  rh:{n:'Umidità relativa',u:'%',fmt:v=>v.toFixed(0)+'%',labs:['0','25','50','75','100'],st:[[0,[180,150,90]],[30,[215,200,110]],[50,[115,190,170]],[70,[65,150,205]],[90,[65,90,185]],[100,[80,55,155]]]}
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
 let stations=[],cur='temp',marks=[],netFilter='all',query='';
-const map=L.map('map',{minZoom:7,maxZoom:15}).setView([40.02,9.02],8);map.setMaxBounds(L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25));
+const map=L.map('map',{minZoom:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true}).setView([40.02,9.02],8);map.setMaxBounds(L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25));
 map.createPane('land');map.getPane('land').style.zIndex=220;map.getPane('land').style.pointerEvents='none';
 map.createPane('shade');map.getPane('shade').style.zIndex=230;map.getPane('shade').style.mixBlendMode='screen';map.getPane('shade').style.opacity='.33';
 map.createPane('satshade');map.getPane('satshade').style.zIndex=235;map.getPane('satshade').style.mixBlendMode='multiply';map.getPane('satshade').style.pointerEvents='none';
@@ -194,6 +194,25 @@ function toggleMobilePanel(panel){if(window.innerWidth>800)return;const wasOpen=
 mobileParams.onclick=()=>toggleMobilePanel(leftPanel);mobileLayers.onclick=()=>toggleMobilePanel(rightPanel);
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeMobilePanels);
 map.on('click',closeMobilePanels);
+
+/* Doppio tap su smartphone/tablet: zoom centrato sul punto toccato.
+   Leaflet gestisce già il doppio clic desktop; questo rende il gesto
+   affidabile anche sui browser mobili che non emettono dblclick. */
+let lastTouchTap=0,lastTouchPoint=null;
+map.getContainer().addEventListener('pointerup',e=>{
+  if(e.pointerType!=='touch'||e.isPrimary===false)return;
+  if(e.target.closest('.leaflet-marker-icon,.leaflet-control,.panel,.styles,.timeline,.mobile-tools'))return;
+  const now=Date.now(),p=L.point(e.clientX,e.clientY);
+  if(lastTouchPoint&&now-lastTouchTap<330&&p.distanceTo(lastTouchPoint)<36){
+    const rect=map.getContainer().getBoundingClientRect();
+    const cp=L.point(e.clientX-rect.left,e.clientY-rect.top);
+    const ll=map.containerPointToLatLng(cp);
+    map.setView(ll,Math.min(map.getZoom()+1,map.getMaxZoom()),{animate:true});
+    lastTouchTap=0;lastTouchPoint=null;
+  }else{
+    lastTouchTap=now;lastTouchPoint=p;
+  }
+},{passive:true});
 window.addEventListener('resize',()=>{if(window.innerWidth>800){leftPanel.classList.remove('open');rightPanel.classList.remove('open');syncMobileButtons()}});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
 function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
