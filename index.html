@@ -97,20 +97,22 @@ const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ma
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
 const SAT_META='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/satellite_eumetsat.json';
-const satMetLayer=L.tileLayer.wms('https://view.eumetsat.int/geoserver/wms',{
-  pane:'satmet',
-  layers:'mtg_fd:rgb_geocolour',
-  styles:'',
-  format:'image/png',
-  transparent:true,
-  version:'1.1.1',
-  opacity:.78,
-  maxZoom:18,
-  updateWhenZooming:true,
-  keepBuffer:3,
-  attribution:'© EUMETSAT / NASA'
-});
-let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null;
+const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
+const SAT_BOUNDS=L.latLngBounds([[38.0,7.0],[42.0,11.0]]);
+let satMetLayer=null;
+let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[];
+function satImageUrl(time){
+  const sw=L.CRS.EPSG3857.project(SAT_BOUNDS.getSouthWest()),ne=L.CRS.EPSG3857.project(SAT_BOUNDS.getNorthEast());
+  const width=720,height=Math.round(width*Math.abs(ne.y-sw.y)/Math.abs(ne.x-sw.x));
+  const q=new URLSearchParams({
+    service:'WMS',request:'GetMap',version:'1.1.1',
+    layers:'mtg_fd:rgb_geocolour',styles:'',format:'image/png',
+    transparent:'true',srs:'EPSG:3857',
+    bbox:[sw.x,sw.y,ne.x,ne.y].join(','),
+    width:String(width),height:String(height),time:new Date(time).toISOString()
+  });
+  return SAT_WMS+'?'+q.toString()
+}
 const RADAR_API='https://radar-api.protezionecivile.it';
 const RADAR_V2_TILES='https://s3-prod-dpc-radar-webp-cache.s3.eu-south-1.amazonaws.com';
 const DPC_PRODUCTS={
@@ -315,24 +317,58 @@ function buildSatFrames(latest){
   for(let i=18;i>=0;i--)frames.push(new Date(end.getTime()-i*10*60000));
   satFrames=frames;satRange.max=String(frames.length-1);satIndex=frames.length-1;satRange.value=String(satIndex);satLatestTime=end
 }
-function setSatFrame(i){
+function showSatFrame(i){
   if(!satFrames.length)return;
   satIndex=Math.max(0,Math.min(satFrames.length-1,i));satRange.value=String(satIndex);
-  const d=satFrames[satIndex];
-  satMetLayer.setParams({time:d.toISOString(),_refresh:Math.floor(Date.now()/600000)},false);
-  satMetLayer.redraw();
+  const d=satFrames[satIndex],url=satImageUrl(d);
+  if(!satMetLayer){
+    satMetLayer=L.imageOverlay(url,SAT_BOUNDS,{pane:'satmet',opacity:.82,interactive:false,attribution:'© EUMETSAT / NASA'}).addTo(map)
+  }else{
+    satMetLayer.setUrl(url);
+    if(satMetOn&&!map.hasLayer(satMetLayer))satMetLayer.addTo(map)
+  }
   satTime.textContent=satLabel(d);
   satMetInfo.innerHTML='MTG GeoColour · '+satLabel(d)+'<br>© EUMETSAT / NASA'
+}
+async function preloadSatFrames(){
+  if(!satFrames.length)return;
+  if(satPreloadPromise)return satPreloadPromise;
+  satPreloadedImages=[];
+  satPreloadPromise=(async()=>{
+    let done=0;
+    satMetInfo.innerHTML='MTG GeoColour · precaricamento 0/'+satFrames.length+'<br>© EUMETSAT / NASA';
+    const queue=satFrames.map((d,i)=>({d,i}));
+    const worker=async()=>{
+      while(queue.length){
+        const {d,i}=queue.shift();
+        const img=new Image();
+        img.crossOrigin='anonymous';
+        await new Promise(resolve=>{
+          img.onload=resolve;img.onerror=resolve;img.src=satImageUrl(d)
+        });
+        try{if(img.complete&&img.naturalWidth)await img.decode()}catch(e){}
+        satPreloadedImages[i]=img;
+        done++;
+        if(satMetOn)satMetInfo.innerHTML='MTG GeoColour · precaricamento '+done+'/'+satFrames.length+'<br>© EUMETSAT / NASA'
+      }
+    };
+    await Promise.all([worker(),worker(),worker()]);
+    if(satMetOn&&satFrames.length)showSatFrame(satIndex);
+  })().finally(()=>{satPreloadPromise=null});
+  return satPreloadPromise
 }
 function stopSatAnimation(){
   if(satTimer){clearInterval(satTimer);satTimer=null}
   satPlay.textContent='▶';satPlay.classList.remove('active');satPlay.title='Riproduci'
 }
-function startSatAnimation(){
+async function startSatAnimation(){
   if(!satFrames.length)return;
-  if(satIndex>=satFrames.length-1)setSatFrame(0);
-  satTimer=setInterval(()=>setSatFrame(satIndex>=satFrames.length-1?0:satIndex+1),1400);
-  satPlay.textContent='Ⅱ';satPlay.classList.add('active');satPlay.title='Pausa'
+  satPlay.textContent='…';satPlay.classList.add('active');satPlay.title='Precaricamento';
+  await preloadSatFrames();
+  if(!satMetOn)return;
+  if(satIndex>=satFrames.length-1)showSatFrame(0);
+  satTimer=setInterval(()=>showSatFrame(satIndex>=satFrames.length-1?0:satIndex+1),700);
+  satPlay.textContent='Ⅱ';satPlay.title='Pausa'
 }
 async function loadSatTimeline(forceLatest=true){
   try{
@@ -343,9 +379,12 @@ async function loadSatTimeline(forceLatest=true){
     const wasLatest=!satFrames.length||satIndex===satFrames.length-1;
     const newLatest=new Date(d.time);
     if(!satLatestTime||newLatest.getTime()!==satLatestTime.getTime()){
+      stopSatAnimation();
       buildSatFrames(newLatest);
-      if(forceLatest||wasLatest)setSatFrame(satFrames.length-1)
-    }else if(forceLatest&&satFrames.length)setSatFrame(satFrames.length-1)
+      satPreloadedImages=[];satPreloadPromise=null;
+      if(forceLatest||wasLatest)showSatFrame(satFrames.length-1);
+      preloadSatFrames()
+    }else if(forceLatest&&satFrames.length)showSatFrame(satFrames.length-1)
   }catch(e){
     satMetInfo.innerHTML='MTG GeoColour · aggiornamento non disponibile<br>© EUMETSAT / NASA'
   }
@@ -353,11 +392,10 @@ async function loadSatTimeline(forceLatest=true){
 function setSatMet(on){
   satMetOn=on;
   if(on){
-    if(!map.hasLayer(satMetLayer))satMetLayer.addTo(map);
     satTimeline.classList.add('on');loadSatTimeline(true)
   }else{
     stopSatAnimation();
-    if(map.hasLayer(satMetLayer))map.removeLayer(satMetLayer);
+    if(satMetLayer&&map.hasLayer(satMetLayer))map.removeLayer(satMetLayer);
     satTimeline.classList.remove('on')
   }
   syncTimelineStack();
@@ -367,10 +405,10 @@ function setSatMet(on){
   if(window.innerWidth<=800)closeMobilePanels()
 }
 satMetBtn.onclick=()=>setSatMet(!satMetOn);
-document.getElementById('satPrev').onclick=()=>{stopSatAnimation();setSatFrame(satIndex-1)};
-document.getElementById('satNext').onclick=()=>{stopSatAnimation();setSatFrame(satIndex+1)};
+document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1)};
+document.getElementById('satNext').onclick=()=>{stopSatAnimation();showSatFrame(satIndex+1)};
 satPlay.onclick=()=>satTimer?stopSatAnimation():startSatAnimation();
-satRange.oninput=()=>{stopSatAnimation();setSatFrame(Number(satRange.value))};
+satRange.oninput=()=>{stopSatAnimation();showSatFrame(Number(satRange.value))};
 setInterval(()=>{if(satMetOn&&!satTimer&&satIndex===satFrames.length-1)loadSatTimeline(false)},10*60*1000);
 const stationsBtn=document.getElementById('stationsBtn');
 stationsBtn.onclick=()=>{
