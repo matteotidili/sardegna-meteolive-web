@@ -374,7 +374,7 @@ async function loadBoundaries(){
   }
 }
 function syncBoundaries(){
-  const show=satMetOn&&boundariesPreference;
+  const show=boundariesPreference;
   if(show){
     if(!boundariesLoaded){loadBoundaries();return}
     if(!map.hasLayer(boundariesLayer))boundariesLayer.addTo(map)
@@ -387,6 +387,7 @@ boundariesBtn.onclick=()=>{
   syncBoundaries();
   if(window.innerWidth<=800)closeMobilePanels()
 };
+syncBoundaries();
 const satMetBtn=document.getElementById('satMetBtn'),satMetInfo=document.getElementById('satMetInfo');
 const satTimeline=document.getElementById('satTimeline'),satRange=document.getElementById('satRange'),satTime=document.getElementById('satTime'),satPlay=document.getElementById('satPlay');
 function syncTimelineStack(){satTimeline.classList.toggle('stacked',satMetOn&&radarOn)}
