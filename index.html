@@ -67,7 +67,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<br>cache WebP · animazione ultime 3 ore · © Radar-DPC</div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1 · 1 h</button><button class="cumopt" data-cum="cum3">CUM3 · 3 h</button><button class="cumopt" data-cum="cum6">CUM6 · 6 h</button><button class="cumopt" data-cum="cum12">CUM12 · 12 h</button><button class="cumopt" data-cum="cum24">CUM24 · 24 h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen dinamico · ~1 km</div><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<br>cache WebP · animazione ultime 3 ore · © Radar-DPC</div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1 · 1 h</button><button class="cumopt" data-cum="cum3">CUM3 · 3 h</button><button class="cumopt" data-cum="cum6">CUM6 · 6 h</button><button class="cumopt" data-cum="cum12">CUM12 · 12 h</button><button class="cumopt" data-cum="cum24">CUM24 · 24 h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen · alta risoluzione WMS</div><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
 <div class="styles"><button class="base" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
 <div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="timeline" id="satTimeline"><div class="time-kind">SAT</div><button class="timebtn" id="satPrev" title="Frame precedente">‹</button><button class="timebtn" id="satPlay" title="Riproduci">▶</button><button class="timebtn" id="satNext" title="Frame successivo">›</button><input id="satRange" type="range" min="0" max="18" value="18" step="1" aria-label="Sequenza temporale satellite"><div class="time-label" id="satTime">ULTIMO</div></div>
@@ -97,7 +97,7 @@ const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ma
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
 const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
-let satMetLayer=null,satViewBounds=null,satViewGeneration=0;
+let satMetLayer=null,satHdLayer=null,satViewBounds=null,satViewGeneration=0,satHdFrameIndex=-1;
 let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[],satHdTimer=null;
 function currentSatBounds(){return map.getBounds().pad(.42)}
 function satImageUrl(time,width=1800,bounds=satViewBounds||currentSatBounds()){
@@ -338,7 +338,10 @@ function buildSatFrames(latest){
 function showSatFrame(i,quality='preview'){
   if(!satFrames.length)return;
   satIndex=Math.max(0,Math.min(satFrames.length-1,i));satRange.value=String(satIndex);
-  const d=satFrames[satIndex],width=quality==='high'?1800:640;
+  if(satHdLayer&&map.hasLayer(satHdLayer))map.removeLayer(satHdLayer);
+  satHdFrameIndex=-1;
+  if(satMetLayer)satMetLayer.setOpacity(.82);
+  const d=satFrames[satIndex],width=640;
   const cached=quality!=='high'&&satPreloadedImages[satIndex]&&satPreloadedImages[satIndex].naturalWidth?satPreloadedImages[satIndex].src:null;
   const url=cached||satImageUrl(d,width);
   const bounds=satViewBounds||currentSatBounds();
@@ -350,24 +353,48 @@ function showSatFrame(i,quality='preview'){
     if(satMetOn&&!map.hasLayer(satMetLayer))satMetLayer.addTo(map)
   }
   satTime.textContent=satLabel(d);
-  satMetInfo.innerHTML='MTG GeoColour · '+satLabel(d)+(quality==='high'?' · HD':'')+'<br>© EUMETSAT / NASA'
+  satMetInfo.innerHTML='MTG GeoColour · '+satLabel(d)+' · anteprima<br>© EUMETSAT / NASA'
 }
 function scheduleSatHd(i,delay=450){
   if(satHdTimer)clearTimeout(satHdTimer);
   satHdTimer=setTimeout(()=>{satHdTimer=null;upgradeSatFrame(i)},delay)
 }
 async function upgradeSatFrame(i){
-  if(!satFrames.length)return;
+  if(!satFrames.length||!satMetOn||satTimer)return;
   const idx=Math.max(0,Math.min(satFrames.length-1,i)),d=satFrames[idx];
-  const generation=satViewGeneration,bounds=satViewBounds||currentSatBounds(),url=satImageUrl(d,1800,bounds);
-  const img=new Image();img.crossOrigin='anonymous';
-  await new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;img.src=url});
-  try{if(img.complete&&img.naturalWidth)await img.decode()}catch(e){}
-  if(satMetOn&&!satTimer&&satIndex===idx&&img.naturalWidth&&generation===satViewGeneration){
-    satMetLayer.setBounds(bounds);
-    satMetLayer.setUrl(url);
-    satMetInfo.innerHTML='MTG GeoColour · '+satLabel(d)+' · HD<br>© EUMETSAT / NASA'
+  satHdFrameIndex=idx;
+  if(!satHdLayer){
+    satHdLayer=L.tileLayer.wms(SAT_WMS,{
+      pane:'satmet',
+      layers:'mtg_fd:rgb_geocolour',
+      styles:'',
+      format:'image/png',
+      transparent:true,
+      version:'1.1.1',
+      time:d.toISOString(),
+      opacity:.88,
+      maxZoom:18,
+      tileSize:256,
+      detectRetina:true,
+      updateWhenZooming:false,
+      updateWhenIdle:true,
+      keepBuffer:3,
+      crossOrigin:true,
+      attribution:'© EUMETSAT / NASA'
+    });
+    satHdLayer.on('load',()=>{
+      if(satMetOn&&!satTimer&&satHdFrameIndex===satIndex){
+        if(satMetLayer) satMetLayer.setOpacity(0);
+        satMetInfo.innerHTML='MTG GeoColour · '+satLabel(satFrames[satIndex])+' · alta risoluzione<br>© EUMETSAT / NASA'
+      }
+    })
+  }else{
+    satHdLayer.setParams({time:d.toISOString()},false);
+    satHdLayer.setOpacity(.88);
+    satHdLayer.redraw()
   }
+  if(!map.hasLayer(satHdLayer))satHdLayer.addTo(map);
+  satMetInfo.innerHTML='MTG GeoColour · '+satLabel(d)+' · caricamento alta risoluzione…<br>© EUMETSAT / NASA'
 }
 async function preloadSatFrames(){
   if(!satFrames.length)return;
@@ -404,6 +431,9 @@ function stopSatAnimation(){
 }
 async function startSatAnimation(){
   if(!satFrames.length)return;
+  if(satHdLayer&&map.hasLayer(satHdLayer))map.removeLayer(satHdLayer);
+  satHdFrameIndex=-1;
+  if(satMetLayer)satMetLayer.setOpacity(.82);
   satPlay.textContent='…';satPlay.classList.add('active');satPlay.title='Precaricamento';
   await preloadSatFrames();
   if(!satMetOn)return;
@@ -429,6 +459,7 @@ async function loadSatTimeline(forceLatest=true){
 }
 function refreshSatViewport(){
   if(!satMetOn||!satFrames.length)return;
+  if(satHdLayer&&map.hasLayer(satHdLayer)&&!satTimer)return;
   satViewGeneration++;
   satViewBounds=currentSatBounds();
   satPreloadedImages=[];
@@ -451,6 +482,8 @@ function setSatMet(on){
   }else{
     stopSatAnimation();
     if(satHdTimer){clearTimeout(satHdTimer);satHdTimer=null}
+    if(satHdLayer&&map.hasLayer(satHdLayer))map.removeLayer(satHdLayer);
+    satHdFrameIndex=-1;
     if(satMetLayer&&map.hasLayer(satMetLayer))map.removeLayer(satMetLayer);
     satTimeline.classList.remove('on')
   }
