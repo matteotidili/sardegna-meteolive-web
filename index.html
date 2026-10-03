@@ -98,12 +98,12 @@ const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Worl
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
 const SAT_META='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/satellite_eumetsat.json';
 const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
-const SAT_BOUNDS=L.latLngBounds([[38.0,7.0],[42.0,11.0]]);
+const SAT_BOUNDS=L.latLngBounds([[34.5,1.0],[46.5,17.0]]);
 let satMetLayer=null;
 let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[];
 function satImageUrl(time){
   const sw=L.CRS.EPSG3857.project(SAT_BOUNDS.getSouthWest()),ne=L.CRS.EPSG3857.project(SAT_BOUNDS.getNorthEast());
-  const width=720,height=Math.round(width*Math.abs(ne.y-sw.y)/Math.abs(ne.x-sw.x));
+  const width=1100,height=Math.round(width*Math.abs(ne.y-sw.y)/Math.abs(ne.x-sw.x));
   const q=new URLSearchParams({
     service:'WMS',request:'GetMap',version:'1.1.1',
     layers:'mtg_fd:rgb_geocolour',styles:'',format:'image/png',
