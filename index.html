@@ -100,7 +100,7 @@ const SAT_META='https://raw.githubusercontent.com/matteotidili/sardegna-meteoliv
 const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
 const SAT_BOUNDS=L.latLngBounds([[34.5,1.0],[46.5,17.0]]);
 let satMetLayer=null;
-let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[];
+let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[],satHdTimer=null;
 function satImageUrl(time,width=1800){
   const sw=L.CRS.EPSG3857.project(SAT_BOUNDS.getSouthWest()),ne=L.CRS.EPSG3857.project(SAT_BOUNDS.getNorthEast());
   const height=Math.round(width*Math.abs(ne.y-sw.y)/Math.abs(ne.x-sw.x));
@@ -320,7 +320,9 @@ function buildSatFrames(latest){
 function showSatFrame(i,quality='preview'){
   if(!satFrames.length)return;
   satIndex=Math.max(0,Math.min(satFrames.length-1,i));satRange.value=String(satIndex);
-  const d=satFrames[satIndex],width=quality==='high'?1800:900,url=satImageUrl(d,width);
+  const d=satFrames[satIndex],width=quality==='high'?1800:640;
+  const cached=quality!=='high'&&satPreloadedImages[satIndex]&&satPreloadedImages[satIndex].naturalWidth?satPreloadedImages[satIndex].src:null;
+  const url=cached||satImageUrl(d,width);
   if(!satMetLayer){
     satMetLayer=L.imageOverlay(url,SAT_BOUNDS,{pane:'satmet',opacity:.82,interactive:false,attribution:'© EUMETSAT / NASA'}).addTo(map)
   }else{
@@ -329,6 +331,10 @@ function showSatFrame(i,quality='preview'){
   }
   satTime.textContent=satLabel(d);
   satMetInfo.innerHTML='MTG GeoColour · '+satLabel(d)+(quality==='high'?' · HD':'')+'<br>© EUMETSAT / NASA'
+}
+function scheduleSatHd(i,delay=450){
+  if(satHdTimer)clearTimeout(satHdTimer);
+  satHdTimer=setTimeout(()=>{satHdTimer=null;upgradeSatFrame(i)},delay)
 }
 async function upgradeSatFrame(i){
   if(!satFrames.length)return;
@@ -355,7 +361,7 @@ async function preloadSatFrames(){
         const img=new Image();
         img.crossOrigin='anonymous';
         await new Promise(resolve=>{
-          img.onload=resolve;img.onerror=resolve;img.src=satImageUrl(d,900)
+          img.onload=resolve;img.onerror=resolve;img.src=satImageUrl(d,640)
         });
         try{if(img.complete&&img.naturalWidth)await img.decode()}catch(e){}
         satPreloadedImages[i]=img;
@@ -363,15 +369,14 @@ async function preloadSatFrames(){
         if(satMetOn)satMetInfo.innerHTML='MTG GeoColour · precaricamento '+done+'/'+satFrames.length+'<br>© EUMETSAT / NASA'
       }
     };
-    await Promise.all([worker(),worker()]);
+    await Promise.all([worker(),worker(),worker()]);
     if(satMetOn&&satFrames.length&&!satTimer)upgradeSatFrame(satIndex);
   })().finally(()=>{satPreloadPromise=null});
   return satPreloadPromise
 }
 function stopSatAnimation(){
   if(satTimer){clearInterval(satTimer);satTimer=null}
-  satPlay.textContent='▶';satPlay.classList.remove('active');satPlay.title='Riproduci';
-  if(satMetOn&&satFrames.length)upgradeSatFrame(satIndex)
+  satPlay.textContent='▶';satPlay.classList.remove('active');satPlay.title='Riproduci'
 }
 async function startSatAnimation(){
   if(!satFrames.length)return;
@@ -407,6 +412,7 @@ function setSatMet(on){
     satTimeline.classList.add('on');loadSatTimeline(true)
   }else{
     stopSatAnimation();
+    if(satHdTimer){clearTimeout(satHdTimer);satHdTimer=null}
     if(satMetLayer&&map.hasLayer(satMetLayer))map.removeLayer(satMetLayer);
     satTimeline.classList.remove('on')
   }
@@ -417,10 +423,11 @@ function setSatMet(on){
   if(window.innerWidth<=800)closeMobilePanels()
 }
 satMetBtn.onclick=()=>setSatMet(!satMetOn);
-document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1,'preview');upgradeSatFrame(satIndex)};
-document.getElementById('satNext').onclick=()=>{stopSatAnimation();showSatFrame(satIndex+1,'preview');upgradeSatFrame(satIndex)};
+document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1,'preview');scheduleSatHd(satIndex,250)};
+document.getElementById('satNext').onclick=()=>{stopSatAnimation();showSatFrame(satIndex+1,'preview');scheduleSatHd(satIndex,250)};
 satPlay.onclick=()=>satTimer?stopSatAnimation():startSatAnimation();
-satRange.oninput=()=>{stopSatAnimation();showSatFrame(Number(satRange.value),'preview');upgradeSatFrame(satIndex)};
+satRange.oninput=()=>{stopSatAnimation();showSatFrame(Number(satRange.value),'preview');scheduleSatHd(satIndex,550)};
+satRange.onchange=()=>scheduleSatHd(satIndex,120);
 setInterval(()=>{if(satMetOn&&!satTimer&&satIndex===satFrames.length-1)loadSatTimeline(false)},10*60*1000);
 const stationsBtn=document.getElementById('stationsBtn');
 stationsBtn.onclick=()=>{
