@@ -67,7 +67,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · intensità di precipitazione al suolo<br>animazione ultime 3 ore · passo 5 min · © Radar-DPC</div><button class="btn" id="cumBtn">Cumulate ultime ore <span>OFF</span></button><div class="layer-note" id="cumInfo">Finestre mobili DPC · non cumulata da mezzanotte<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="srt1">Ult. 1 h</button><button class="cumopt" data-cum="srt3">Ult. 3 h</button><button class="cumopt" data-cum="srt6">Ult. 6 h</button><button class="cumopt" data-cum="srt12">Ult. 12 h</button><button class="cumopt" data-cum="srt24">Ult. 24 h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn disabled">Satellite meteo <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · intensità di precipitazione al suolo<br>animazione ultime 3 ore · passo 5 min · © Radar-DPC</div><button class="btn" id="cumBtn">Cumulate ultime ore <span>OFF</span></button><div class="layer-note" id="cumInfo">Finestre mobili DPC · non cumulata da mezzanotte<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="srt1">Ult. 1 h</button><button class="cumopt" data-cum="srt3">Ult. 3 h</button><button class="cumopt" data-cum="srt6">Ult. 6 h</button><button class="cumopt" data-cum="srt12">Ult. 12 h</button><button class="cumopt" data-cum="srt24">Ult. 24 h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn disabled">Satellite meteo <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
 <div class="styles"><button class="base" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
 <div class="timeline" id="radarTimeline"><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="status" id="status">Caricamento dati MeteoHub…</div>
@@ -104,8 +104,11 @@ function radarWmtsUrl(layerName,time=null){
 const radarLayer=L.tileLayer(radarWmtsUrl('radar:sri'),{
   pane:'weather',
   opacity:.88,
+  minNativeZoom:9,
+  maxNativeZoom:18,
   maxZoom:18,
   updateWhenZooming:true,
+  updateWhenIdle:false,
   keepBuffer:4,
   attribution:'© Radar-DPC · Dipartimento della Protezione Civile'
 });
@@ -120,7 +123,7 @@ const cumLayer=L.tileLayer.wms(RADAR_WMS,{
   opacity:.78,
   attribution:'© Radar-DPC · Dipartimento della Protezione Civile'
 });
-let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null;
+let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
 let base=sat,landOverlay=null;sat.addTo(map);satShade.addTo(map);
 fetch('data/sardegna.geojson').then(r=>r.json()).then(g=>{landOverlay=L.geoJSON(g,{pane:'land',interactive:false,style:{color:'#4d7189',weight:1.05,opacity:.8,fillColor:'#1a3a4f',fillOpacity:.42}});if(base===dark)landOverlay.addTo(map)}).catch(()=>{});
 const layer=L.layerGroup().addTo(map);
@@ -208,6 +211,15 @@ document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<b
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);if(base===sat){if(!map.hasLayer(satShade))satShade.addTo(map)}else if(map.hasLayer(satShade))map.removeLayer(satShade);if(landOverlay){if(base===dark&&!map.hasLayer(landOverlay))landOverlay.addTo(map);if(base!==dark&&map.hasLayer(landOverlay))map.removeLayer(landOverlay)}document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
+const stationsBtn=document.getElementById('stationsBtn');
+stationsBtn.onclick=()=>{
+  stationsOn=!stationsOn;
+  if(stationsOn){if(!map.hasLayer(layer))layer.addTo(map)}else if(map.hasLayer(layer))map.removeLayer(layer);
+  stationsBtn.classList.toggle('active',stationsOn);
+  stationsBtn.lastElementChild.textContent=stationsOn?'ON':'OFF';
+  document.getElementById('status').style.display=stationsOn?'':'none';
+  if(window.innerWidth<=800)closeMobilePanels()
+};
 const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
 const radarTimeline=document.getElementById('radarTimeline'),radarRange=document.getElementById('radarRange'),radarTime=document.getElementById('radarTime'),radarPlay=document.getElementById('radarPlay');
 const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo'),cumStamp=document.getElementById('cumStamp');
@@ -227,6 +239,7 @@ function setRadarFrame(i){
   radarRange.value=String(radarIndex);
   const d=radarFrames[radarIndex];
   radarLayer.setUrl(radarWmtsUrl('radar:sri',iso5(d)),false);
+  radarLayer.redraw();
   radarTime.textContent=radarLabel(d)
 }
 async function loadRadarTimeline(){
