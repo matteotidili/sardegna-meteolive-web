@@ -91,16 +91,7 @@ const dark=L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/res
 const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
-const weatherSat=L.tileLayer.wms('https://view.eumetsat.int/geoserver/wms',{
-  pane:'weather',
-  layers:'mtg_fd:rgb_geocolour',
-  format:'image/png',
-  transparent:true,
-  version:'1.3.0',
-  opacity:.84,
-  attribution:'© EUMETSAT / NASA'
-});
-let weatherSatOn=false;
+let weatherSat=null,weatherSatOn=false,lastWeatherSatTime=null;
 let base=sat,landOverlay=null;sat.addTo(map);satShade.addTo(map);
 fetch('data/sardegna.geojson').then(r=>r.json()).then(g=>{landOverlay=L.geoJSON(g,{pane:'land',interactive:false,style:{color:'#4d7189',weight:1.05,opacity:.8,fillColor:'#1a3a4f',fillOpacity:.42}});if(base===dark)landOverlay.addTo(map)}).catch(()=>{});
 const layer=L.layerGroup().addTo(map);
@@ -189,19 +180,38 @@ document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);if(base===sat){if(!map.hasLayer(satShade))satShade.addTo(map)}else if(map.hasLayer(satShade))map.removeLayer(satShade);if(landOverlay){if(base===dark&&!map.hasLayer(landOverlay))landOverlay.addTo(map);if(base!==dark&&map.hasLayer(landOverlay))map.removeLayer(landOverlay)}document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
 const weatherSatBtn=document.getElementById('weatherSatBtn'),satInfo=document.getElementById('satInfo');
-function refreshWeatherSat(){
+async function refreshWeatherSat(){
   if(!weatherSatOn)return;
-  weatherSat.setParams({cacheBust:Math.floor(Date.now()/600000)});
+  try{
+    const r=await fetch(DATA+'satellite_eumetsat.json?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('metadata '+r.status);
+    const d=await r.json();
+    if(!d.image_url||!Array.isArray(d.bounds))throw new Error('metadata incompleti');
+    if(d.time!==lastWeatherSatTime){
+      const bust=d.image_url+(d.image_url.includes('?')?'&':'?')+'_='+Date.now();
+      const next=L.imageOverlay(bust,d.bounds,{pane:'weather',opacity:.84,interactive:false,attribution:d.attribution||'© EUMETSAT / NASA'});
+      next.once('load',()=>{
+        if(weatherSat&&map.hasLayer(weatherSat))map.removeLayer(weatherSat);
+        weatherSat=next;lastWeatherSatTime=d.time;
+        const t=new Date(d.time);
+        satInfo.innerHTML='MTG GeoColour · '+t.toLocaleString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})+'<br>© EUMETSAT / NASA';
+      });
+      next.once('error',()=>{satInfo.innerHTML='Satellite non disponibile<br>© EUMETSAT / NASA'});
+      next.addTo(map);
+    }
+  }catch(e){
+    satInfo.innerHTML='Aggiornamento satellite non disponibile<br>© EUMETSAT / NASA';
+  }
 }
 weatherSatBtn.onclick=()=>{
   weatherSatOn=!weatherSatOn;
-  if(weatherSatOn){weatherSat.addTo(map);refreshWeatherSat()}else if(map.hasLayer(weatherSat))map.removeLayer(weatherSat);
+  if(weatherSatOn){refreshWeatherSat()}else if(weatherSat&&map.hasLayer(weatherSat))map.removeLayer(weatherSat);
   weatherSatBtn.classList.toggle('active',weatherSatOn);
   weatherSatBtn.lastElementChild.textContent=weatherSatOn?'ON':'OFF';
   satInfo.classList.toggle('on',weatherSatOn);
   if(window.innerWidth<=800)closeMobilePanels();
 };
-setInterval(refreshWeatherSat,10*60*1000);
+setInterval(refreshWeatherSat,5*60*1000);
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
 Promise.allSettled([
