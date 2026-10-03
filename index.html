@@ -20,6 +20,11 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
 .status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
 .popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
+.station-tip{background:#081522f2!important;color:#f2f8ff!important;border:1px solid #3a5870!important;border-radius:9px!important;box-shadow:0 8px 22px #0008!important;padding:7px 9px!important;font-size:11px!important;line-height:1.3!important}
+.station-tip:before{border-top-color:#3a5870!important}
+.station-tip .tip-name{font-weight:800;font-size:12px;color:#fff}
+.station-tip .tip-net{font-size:9px;color:#9eb3c7;text-transform:uppercase;letter-spacing:.06em}
+.station-tip .tip-val{font-size:13px;font-weight:900;color:#fff;margin-top:2px}
 .mobile-tools,.panel-close{display:none}
 @media(max-width:800px){
   html,body{height:100%;height:100dvh}
@@ -95,6 +100,7 @@ function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rg
 function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
 function ico(s){let v=s[cur],stale=(s.stale_min??999)>90,wu=s.network==='wunderground',suspect=wu&&s.qc_status===0,bg=stale?'#68727d':col(v,P[cur].st),cls='badge'+(wu?' wu':'')+(suspect?' suspect':'')+(stale?' stale':'');return L.divIcon({className:'',html:'<div class="'+cls+'" style="background:'+bg+'">'+fmt(v,cur,s)+'</div>',iconSize:[52,30],iconAnchor:[26,15]})}
 function popup(s){let wu=s.network==='wunderground',source=wu?'Weather Underground / PWS':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=wu?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
+function tooltipHtml(s){const net=s.network==='wunderground'?'Weather Underground':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
 function legend(){let p=P[cur];document.getElementById('lt').textContent=p.n+' · '+p.u;document.getElementById('ll').innerHTML=p.labs.map(x=>'<span>'+x+'</span>').join('');document.getElementById('lb').style.background='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')'}
 function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
@@ -148,7 +154,7 @@ function applyFilters(){
   return selected.size
 }
 function render(){
-  marks.forEach(x=>x.m.setIcon(ico(x.s)));
+  marks.forEach(x=>{x.m.setIcon(ico(x.s));x.m.setTooltipContent(tooltipHtml(x.s))});
   const shown=applyFilters();
   const eligible=stations.filter(baseVisible).length;
   document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n;
@@ -156,7 +162,7 @@ function render(){
 }
 function build(){
   layer.clearLayers();marks=[];
-  stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s));marks.push({m,s,n:(s.name||'').toLowerCase()})});
+  stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s)).bindTooltip(tooltipHtml(s),{direction:'top',offset:[0,-12],opacity:1,className:'station-tip',sticky:true});marks.push({m,s,n:(s.name||'').toLowerCase()})});
   if(stations.length)map.fitBounds(L.latLngBounds(stations.map(s=>[s.lat,s.lon])).pad(.04));
   render()
 }
