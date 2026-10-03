@@ -14,7 +14,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 .panel{position:absolute;z-index:1000;top:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 15px 40px #0007;backdrop-filter:blur(16px);overflow:hidden}
 .left{left:14px;width:290px}.right{right:14px;width:240px}.pt{padding:14px 15px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#a8bbcc;font-weight:800;border-bottom:1px solid #20364a}
 .net{padding:11px 15px;border-bottom:1px solid #20364a;font-size:12px}.counter{font-size:10px;color:var(--muted);margin-top:5px}.network-switch{display:flex;gap:5px;margin-top:9px}.netbtn{flex:1;border:1px solid #2a4358;background:#0d1b29;color:#9fb4c6;border-radius:8px;padding:6px 5px;font-size:9px;font-weight:800;cursor:pointer}.netbtn.active{background:#12394d;border-color:#42d7ff;color:#fff}
-.list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
+.list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}.layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
 .badge{position:relative;min-width:44px;height:30px;padding:0 7px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:#061018;font-weight:900;font-size:12px;border:0;box-shadow:0 2px 9px #000b}.badge.wu{border-style:dashed;border-radius:8px}.badge.suspect{opacity:.58}.badge.stale{background:#68727d!important;color:#fff;opacity:.72}
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
@@ -65,7 +65,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn disabled">Radar <span>—</span></button><button class="btn disabled">Satellite <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Pioggia <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn disabled">Radar <span>—</span></button><button class="btn" id="weatherSatBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satInfo">MTG GeoColour · ultimo disponibile<br>© EUMETSAT / NASA</div><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Pioggia <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
 <div class="styles"><button class="base" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
 <div class="status" id="status">Caricamento dati MeteoHub…</div>
 </main></div>
@@ -85,11 +85,22 @@ const map=L.map('map',{minZoom:7,maxZoom:15}).setView([40.02,9.02],8);map.setMax
 map.createPane('land');map.getPane('land').style.zIndex=220;map.getPane('land').style.pointerEvents='none';
 map.createPane('shade');map.getPane('shade').style.zIndex=230;map.getPane('shade').style.mixBlendMode='screen';map.getPane('shade').style.opacity='.33';
 map.createPane('satshade');map.getPane('satshade').style.zIndex=235;map.getPane('satshade').style.mixBlendMode='multiply';map.getPane('satshade').style.pointerEvents='none';
+map.createPane('weather');map.getPane('weather').style.zIndex=350;map.getPane('weather').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
 const dark=L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16}),L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxZoom:13,pane:'shade'}),L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,pane:'labels'})]);
 const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
+const weatherSat=L.tileLayer.wms('https://view.eumetsat.int/geoserver/wms',{
+  pane:'weather',
+  layers:'mtg_fd:rgb_geocolour',
+  format:'image/png',
+  transparent:true,
+  version:'1.3.0',
+  opacity:.84,
+  attribution:'© EUMETSAT / NASA'
+});
+let weatherSatOn=false;
 let base=sat,landOverlay=null;sat.addTo(map);satShade.addTo(map);
 fetch('data/sardegna.geojson').then(r=>r.json()).then(g=>{landOverlay=L.geoJSON(g,{pane:'land',interactive:false,style:{color:'#4d7189',weight:1.05,opacity:.8,fillColor:'#1a3a4f',fillOpacity:.42}});if(base===dark)landOverlay.addTo(map)}).catch(()=>{});
 const layer=L.layerGroup().addTo(map);
@@ -177,6 +188,20 @@ document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<b
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);if(base===sat){if(!map.hasLayer(satShade))satShade.addTo(map)}else if(map.hasLayer(satShade))map.removeLayer(satShade);if(landOverlay){if(base===dark&&!map.hasLayer(landOverlay))landOverlay.addTo(map);if(base!==dark&&map.hasLayer(landOverlay))map.removeLayer(landOverlay)}document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
+const weatherSatBtn=document.getElementById('weatherSatBtn'),satInfo=document.getElementById('satInfo');
+function refreshWeatherSat(){
+  if(!weatherSatOn)return;
+  weatherSat.setParams({cacheBust:Math.floor(Date.now()/600000)});
+}
+weatherSatBtn.onclick=()=>{
+  weatherSatOn=!weatherSatOn;
+  if(weatherSatOn){weatherSat.addTo(map);refreshWeatherSat()}else if(map.hasLayer(weatherSat))map.removeLayer(weatherSat);
+  weatherSatBtn.classList.toggle('active',weatherSatOn);
+  weatherSatBtn.lastElementChild.textContent=weatherSatOn?'ON':'OFF';
+  satInfo.classList.toggle('on',weatherSatOn);
+  if(window.innerWidth<=800)closeMobilePanels();
+};
+setInterval(refreshWeatherSat,10*60*1000);
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
 Promise.allSettled([
