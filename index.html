@@ -20,7 +20,37 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
 .status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
 .popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
-@media(max-width:800px){.right{display:none}.left{width:220px;left:8px;top:8px}.styles{right:8px;bottom:52px}.status{left:8px;right:8px;transform:none;text-align:center}.search{min-width:0;flex:1}.live{display:none}}
+.mobile-tools,.panel-close{display:none}
+@media(max-width:800px){
+  html,body{height:100%;height:100dvh}
+  .app{height:100dvh;grid-template-rows:54px 1fr}
+  header{padding:0 8px;gap:8px}
+  .brand{font-size:10px;line-height:1.12;min-width:116px}
+  .brand small{font-size:7px;letter-spacing:.08em}
+  .search{min-width:0;flex:1;padding:7px 9px;border-radius:8px}
+  .search input{font-size:13px}
+  .live{display:none}
+  main{overflow:hidden}
+  .mobile-tools{display:flex;position:absolute;z-index:1100;top:8px;left:50%;transform:translateX(-50%);gap:6px}
+  .mobile-tool{border:1px solid #31506a;background:#091827e8;color:#eaf5ff;border-radius:18px;padding:7px 11px;font-size:10px;font-weight:800;box-shadow:0 4px 18px #0008;backdrop-filter:blur(10px)}
+  .mobile-tool.active{background:#12394d;border-color:#42d7ff}
+  .panel{top:auto!important;left:8px!important;right:8px!important;bottom:52px;width:auto!important;max-height:64dvh;overflow-y:auto;transform:translateY(calc(100% + 90px));opacity:0;pointer-events:none;transition:transform .22s ease,opacity .18s ease;border-radius:16px}
+  .panel.open{transform:translateY(0);opacity:1;pointer-events:auto}
+  .pt{position:sticky;top:0;z-index:2;background:#0b1724;padding-right:46px}
+  .panel-close{display:block;position:absolute;right:10px;top:8px;width:28px;height:28px;border-radius:50%;border:1px solid #35516a;background:#112235;color:#fff;font-size:18px;line-height:24px}
+  .styles{left:8px;right:auto;bottom:8px;padding:4px;gap:3px}
+  .base{padding:6px 7px;font-size:9px}
+  .status{left:auto;right:8px;bottom:8px;transform:none;max-width:48vw;padding:6px 8px;font-size:9px;line-height:1.25;text-align:right}
+  .leaflet-control-zoom{display:none}
+  .badge{min-width:40px;height:27px;padding:0 6px;font-size:11px}
+  .leaflet-popup-content{margin:12px 14px}
+}
+@media(max-width:480px){
+  .brand{min-width:96px;font-size:9px}
+  .brand small{display:none}
+  .mobile-tool{padding:6px 9px;font-size:9px}
+  .status{max-width:44vw}
+}
 </style>
 </head>
 <body>
@@ -28,8 +58,9 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <header><div class="brand">SARDEGNA METEOLIVE<small>OSSERVAZIONI & NOWCASTING</small></div><div class="search"><input id="q" placeholder="Cerca stazione…"></div><div class="live"><span class="dot"></span>METEOHUB · DPCN SARDEGNA</div></header>
 <main>
 <div id="map"></div>
-<aside class="panel left"><div class="pt">Parametri stazioni</div><div class="net">MeteoHub / DPCN Sardegna<div id="counter" class="counter">Caricamento dati…</div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa</div><div class="list"><button class="btn disabled">Radar <span>—</span></button><button class="btn disabled">Satellite <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Pioggia <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
+<div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
+<aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">MeteoHub / DPCN Sardegna<div id="counter" class="counter">Caricamento dati…</div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn disabled">Radar <span>—</span></button><button class="btn disabled">Satellite <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Pioggia <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
 <div class="styles"><button class="base active" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base" data-base="sat">Satellite</button></div>
 <div class="status" id="status">Caricamento dati MeteoHub…</div>
 </main></div>
@@ -51,6 +82,15 @@ const dark=L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/res
 const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});let base=dark;dark.addTo(map);
 const layer=L.layerGroup().addTo(map);
+const leftPanel=document.querySelector('.panel.left'),rightPanel=document.querySelector('.panel.right');
+const mobileParams=document.getElementById('mobileParams'),mobileLayers=document.getElementById('mobileLayers');
+function syncMobileButtons(){mobileParams.classList.toggle('active',leftPanel.classList.contains('open'));mobileLayers.classList.toggle('active',rightPanel.classList.contains('open'))}
+function closeMobilePanels(){if(window.innerWidth>800)return;leftPanel.classList.remove('open');rightPanel.classList.remove('open');syncMobileButtons()}
+function toggleMobilePanel(panel){if(window.innerWidth>800)return;const wasOpen=panel.classList.contains('open');leftPanel.classList.remove('open');rightPanel.classList.remove('open');if(!wasOpen)panel.classList.add('open');syncMobileButtons()}
+mobileParams.onclick=()=>toggleMobilePanel(leftPanel);mobileLayers.onclick=()=>toggleMobilePanel(rightPanel);
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeMobilePanels);
+map.on('click',closeMobilePanels);
+window.addEventListener('resize',()=>{if(window.innerWidth>800){leftPanel.classList.remove('open');rightPanel.classList.remove('open');syncMobileButtons()}});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
 function fmt(v,k=cur){return Number.isFinite(v)?P[k].fmt(v):'—'}
 function ico(s){let v=s[cur],stale=(s.stale_min??999)>90,bg=stale?'#68727d':col(v,P[cur].st);return L.divIcon({className:'',html:'<div class="badge'+(stale?' stale':'')+'" style="background:'+bg+'">'+fmt(v)+'</div>',iconSize:[52,30],iconAnchor:[26,15]})}
@@ -59,7 +99,7 @@ function legend(){let p=P[cur];document.getElementById('lt').textContent=p.n+' �
 function render(){marks.forEach(x=>x.m.setIcon(ico(x.s)));document.getElementById('status').textContent=stations.filter(s=>Number.isFinite(s[cur])).length+'/'+stations.length+' stazioni · '+P[cur].n;legend()}
 function build(){layer.clearLayers();marks=[];stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s)).addTo(layer);marks.push({m,s,n:s.name.toLowerCase()})});if(stations.length)map.fitBounds(L.latLngBounds(stations.map(s=>[s.lat,s.lon])).pad(.04));render()}
 document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
-document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render()});
+document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
 document.getElementById('q').oninput=e=>{let q=e.target.value.toLowerCase();marks.forEach(x=>x.m.setOpacity(!q||x.n.includes(q)?1:.12))};
 fetch('https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/stations.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{stations=d.stations||[];document.getElementById('counter').textContent=stations.length+' stazioni disponibili · aggiornato '+new Date(d.generated_at).toLocaleString('it-IT',{timeZone:'Europe/Rome'});build()}).catch(()=>document.getElementById('status').textContent='Errore caricamento dati MeteoHub');
