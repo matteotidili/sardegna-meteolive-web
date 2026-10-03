@@ -249,25 +249,10 @@ function setRadarFrame(i){
   radarTime.textContent=radarLabel(d)
 }
 async function loadRadarTimeline(){
-  let latest=fallbackRadarLatest();
-  try{
-    const r=await fetch(RADAR_WMS+'?service=WMS&request=GetCapabilities',{cache:'no-store'});
-    if(r.ok){
-      const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
-      const layers=[...xml.getElementsByTagName('Layer')];
-      const node=layers.find(l=>[...l.children].some(x=>x.localName==='Name'&&x.textContent.trim()==='radar:sri'));
-      if(node){
-        const extent=[...node.children].find(x=>x.localName==='Extent'&&(x.getAttribute('name')||'').toLowerCase()==='time');
-        if(extent){
-          const txt=extent.textContent.trim(),parts=txt.includes('/')?txt.split('/'):txt.split(',');
-          const candidate=parts.length>=2?parts[parts.length===3?1:parts.length-1]:parts[0];
-          const d=new Date(candidate);
-          if(!isNaN(d))latest=d
-        }
-      }
-    }
-  }catch(e){}
-  buildRadarFrames(latest);setRadarFrame(radarFrames.length-1)
+  const apiLatest=await latestProductTime('SRI');
+  const latest=apiLatest||fallbackRadarLatest();
+  buildRadarFrames(latest);
+  setRadarFrame(radarFrames.length-1)
 }
 function stopRadarAnimation(){
   if(radarTimer){clearInterval(radarTimer);radarTimer=null}
@@ -300,7 +285,7 @@ document.getElementById('radarPrev').onclick=()=>{stopRadarAnimation();setRadarF
 document.getElementById('radarNext').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex+1)};
 radarPlay.onclick=()=>radarTimer?stopRadarAnimation():startRadarAnimation();
 radarRange.oninput=()=>{stopRadarAnimation();setRadarFrame(Number(radarRange.value))};
-async function latestCumTime(apiType){
+async function latestProductTime(apiType){
   const api='https://radar-api.protezionecivile.it/findLastProductByType?type='+encodeURIComponent(apiType)+'&origin='+encodeURIComponent(window.location.origin);
   try{
     const r=await fetch(api,{cache:'no-store'});
@@ -322,7 +307,7 @@ async function setCumState(code){
     if(!product)return;
     if(radarOn)setRadarState(false);
     cumStamp.textContent='Ricerca ultimo '+code.toUpperCase()+'…';
-    const t=await latestCumTime(product.api);
+    const t=await latestProductTime(product.api);
     const time=t?iso5(t):null;
     cumLayer.setUrl(radarWmtsUrl(product.layer,time),false);
     cumLayer.redraw();
