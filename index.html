@@ -13,10 +13,10 @@
 main{position:relative;min-height:0}#map{height:100%;width:100%}
 .panel{position:absolute;z-index:1000;top:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 15px 40px #0007;backdrop-filter:blur(16px);overflow:hidden}
 .left{left:14px;width:290px}.right{right:14px;width:240px}.pt{padding:14px 15px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#a8bbcc;font-weight:800;border-bottom:1px solid #20364a}
-.net{padding:11px 15px;border-bottom:1px solid #20364a;font-size:12px}.counter{font-size:10px;color:var(--muted);margin-top:5px}
+.net{padding:11px 15px;border-bottom:1px solid #20364a;font-size:12px}.counter{font-size:10px;color:var(--muted);margin-top:5px}.network-switch{display:flex;gap:5px;margin-top:9px}.netbtn{flex:1;border:1px solid #2a4358;background:#0d1b29;color:#9fb4c6;border-radius:8px;padding:6px 5px;font-size:9px;font-weight:800;cursor:pointer}.netbtn.active{background:#12394d;border-color:#42d7ff;color:#fff}
 .list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
-.badge{min-width:44px;height:30px;padding:0 7px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:#061018;font-weight:900;font-size:12px;border:2px solid rgba(255,255,255,.88);box-shadow:0 2px 9px #000b}.badge.stale{background:#68727d!important;color:#fff;opacity:.72}
+.badge{position:relative;min-width:44px;height:30px;padding:0 7px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:#061018;font-weight:900;font-size:12px;border:2px solid rgba(255,255,255,.88);box-shadow:0 2px 9px #000b}.badge.wu{border-style:dashed;border-radius:8px}.badge.suspect{opacity:.58}.badge.stale{background:#68727d!important;color:#fff;opacity:.72}.nettag{position:absolute;right:-6px;top:-7px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:#07111d;color:#fff;border:1px solid #fff;font-size:8px;line-height:12px;text-align:center}
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
 .status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
 .popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
@@ -55,11 +55,11 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 </head>
 <body>
 <div class="app">
-<header><div class="brand">SARDEGNA METEOLIVE<small>OSSERVAZIONI & NOWCASTING</small></div><div class="search"><input id="q" placeholder="Cerca stazione…"></div><div class="live"><span class="dot"></span>METEOHUB · DPCN SARDEGNA</div></header>
+<header><div class="brand">SARDEGNA METEOLIVE<small>OSSERVAZIONI & NOWCASTING</small></div><div class="search"><input id="q" placeholder="Cerca stazione…"></div><div class="live"><span class="dot"></span>DPCN + WUNDERGROUND</div></header>
 <main>
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
-<aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">MeteoHub / DPCN Sardegna<div id="counter" class="counter">Caricamento dati…</div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
+<aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
 <aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn disabled">Radar <span>—</span></button><button class="btn disabled">Satellite <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Pioggia <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
 <div class="styles"><button class="base active" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base" data-base="sat">Satellite</button></div>
 <div class="status" id="status">Caricamento dati MeteoHub…</div>
@@ -75,7 +75,7 @@ const P={
  rain_today:{n:'Pioggia accumulata',u:'mm',fmt:v=>v.toFixed(v<10?1:0),labs:['0','20','50','100','150+'],st:[[0,[130,145,155]],[.1,[80,180,225]],[10,[45,130,220]],[30,[70,190,120]],[60,[235,220,70]],[100,[245,135,50]],[160,[190,45,90]]]},
  rh:{n:'Umidità relativa',u:'%',fmt:v=>v.toFixed(0)+'%',labs:['0','25','50','75','100'],st:[[0,[180,150,90]],[30,[215,200,110]],[50,[115,190,170]],[70,[65,150,205]],[90,[65,90,185]],[100,[80,55,155]]]}
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
-let stations=[],cur='temp',marks=[];
+let stations=[],cur='temp',marks=[],netFilter='all',query='';
 const map=L.map('map',{minZoom:7,maxZoom:15}).setView([40.02,9.02],8);map.setMaxBounds(L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25));
 map.createPane('shade');map.getPane('shade').style.mixBlendMode='screen';map.getPane('shade').style.opacity='.33';map.createPane('labels');map.getPane('labels').style.zIndex=460;
 const dark=L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16}),L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxZoom:13,pane:'shade'}),L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,pane:'labels'})]);
@@ -92,16 +92,33 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeMobilePanels
 map.on('click',closeMobilePanels);
 window.addEventListener('resize',()=>{if(window.innerWidth>800){leftPanel.classList.remove('open');rightPanel.classList.remove('open');syncMobileButtons()}});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
-function fmt(v,k=cur){return Number.isFinite(v)?P[k].fmt(v):'—'}
-function ico(s){let v=s[cur],stale=(s.stale_min??999)>90,bg=stale?'#68727d':col(v,P[cur].st);return L.divIcon({className:'',html:'<div class="badge'+(stale?' stale':'')+'" style="background:'+bg+'">'+fmt(v)+'</div>',iconSize:[52,30],iconAnchor:[26,15]})}
-function popup(s){return '<div class="popup"><b>'+s.name+'</b><br>Temperatura: '+fmt(s.temp,'temp')+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin')+' / '+fmt(s.tmax,'tmax')+'<br>UR: '+(Number.isFinite(s.rh)?s.rh+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+'</div>'}
+function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
+function ico(s){let v=s[cur],stale=(s.stale_min??999)>90,wu=s.network==='wunderground',suspect=wu&&s.qc_status===0,bg=stale?'#68727d':col(v,P[cur].st),cls='badge'+(wu?' wu':'')+(suspect?' suspect':'')+(stale?' stale':''),tag=wu?'<span class="nettag">W</span>':'';return L.divIcon({className:'',html:'<div class="'+cls+'" style="background:'+bg+'">'+fmt(v,cur,s)+tag+'</div>',iconSize:[52,30],iconAnchor:[26,15]})}
+function popup(s){let wu=s.network==='wunderground',source=wu?'Weather Underground / PWS':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=wu?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
 function legend(){let p=P[cur];document.getElementById('lt').textContent=p.n+' · '+p.u;document.getElementById('ll').innerHTML=p.labs.map(x=>'<span>'+x+'</span>').join('');document.getElementById('lb').style.background='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')'}
-function render(){marks.forEach(x=>x.m.setIcon(ico(x.s)));document.getElementById('status').textContent=stations.filter(s=>Number.isFinite(s[cur])).length+'/'+stations.length+' stazioni · '+P[cur].n;legend()}
-function build(){layer.clearLayers();marks=[];stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s)).addTo(layer);marks.push({m,s,n:s.name.toLowerCase()})});if(stations.length)map.fitBounds(L.latLngBounds(stations.map(s=>[s.lat,s.lon])).pad(.04));render()}
+function visible(s){let net=netFilter==='all'||s.network===netFilter,q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);return net&&q}
+function applyFilters(){marks.forEach(x=>{let show=visible(x.s),has=layer.hasLayer(x.m);if(show&&!has)layer.addLayer(x.m);if(!show&&has)layer.removeLayer(x.m)})}
+function render(){marks.forEach(x=>x.m.setIcon(ico(x.s)));applyFilters();let vis=stations.filter(visible);document.getElementById('status').textContent=vis.filter(s=>Number.isFinite(s[cur])).length+'/'+vis.length+' stazioni · '+P[cur].n;legend()}
+function build(){layer.clearLayers();marks=[];stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s));marks.push({m,s,n:(s.name||'').toLowerCase()})});applyFilters();if(stations.length)map.fitBounds(L.latLngBounds(stations.map(s=>[s.lat,s.lon])).pad(.04));render()}
 document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
-document.getElementById('q').oninput=e=>{let q=e.target.value.toLowerCase();marks.forEach(x=>x.m.setOpacity(!q||x.n.includes(q)?1:.12))};
-fetch('https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/stations.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{stations=d.stations||[];document.getElementById('counter').textContent=stations.length+' stazioni disponibili · aggiornato '+new Date(d.generated_at).toLocaleString('it-IT',{timeZone:'Europe/Rome'});build()}).catch(()=>document.getElementById('status').textContent='Errore caricamento dati MeteoHub');
+document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
+document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
+const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
+Promise.allSettled([
+  fetch(DATA+'stations.json?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('DPCN '+r.status);return r.json()}),
+  fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()})
+]).then(results=>{
+  const dpcn=results[0].status==='fulfilled'?results[0].value:null,wu=results[1].status==='fulfilled'?results[1].value:null;
+  const ds=(dpcn?.stations||[]).map(s=>({...s,network:s.network||'dpcn-sardegna'}));
+  const ws=(wu?.stations||[]).map(s=>({...s,network:'wunderground'}));
+  stations=[...ds,...ws];
+  const parts=[];if(dpcn)parts.push('DPCN '+ds.length);if(wu)parts.push('WU '+ws.length);
+  const times=[dpcn?.generated_at,wu?.generated_at].filter(Boolean).map(x=>new Date(x)).filter(x=>!isNaN(x));
+  const last=times.length?new Date(Math.max(...times)) : null;
+  document.getElementById('counter').textContent=(parts.length?parts.join(' · '):'Nessuna rete disponibile')+(last?' · agg. '+last.toLocaleString('it-IT',{timeZone:'Europe/Rome'}):'');
+  if(stations.length)build();else document.getElementById('status').textContent='Errore caricamento dati stazioni';
+});
 </script>
 </body></html>
