@@ -95,15 +95,18 @@ const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ma
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
 const RADAR_WMS='https://radar-geowebcache.protezionecivile.it/service/wms';
-const radarLayer=L.tileLayer.wms(RADAR_WMS,{
+const RADAR_WMTS='https://radar-geowebcache.protezionecivile.it/service/wmts';
+function radarWmtsUrl(layerName,time=null){
+  let u=RADAR_WMTS+'?service=WMTS&request=GetTile&version=1.0.0&layer='+encodeURIComponent(layerName)+'&style=&tilematrixset=EPSG%3A900913&format=image%2Fpng&TileMatrix=EPSG%3A900913%3A{z}&TileCol={x}&TileRow={y}';
+  if(time)u+='&time='+encodeURIComponent(time);
+  return u
+}
+const radarLayer=L.tileLayer(radarWmtsUrl('radar:sri'),{
   pane:'weather',
-  layers:'radar:sri',
-  styles:'',
-  format:'image/png',
-  transparent:true,
-  version:'1.1.1',
-  tiled:true,
-  opacity:.78,
+  opacity:.88,
+  maxZoom:18,
+  updateWhenZooming:true,
+  keepBuffer:4,
   attribution:'© Radar-DPC · Dipartimento della Protezione Civile'
 });
 const cumLayer=L.tileLayer.wms(RADAR_WMS,{
@@ -223,7 +226,7 @@ function setRadarFrame(i){
   radarIndex=Math.max(0,Math.min(radarFrames.length-1,i));
   radarRange.value=String(radarIndex);
   const d=radarFrames[radarIndex];
-  radarLayer.setParams({time:iso5(d),_refresh:Math.floor(Date.now()/300000)},false);
+  radarLayer.setUrl(radarWmtsUrl('radar:sri',iso5(d)),false);
   radarTime.textContent=radarLabel(d)
 }
 async function loadRadarTimeline(){
