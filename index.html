@@ -99,7 +99,7 @@ const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/servic
 const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
 let satMetLayer=null,satHdLayer=null,satViewBounds=null,satViewGeneration=0,satHdFrameIndex=-1;
 let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[],satHdTimer=null;
-function currentSatBounds(){return map.getBounds().pad(.42)}
+function currentSatBounds(){return map.getBounds().pad(1.5)}
 function satImageUrl(time,width=1800,bounds=satViewBounds||currentSatBounds()){
   const sw=L.CRS.EPSG3857.project(bounds.getSouthWest()),ne=L.CRS.EPSG3857.project(bounds.getNorthEast());
   const height=Math.round(width*Math.abs(ne.y-sw.y)/Math.abs(ne.x-sw.x));
@@ -460,6 +460,8 @@ async function loadSatTimeline(forceLatest=true){
 function refreshSatViewport(){
   if(!satMetOn||!satFrames.length)return;
   if(satHdLayer&&map.hasLayer(satHdLayer)&&!satTimer)return;
+  const visible=map.getBounds().pad(.12);
+  if(satViewBounds&&satViewBounds.contains(visible))return;
   satViewGeneration++;
   satViewBounds=currentSatBounds();
   satPreloadedImages=[];
