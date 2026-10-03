@@ -67,7 +67,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · intensità di precipitazione al suolo<br>animazione ultime 3 ore · passo 5 min · © Radar-DPC</div><button class="btn" id="cumBtn">Cumulate pioggia <span>OFF</span></button><div class="layer-note" id="cumInfo">Prodotti DPC · ultimo disponibile<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="srt1">1 h</button><button class="cumopt" data-cum="srt3">3 h</button><button class="cumopt" data-cum="srt6">6 h</button><button class="cumopt" data-cum="srt12">12 h</button><button class="cumopt" data-cum="srt24">24 h</button></div></div><button class="btn disabled">Satellite meteo <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · intensità di precipitazione al suolo<br>animazione ultime 3 ore · passo 5 min · © Radar-DPC</div><button class="btn" id="cumBtn">Cumulate ultime ore <span>OFF</span></button><div class="layer-note" id="cumInfo">Finestre mobili DPC · non cumulata da mezzanotte<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="srt1">Ult. 1 h</button><button class="cumopt" data-cum="srt3">Ult. 3 h</button><button class="cumopt" data-cum="srt6">Ult. 6 h</button><button class="cumopt" data-cum="srt12">Ult. 12 h</button><button class="cumopt" data-cum="srt24">Ult. 24 h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn disabled">Satellite meteo <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
 <div class="styles"><button class="base" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
 <div class="timeline" id="radarTimeline"><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="status" id="status">Caricamento dati MeteoHub…</div>
@@ -210,7 +210,7 @@ document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLay
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
 const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
 const radarTimeline=document.getElementById('radarTimeline'),radarRange=document.getElementById('radarRange'),radarTime=document.getElementById('radarTime'),radarPlay=document.getElementById('radarPlay');
-const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo');
+const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo'),cumStamp=document.getElementById('cumStamp');
 function iso5(d){return new Date(Math.floor(d.getTime()/300000)*300000).toISOString().replace('.000Z','.000Z')}
 function fallbackRadarLatest(){return new Date(Math.floor((Date.now()-10*60000)/300000)*300000)}
 function buildRadarFrames(latest){
@@ -281,22 +281,47 @@ document.getElementById('radarPrev').onclick=()=>{stopRadarAnimation();setRadarF
 document.getElementById('radarNext').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex+1)};
 radarPlay.onclick=()=>radarTimer?stopRadarAnimation():startRadarAnimation();
 radarRange.oninput=()=>{stopRadarAnimation();setRadarFrame(Number(radarRange.value))};
-function setCumState(code){
+async function latestLayerTime(layerName){
+  try{
+    const r=await fetch(RADAR_WMS+'?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetCapabilities&TILED=true&_='+Date.now(),{cache:'no-store'});
+    if(!r.ok)return null;
+    const xml=new DOMParser().parseFromString(await r.text(),'text/xml');
+    const layers=[...xml.getElementsByTagName('Layer')];
+    const node=layers.find(l=>[...l.children].some(x=>x.localName==='Name'&&x.textContent.trim()===layerName));
+    if(!node)return null;
+    const extent=[...node.children].find(x=>x.localName==='Extent'&&(x.getAttribute('name')||'').toLowerCase()==='time');
+    if(!extent)return null;
+    return extent.getAttribute('default')||null
+  }catch(e){return null}
+}
+async function setCumState(code){
   cumActive=code;
   if(!code){
     if(map.hasLayer(cumLayer))map.removeLayer(cumLayer);
-    cumBtn.classList.remove('active');cumBtn.lastElementChild.textContent='OFF'
+    cumBtn.classList.remove('active');cumBtn.lastElementChild.textContent='OFF';
+    cumStamp.textContent=''
   }else{
     if(radarOn)setRadarState(false);
-    cumLayer.setParams({layers:'radar:'+code,_refresh:Math.floor(Date.now()/300000)},false);
+    const layerName='radar:'+code;
+    cumStamp.textContent='Caricamento ultimo dato…';
+    const ts=await latestLayerTime(layerName);
+    const params={layers:layerName,_refresh:Math.floor(Date.now()/300000)};
+    if(ts)params.time=ts;
+    cumLayer.setParams(params,false);
     if(!map.hasLayer(cumLayer))cumLayer.addTo(map);
-    cumBtn.classList.add('active');cumBtn.lastElementChild.textContent=code.replace('srt','')+' h'
+    cumBtn.classList.add('active');cumBtn.lastElementChild.textContent='ULT. '+code.replace('srt','')+' h';
+    if(ts){
+      const t=new Date(ts);
+      cumStamp.textContent='Ultimo campo: '+t.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+    }else{
+      cumStamp.textContent='Ultimo campo disponibile'
+    }
   }
   document.querySelectorAll('[data-cum]').forEach(b=>b.classList.toggle('active',(code||'off')===b.dataset.cum))
 }
 cumBtn.onclick=()=>cumInfo.classList.toggle('on');
 document.querySelectorAll('[data-cum]').forEach(b=>b.onclick=()=>{const code=b.dataset.cum==='off'?null:b.dataset.cum;setCumState(code)});
-setInterval(()=>{if(radarOn&&!radarTimer&&radarIndex===radarFrames.length-1)loadRadarTimeline();if(cumActive)cumLayer.setParams({_refresh:Math.floor(Date.now()/300000)},false)},5*60*1000);
+setInterval(()=>{if(radarOn&&!radarTimer&&radarIndex===radarFrames.length-1)loadRadarTimeline();if(cumActive)setCumState(cumActive)},5*60*1000);
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
 Promise.allSettled([
