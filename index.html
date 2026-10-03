@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sardegna MeteoLive</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#07111d;--panel:#0b1724ee;--border:#294055;--text:#eef6ff;--muted:#91a4b8;--accent:#42d7ff}
+*{box-sizing:border-box}html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial;background:var(--bg);color:var(--text)}body{overflow:hidden}
+.app{height:100%;display:grid;grid-template-rows:62px 1fr}header{display:flex;align-items:center;gap:18px;padding:0 18px;background:#08131f;border-bottom:1px solid #203346;z-index:1200}
+.brand{font-weight:800;letter-spacing:.04em}.brand small{display:block;color:var(--muted);font-size:10px;letter-spacing:.14em}.search{margin-left:auto;background:#101d2a;border:1px solid #25394d;border-radius:10px;padding:8px 11px;min-width:240px}.search input{width:100%;background:transparent;border:0;outline:0;color:#fff}
+.live{font-size:11px;color:#bcd0e4}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#45e58c;margin-right:6px}
+main{position:relative;min-height:0}#map{height:100%;width:100%}
+.panel{position:absolute;z-index:1000;top:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 15px 40px #0007;backdrop-filter:blur(16px);overflow:hidden}
+.left{left:14px;width:290px}.right{right:14px;width:240px}.pt{padding:14px 15px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#a8bbcc;font-weight:800;border-bottom:1px solid #20364a}
+.net{padding:11px 15px;border-bottom:1px solid #20364a;font-size:12px}.counter{font-size:10px;color:var(--muted);margin-top:5px}
+.list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
+.legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
+.badge{min-width:44px;height:30px;padding:0 7px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:#061018;font-weight:900;font-size:12px;border:2px solid rgba(255,255,255,.88);box-shadow:0 2px 9px #000b}.badge.stale{background:#68727d!important;color:#fff;opacity:.72}
+.styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
+.status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
+.popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
+@media(max-width:800px){.right{display:none}.left{width:220px;left:8px;top:8px}.styles{right:8px;bottom:52px}.status{left:8px;right:8px;transform:none;text-align:center}.search{min-width:0;flex:1}.live{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><div class="brand">SARDEGNA METEOLIVE<small>OSSERVAZIONI & NOWCASTING</small></div><div class="search"><input id="q" placeholder="Cerca stazione…"></div><div class="live"><span class="dot"></span>METEOHUB · DPCN SARDEGNA</div></header>
+<main>
+<div id="map"></div>
+<aside class="panel left"><div class="pt">Parametri stazioni</div><div class="net">MeteoHub / DPCN Sardegna<div id="counter" class="counter">Caricamento dati…</div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa</div><div class="list"><button class="btn disabled">Radar <span>—</span></button><button class="btn disabled">Satellite <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Pioggia <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
+<div class="styles"><button class="base active" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base" data-base="sat">Satellite</button></div>
+<div class="status" id="status">Caricamento dati MeteoHub…</div>
+</main></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const P={
+ temp:{n:'Temperatura attuale',u:'°C',fmt:v=>v.toFixed(1)+'°',labs:['≤0','10','20','30','40+'],st:[[-10,[70,50,126]],[0,[54,92,186]],[10,[31,161,135]],[20,[160,218,57]],[25,[253,231,37]],[30,[253,174,50]],[35,[244,109,67]],[40,[215,48,39]],[45,[142,27,85]]]},
+ tmin:{n:'Temperatura minima',u:'°C',fmt:v=>v.toFixed(1)+'°'},tmax:{n:'Temperatura massima',u:'°C',fmt:v=>v.toFixed(1)+'°'},
+ wind_kmh:{n:'Vento attuale',u:'km/h',fmt:v=>v.toFixed(0),labs:['0','20','40','60','80+'],st:[[0,[110,170,190]],[10,[80,190,160]],[25,[220,220,70]],[45,[245,150,60]],[70,[220,70,60]],[100,[130,35,100]]]},
+ gust_kmh:{n:'Raffica massima',u:'km/h',fmt:v=>v.toFixed(0)},
+ rain_rate:{n:'Pioggia al momento',u:'mm/h',fmt:v=>v.toFixed(v<10?1:0),labs:['0','10','30','60','100+'],st:[[0,[130,145,155]],[.1,[60,170,220]],[5,[45,130,220]],[15,[65,190,110]],[35,[240,215,60]],[60,[245,130,50]],[100,[210,45,60]]]},
+ rain_today:{n:'Pioggia accumulata',u:'mm',fmt:v=>v.toFixed(v<10?1:0),labs:['0','20','50','100','150+'],st:[[0,[130,145,155]],[.1,[80,180,225]],[10,[45,130,220]],[30,[70,190,120]],[60,[235,220,70]],[100,[245,135,50]],[160,[190,45,90]]]},
+ rh:{n:'Umidità relativa',u:'%',fmt:v=>v.toFixed(0)+'%',labs:['0','25','50','75','100'],st:[[0,[180,150,90]],[30,[215,200,110]],[50,[115,190,170]],[70,[65,150,205]],[90,[65,90,185]],[100,[80,55,155]]]}
+}; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
+let stations=[],cur='temp',marks=[];
+const map=L.map('map',{minZoom:7,maxZoom:15}).setView([40.02,9.02],8);map.setMaxBounds(L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25));
+map.createPane('shade');map.getPane('shade').style.mixBlendMode='screen';map.getPane('shade').style.opacity='.33';map.createPane('labels');map.getPane('labels').style.zIndex=460;
+const dark=L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16}),L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxZoom:13,pane:'shade'}),L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,pane:'labels'})]);
+const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});let base=dark;dark.addTo(map);
+const layer=L.layerGroup().addTo(map);
+function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
+function fmt(v,k=cur){return Number.isFinite(v)?P[k].fmt(v):'—'}
+function ico(s){let v=s[cur],stale=(s.stale_min??999)>90,bg=stale?'#68727d':col(v,P[cur].st);return L.divIcon({className:'',html:'<div class="badge'+(stale?' stale':'')+'" style="background:'+bg+'">'+fmt(v)+'</div>',iconSize:[52,30],iconAnchor:[26,15]})}
+function popup(s){return '<div class="popup"><b>'+s.name+'</b><br>Temperatura: '+fmt(s.temp,'temp')+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin')+' / '+fmt(s.tmax,'tmax')+'<br>UR: '+(Number.isFinite(s.rh)?s.rh+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+'</div>'}
+function legend(){let p=P[cur];document.getElementById('lt').textContent=p.n+' · '+p.u;document.getElementById('ll').innerHTML=p.labs.map(x=>'<span>'+x+'</span>').join('');document.getElementById('lb').style.background='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')'}
+function render(){marks.forEach(x=>x.m.setIcon(ico(x.s)));document.getElementById('status').textContent=stations.filter(s=>Number.isFinite(s[cur])).length+'/'+stations.length+' stazioni · '+P[cur].n;legend()}
+function build(){layer.clearLayers();marks=[];stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s)).addTo(layer);marks.push({m,s,n:s.name.toLowerCase()})});if(stations.length)map.fitBounds(L.latLngBounds(stations.map(s=>[s.lat,s.lon])).pad(.04));render()}
+document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
+document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render()});
+document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
+document.getElementById('q').oninput=e=>{let q=e.target.value.toLowerCase();marks.forEach(x=>x.m.setOpacity(!q||x.n.includes(q)?1:.12))};
+fetch('https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/stations.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{stations=d.stations||[];document.getElementById('counter').textContent=stations.length+' stazioni disponibili · aggiornato '+new Date(d.generated_at).toLocaleString('it-IT',{timeZone:'Europe/Rome'});build()}).catch(()=>document.getElementById('status').textContent='Errore caricamento dati MeteoHub');
+</script>
+</body></html>
