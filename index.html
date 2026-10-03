@@ -65,7 +65,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn disabled">Radar <span>—</span></button><button class="btn" id="weatherSatBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satInfo">MTG GeoColour · ultimo disponibile<br>© EUMETSAT / NASA</div><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Pioggia <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn" id="radarBtn">Radar <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · intensità di precipitazione al suolo<br>aggiornamento nominale 5 min · © Radar-DPC</div><button class="btn disabled">Satellite meteo <span>—</span></button><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Pioggia <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn disabled">Confini comunali <span>—</span></button></div></aside>
 <div class="styles"><button class="base" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
 <div class="status" id="status">Caricamento dati MeteoHub…</div>
 </main></div>
@@ -91,7 +91,18 @@ const dark=L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/res
 const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
-let weatherSat=null,weatherSatOn=false,lastWeatherSatTime=null;
+const radarLayer=L.tileLayer.wms('https://radar-geowebcache.protezionecivile.it/service/wms',{
+  pane:'weather',
+  layers:'radar:sri',
+  styles:'',
+  format:'image/png',
+  transparent:true,
+  version:'1.1.1',
+  tiled:true,
+  opacity:.78,
+  attribution:'© Radar-DPC · Dipartimento della Protezione Civile'
+});
+let radarOn=false;
 let base=sat,landOverlay=null;sat.addTo(map);satShade.addTo(map);
 fetch('data/sardegna.geojson').then(r=>r.json()).then(g=>{landOverlay=L.geoJSON(g,{pane:'land',interactive:false,style:{color:'#4d7189',weight:1.05,opacity:.8,fillColor:'#1a3a4f',fillOpacity:.42}});if(base===dark)landOverlay.addTo(map)}).catch(()=>{});
 const layer=L.layerGroup().addTo(map);
@@ -179,39 +190,20 @@ document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<b
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);if(base===sat){if(!map.hasLayer(satShade))satShade.addTo(map)}else if(map.hasLayer(satShade))map.removeLayer(satShade);if(landOverlay){if(base===dark&&!map.hasLayer(landOverlay))landOverlay.addTo(map);if(base!==dark&&map.hasLayer(landOverlay))map.removeLayer(landOverlay)}document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
-const weatherSatBtn=document.getElementById('weatherSatBtn'),satInfo=document.getElementById('satInfo');
-async function refreshWeatherSat(){
-  if(!weatherSatOn)return;
-  try{
-    const r=await fetch(DATA+'satellite_eumetsat.json?t='+Date.now(),{cache:'no-store'});
-    if(!r.ok)throw new Error('metadata '+r.status);
-    const d=await r.json();
-    if(!d.image_url||!Array.isArray(d.bounds))throw new Error('metadata incompleti');
-    if(d.time!==lastWeatherSatTime){
-      const bust=d.image_url+(d.image_url.includes('?')?'&':'?')+'_='+Date.now();
-      const next=L.imageOverlay(bust,d.bounds,{pane:'weather',opacity:.84,interactive:false,attribution:d.attribution||'© EUMETSAT / NASA'});
-      next.once('load',()=>{
-        if(weatherSat&&map.hasLayer(weatherSat))map.removeLayer(weatherSat);
-        weatherSat=next;lastWeatherSatTime=d.time;
-        const t=new Date(d.time);
-        satInfo.innerHTML='MTG GeoColour · '+t.toLocaleString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})+'<br>© EUMETSAT / NASA';
-      });
-      next.once('error',()=>{satInfo.innerHTML='Satellite non disponibile<br>© EUMETSAT / NASA'});
-      next.addTo(map);
-    }
-  }catch(e){
-    satInfo.innerHTML='Aggiornamento satellite non disponibile<br>© EUMETSAT / NASA';
-  }
+const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
+function refreshRadar(){
+  if(!radarOn)return;
+  radarLayer.setParams({_refresh:Math.floor(Date.now()/300000)},false);
 }
-weatherSatBtn.onclick=()=>{
-  weatherSatOn=!weatherSatOn;
-  if(weatherSatOn){refreshWeatherSat()}else if(weatherSat&&map.hasLayer(weatherSat))map.removeLayer(weatherSat);
-  weatherSatBtn.classList.toggle('active',weatherSatOn);
-  weatherSatBtn.lastElementChild.textContent=weatherSatOn?'ON':'OFF';
-  satInfo.classList.toggle('on',weatherSatOn);
+radarBtn.onclick=()=>{
+  radarOn=!radarOn;
+  if(radarOn){radarLayer.addTo(map);refreshRadar()}else if(map.hasLayer(radarLayer))map.removeLayer(radarLayer);
+  radarBtn.classList.toggle('active',radarOn);
+  radarBtn.lastElementChild.textContent=radarOn?'ON':'OFF';
+  radarInfo.classList.toggle('on',radarOn);
   if(window.innerWidth<=800)closeMobilePanels();
 };
-setInterval(refreshWeatherSat,5*60*1000);
+setInterval(refreshRadar,5*60*1000);
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
 Promise.allSettled([
