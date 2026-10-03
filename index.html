@@ -96,10 +96,67 @@ function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network=
 function ico(s){let v=s[cur],stale=(s.stale_min??999)>90,wu=s.network==='wunderground',suspect=wu&&s.qc_status===0,bg=stale?'#68727d':col(v,P[cur].st),cls='badge'+(wu?' wu':'')+(suspect?' suspect':'')+(stale?' stale':''),tag=wu?'<span class="nettag">W</span>':'';return L.divIcon({className:'',html:'<div class="'+cls+'" style="background:'+bg+'">'+fmt(v,cur,s)+tag+'</div>',iconSize:[52,30],iconAnchor:[26,15]})}
 function popup(s){let wu=s.network==='wunderground',source=wu?'Weather Underground / PWS':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=wu?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
 function legend(){let p=P[cur];document.getElementById('lt').textContent=p.n+' · '+p.u;document.getElementById('ll').innerHTML=p.labs.map(x=>'<span>'+x+'</span>').join('');document.getElementById('lb').style.background='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')'}
-function visible(s){let net=netFilter==='all'||s.network===netFilter,q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);return net&&q}
-function applyFilters(){marks.forEach(x=>{let show=visible(x.s),has=layer.hasLayer(x.m);if(show&&!has)layer.addLayer(x.m);if(!show&&has)layer.removeLayer(x.m)})}
-function render(){marks.forEach(x=>x.m.setIcon(ico(x.s)));applyFilters();let vis=stations.filter(visible);document.getElementById('status').textContent=vis.filter(s=>Number.isFinite(s[cur])).length+'/'+vis.length+' stazioni · '+P[cur].n;legend()}
-function build(){layer.clearLayers();marks=[];stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s));marks.push({m,s,n:(s.name||'').toLowerCase()})});applyFilters();if(stations.length)map.fitBounds(L.latLngBounds(stations.map(s=>[s.lat,s.lon])).pad(.04));render()}
+function baseVisible(s){
+  const net=netFilter==='all'||s.network===netFilter;
+  const q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);
+  const hasValue=Number.isFinite(s[cur]);
+  const fresh=(s.stale_min??999)<=90;
+  return net&&q&&hasValue&&fresh
+}
+function densityCell(){
+  const z=map.getZoom();
+  if(z<=8)return 58;
+  if(z===9)return 45;
+  if(z===10)return 34;
+  if(z===11)return 25;
+  if(z===12)return 17;
+  return 0
+}
+function priority(s){
+  if(s.network==='dpcn-sardegna')return 0;
+  if(s.network==='wunderground'&&s.qc_status===1)return 1;
+  if(s.network==='wunderground'&&s.qc_status===-1)return 2;
+  return 3
+}
+function selectedMarkers(){
+  const candidates=marks.filter(x=>baseVisible(x.s)&&map.getBounds().pad(.08).contains(x.m.getLatLng()));
+  if(query)return new Set(candidates.map(x=>x.m));
+  const cell=densityCell();
+  if(!cell)return new Set(candidates.map(x=>x.m));
+  const chosen=new Map();
+  candidates.forEach(x=>{
+    const p=map.latLngToContainerPoint(x.m.getLatLng());
+    const gx=Math.floor(p.x/cell),gy=Math.floor(p.y/cell),key=gx+':'+gy;
+    const cx=(gx+.5)*cell,cy=(gy+.5)*cell;
+    const score={pri:priority(x.s),dist:(p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy)};
+    const prev=chosen.get(key);
+    if(!prev||score.pri<prev.score.pri||(score.pri===prev.score.pri&&score.dist<prev.score.dist))chosen.set(key,{x,score});
+  });
+  return new Set([...chosen.values()].map(v=>v.x.m))
+}
+function applyFilters(){
+  const selected=selectedMarkers();
+  marks.forEach(x=>{
+    const show=selected.has(x.m),has=layer.hasLayer(x.m);
+    if(show&&!has)layer.addLayer(x.m);
+    if(!show&&has)layer.removeLayer(x.m)
+  });
+  return selected.size
+}
+function render(){
+  marks.forEach(x=>x.m.setIcon(ico(x.s)));
+  const shown=applyFilters();
+  const eligible=stations.filter(baseVisible).length;
+  document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n;
+  legend()
+}
+function build(){
+  layer.clearLayers();marks=[];
+  stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s));marks.push({m,s,n:(s.name||'').toLowerCase()})});
+  if(stations.length)map.fitBounds(L.latLngBounds(stations.map(s=>[s.lat,s.lon])).pad(.04));
+  render()
+}
+map.on('zoomend moveend',()=>{if(marks.length)render()})
 document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
