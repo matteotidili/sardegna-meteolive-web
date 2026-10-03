@@ -84,10 +84,13 @@ let stations=[],cur='temp',marks=[],netFilter='all',query='';
 const map=L.map('map',{minZoom:7,maxZoom:15}).setView([40.02,9.02],8);map.setMaxBounds(L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25));
 map.createPane('land');map.getPane('land').style.zIndex=220;map.getPane('land').style.pointerEvents='none';
 map.createPane('shade');map.getPane('shade').style.zIndex=230;map.getPane('shade').style.mixBlendMode='screen';map.getPane('shade').style.opacity='.33';
+map.createPane('satshade');map.getPane('satshade').style.zIndex=235;map.getPane('satshade').style.mixBlendMode='multiply';map.getPane('satshade').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
 const dark=L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16}),L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxZoom:13,pane:'shade'}),L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,pane:'labels'})]);
 const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
-const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});let base=sat,landOverlay=null;sat.addTo(map);
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
+const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
+let base=sat,landOverlay=null;sat.addTo(map);satShade.addTo(map);
 fetch('data/sardegna.geojson').then(r=>r.json()).then(g=>{landOverlay=L.geoJSON(g,{pane:'land',interactive:false,style:{color:'#4d7189',weight:1.05,opacity:.8,fillColor:'#1a3a4f',fillOpacity:.42}});if(base===dark)landOverlay.addTo(map)}).catch(()=>{});
 const layer=L.layerGroup().addTo(map);
 const leftPanel=document.querySelector('.panel.left'),rightPanel=document.querySelector('.panel.right');
@@ -172,7 +175,7 @@ function build(){
 map.on('zoomend',()=>{if(marks.length)render()})
 document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
-document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);if(landOverlay){if(base===dark&&!map.hasLayer(landOverlay))landOverlay.addTo(map);if(base!==dark&&map.hasLayer(landOverlay))map.removeLayer(landOverlay)}document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
+document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);if(base===sat){if(!map.hasLayer(satShade))satShade.addTo(map)}else if(map.hasLayer(satShade))map.removeLayer(satShade);if(landOverlay){if(base===dark&&!map.hasLayer(landOverlay))landOverlay.addTo(map);if(base!==dark&&map.hasLayer(landOverlay))map.removeLayer(landOverlay)}document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
