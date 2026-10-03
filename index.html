@@ -105,12 +105,15 @@ function baseVisible(s){
 }
 function densityCell(){
   const z=map.getZoom();
-  if(z<=8)return 58;
-  if(z===9)return 45;
-  if(z===10)return 34;
-  if(z===11)return 25;
-  if(z===12)return 17;
-  return 0
+  if(z<=7)return 68;
+  if(z===8)return 62;
+  if(z===9)return 56;
+  if(z===10)return 50;
+  if(z===11)return 44;
+  if(z===12)return 38;
+  if(z===13)return 32;
+  if(z===14)return 27;
+  return 22
 }
 function priority(s){
   if(s.network==='dpcn-sardegna')return 0;
@@ -119,13 +122,14 @@ function priority(s){
   return 3
 }
 function selectedMarkers(){
-  const candidates=marks.filter(x=>baseVisible(x.s)&&map.getBounds().pad(.08).contains(x.m.getLatLng()));
+  const candidates=marks.filter(x=>baseVisible(x.s));
   if(query)return new Set(candidates.map(x=>x.m));
   const cell=densityCell();
-  if(!cell)return new Set(candidates.map(x=>x.m));
   const chosen=new Map();
   candidates.forEach(x=>{
-    const p=map.latLngToContainerPoint(x.m.getLatLng());
+    /* Coordinate globali Leaflet: la griglia resta ancorata alla mappa e
+       non cambia quando l'utente trascina la Sardegna senza modificare lo zoom. */
+    const p=map.project(x.m.getLatLng(),map.getZoom());
     const gx=Math.floor(p.x/cell),gy=Math.floor(p.y/cell),key=gx+':'+gy;
     const cx=(gx+.5)*cell,cy=(gy+.5)*cell;
     const score={pri:priority(x.s),dist:(p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy)};
@@ -156,7 +160,7 @@ function build(){
   if(stations.length)map.fitBounds(L.latLngBounds(stations.map(s=>[s.lat,s.lon])).pad(.04));
   render()
 }
-map.on('zoomend moveend',()=>{if(marks.length)render()})
+map.on('zoomend',()=>{if(marks.length)render()})
 document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
