@@ -726,7 +726,7 @@ function prepareOperaFrameLayers(){
   const order=[operaIndex,...operaFrameLayers.map((_,i)=>i).filter(i=>i!==operaIndex)];
   order.forEach(i=>{
     const layer=operaFrameLayers[i];
-    layer.setOpacity(i===operaIndex?.9:0);
+    layer.setOpacity(i===operaIndex?.72:0);
     layer.addTo(map)
   });
   operaLayer=operaFrameLayers[operaIndex]||null
@@ -743,7 +743,7 @@ function setOperaFrame(i){
     operaLayer=operaFrameLayers[operaIndex];
     if(operaLayer){
       if(operaOn&&!map.hasLayer(operaLayer))operaLayer.addTo(map);
-      operaLayer.setOpacity(.9);
+      operaLayer.setOpacity(.72);
       if(operaLayer.bringToFront)operaLayer.bringToFront()
     }
   }
