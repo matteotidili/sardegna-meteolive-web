@@ -17,7 +17,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .left{left:14px;width:300px;max-height:calc(100% - 28px);overflow-y:auto;overscroll-behavior:contain}.pt{padding:14px 15px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#a8bbcc;font-weight:800;border-bottom:1px solid #20364a}
 .net{padding:11px 15px;border-bottom:1px solid #20364a;font-size:12px}.counter{font-size:10px;color:var(--muted);margin-top:5px}.network-switch{display:flex;gap:5px;margin-top:9px}.netbtn{flex:1;border:1px solid #2a4358;background:#0d1b29;color:#9fb4c6;border-radius:8px;padding:6px 5px;font-size:9px;font-weight:800;cursor:pointer}.netbtn.active{background:#12394d;border-color:#42d7ff;color:#fff}
 .list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
-.control-list{padding:8px}.control-section{padding:5px 0 10px;margin-bottom:7px;border-bottom:1px solid #20364a}.control-section:last-child{border-bottom:0;margin-bottom:0}.section-label{padding:4px 8px 7px;font-size:8px;font-weight:900;letter-spacing:.14em;color:#8fa5b8}.submenu{display:none;margin:3px 0 6px;padding:4px 5px 3px;border-left:2px solid #24445a}.submenu.open{display:block}.submenu-title{padding:10px 8px 5px;font-size:8px;font-weight:900;letter-spacing:.1em;color:#8299ad}.params-list .btn{padding-left:14px}.basemap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.baseopt{min-width:0;border:1px solid #2a4358;background:#0d1b29;color:#afc1d1;border-radius:8px;padding:7px 5px;font-size:9px;font-weight:850;cursor:pointer}.baseopt.active{background:#12394d;border-color:#42d7ff;color:#fff}.baseopt[data-base="3d"]{grid-column:1/-1}
+.control-list{padding:9px}.control-section{padding:9px;margin-bottom:10px;border:1px solid #24394c;border-radius:13px;background:#091521cc;box-shadow:inset 0 1px 0 #ffffff08}.control-section:last-child{margin-bottom:0}.stations-section{border-left:3px solid #42d7ff}.basemap-section{border-left:3px solid #8ba3b7}.meteo-section{border-left:3px solid #ffb24a}.section-label{margin:-2px -1px 8px;padding:7px 8px;border-radius:8px;background:#102131;color:#d3e2ee;font-size:9px;font-weight:950;letter-spacing:.14em}.stations-section>.section-label{background:#0f2b3a;color:#bdefff}.basemap-section>.section-label{background:#172331;color:#d5e0e9}.meteo-section>.section-label{background:#2a2116;color:#ffd6a0}.submenu{display:none;margin:5px 0 2px;padding:6px;border:1px solid #22384b;border-radius:10px;background:#07131e}.submenu.open{display:block}.submenu-block{margin:6px 0;padding:7px;border:1px solid #1f3344;border-radius:9px;background:#0a1825}.submenu-title{padding:2px 4px 7px;font-size:8px;font-weight:950;letter-spacing:.11em;color:#8fa8bb}.params-list .btn{padding-left:12px}.layer-subgroup{margin:7px 0 9px;padding:7px;border:1px solid #1f3344;border-radius:10px;background:#081621}.layer-subgroup:last-child{margin-bottom:0}.layer-subgroup-title{padding:2px 4px 6px;font-size:8px;font-weight:950;letter-spacing:.11em;color:#91a8ba}.basemap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.baseopt{min-width:0;border:1px solid #2a4358;background:#0d1b29;color:#afc1d1;border-radius:8px;padding:7px 5px;font-size:9px;font-weight:850;cursor:pointer}.baseopt.active{background:#12394d;border-color:#42d7ff;color:#fff}.baseopt[data-base="3d"]{grid-column:1/-1}
 .layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
 .opera-legend{margin-top:10px;padding-top:8px;border-top:1px solid #20364a}
 .opera-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#c5d7e6;margin-bottom:5px;font-weight:800}
@@ -45,7 +45,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
 .status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
 .timeline{display:none;position:absolute;z-index:980;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));background:#07131ff0;border:1px solid #294055;border-radius:13px;padding:9px 11px;box-shadow:0 10px 28px #0007;backdrop-filter:blur(12px);align-items:center;gap:8px}.timeline.on{display:flex}.timeline.stacked{bottom:103px}
-.map-legends{display:none;position:absolute;z-index:985;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));max-height:190px;overflow-y:auto;background:#07131ff2;border:1px solid #35516a;border-radius:13px;padding:8px 10px;box-shadow:0 10px 28px #0008;backdrop-filter:blur(12px)}.map-legends.on{display:block}.map-legends.one-timeline{bottom:108px}.map-legends.two-timelines{bottom:153px}.map-legend-row{padding:5px 0}.map-legend-row+.map-legend-row{border-top:1px solid #20364a}.map-legend-title{font-size:8px;font-weight:900;letter-spacing:.08em;color:#c5d7e6;text-transform:uppercase;margin-bottom:5px}.map-legend-bar{height:10px;border-radius:8px;border:1px solid #ffffff2b;overflow:hidden}.map-legend-labels{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:7px;color:#c0d1df;font-variant-numeric:tabular-nums}.map-legend-note{font-size:7px;color:#8196a8;margin-top:3px}.lightning-scale{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:8px;color:#c0d1df}.lightning-scale span{display:inline-flex;align-items:center;gap:4px}.lightning-dot{width:8px;height:8px;border-radius:50%;border:1px solid #111}.lightning-pulse-icon{background:transparent!important;border:0!important}.lightning-pulse-ring{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #fff;animation:lightningPulse 1.25s ease-out infinite;transform-origin:center}@keyframes lightningPulse{0%{transform:scale(.25);opacity:1}70%{opacity:.75}100%{transform:scale(2.1);opacity:0}}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
+.map-legends{display:none;position:absolute;z-index:985;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));max-height:190px;overflow-y:auto;background:#07131ff2;border:1px solid #35516a;border-radius:13px;padding:8px 10px;box-shadow:0 10px 28px #0008;backdrop-filter:blur(12px)}.map-legends.on{display:block}.map-legends.one-timeline{bottom:108px}.map-legends.two-timelines{bottom:153px}.map-legend-row{padding:5px 0}.map-legend-row+.map-legend-row{border-top:1px solid #20364a}.map-legend-title{font-size:8px;font-weight:900;letter-spacing:.08em;color:#c5d7e6;text-transform:uppercase;margin-bottom:5px}.map-legend-bar{height:10px;border-radius:8px;border:1px solid #ffffff2b;overflow:hidden}.map-legend-labels{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:7px;color:#c0d1df;font-variant-numeric:tabular-nums}.map-legend-note{font-size:7px;color:#8196a8;margin-top:3px}.lightning-scale{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:6px;font-size:8px;color:#d1deea}.lightning-scale span{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:5px 4px;border:1px solid #ffffff12;border-radius:7px;background:#0d1a27}.lightning-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;border:1px solid #111;box-shadow:0 0 5px #0008}.lightning-direction{display:flex;justify-content:space-between;margin-top:5px;font-size:7px;color:#7f96a9;text-transform:uppercase;letter-spacing:.06em}.lightning-pulse-icon{background:transparent!important;border:0!important}.lightning-pulse-ring{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #fff;animation:lightningPulse 1.25s ease-out infinite;transform-origin:center}@keyframes lightningPulse{0%{transform:scale(.25);opacity:1}70%{opacity:.75}100%{transform:scale(2.1);opacity:0}}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
 .popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
 .station-tip{background:#081522f2!important;color:#f2f8ff!important;border:1px solid #3a5870!important;border-radius:9px!important;box-shadow:0 8px 22px #0008!important;padding:7px 9px!important;font-size:11px!important;line-height:1.3!important}
 .station-tip:before{border-top-color:#3a5870!important}
@@ -187,9 +187,11 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
     border-radius:12px
   }
   .panel .btn span{font-size:12px}
-  .control-section{padding:5px 0 12px;margin-bottom:9px}
-  .section-label{padding:7px 6px 10px;font-size:10px}
-  .submenu-title{font-size:9px;padding:11px 8px 6px}
+  .control-section{padding:10px;margin-bottom:11px;border-radius:15px}
+  .section-label{padding:9px 10px;font-size:10px;margin-bottom:9px}
+  .submenu{padding:7px;border-radius:11px}
+  .submenu-block,.layer-subgroup{padding:8px;margin:7px 0;border-radius:10px}
+  .submenu-title,.layer-subgroup-title{font-size:9px;padding:3px 4px 8px}
   .basemap-grid{gap:7px}
   .baseopt{
     min-height:46px;
@@ -232,7 +234,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
   .map-legends{left:8px;right:8px;width:auto;transform:none;bottom:54px;max-height:180px;padding:8px 10px}
   .map-legends.one-timeline{bottom:103px}
   .map-legends.two-timelines{bottom:148px}
-  .map-legend-title{font-size:9px}.map-legend-labels{font-size:8px}
+  .map-legend-title{font-size:9px}.map-legend-labels{font-size:8px}.lightning-scale{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.lightning-scale span{justify-content:flex-start;padding:6px}.lightning-dot{width:13px;height:13px;flex-basis:13px}
   .time-kind{font-size:8px}
   .timebtn{width:34px;height:34px;flex:0 0 34px}
   .time-label{min-width:72px;font-size:9px}
@@ -268,21 +270,26 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
       <div class="section-label">RETE STAZIONI</div>
       <button class="btn active" id="stationsBtn">Rete stazioni <span>ON</span></button>
       <div class="submenu open" id="stationsSub">
-        <div class="net">Reti disponibili
-          <div id="counter" class="counter">Caricamento dati…</div>
-          <div class="network-switch">
-            <button class="netbtn active" data-net="all">Tutte</button>
-            <button class="netbtn" data-net="dpcn-sardegna">DPCN</button>
-            <button class="netbtn" data-net="aeronautica-militare">AM</button>
-            <button class="netbtn" data-net="wunderground">WU</button>
+        <div class="submenu-block">
+          <div class="submenu-title">RETI DISPONIBILI</div>
+          <div class="net">
+            <div id="counter" class="counter">Caricamento dati…</div>
+            <div class="network-switch">
+              <button class="netbtn active" data-net="all">Tutte</button>
+              <button class="netbtn" data-net="dpcn-sardegna">DPCN</button>
+              <button class="netbtn" data-net="aeronautica-militare">AM</button>
+              <button class="netbtn" data-net="wunderground">WU</button>
+            </div>
           </div>
         </div>
-        <div class="submenu-title">PARAMETRO VISUALIZZATO</div>
-        <div id="params" class="params-list"></div>
+        <div class="submenu-block">
+          <div class="submenu-title">PARAMETRO VISUALIZZATO</div>
+          <div id="params" class="params-list"></div>
+        </div>
       </div>
     </div>
 
-    <div class="control-section">
+    <div class="control-section basemap-section">
       <div class="section-label">MAPPA DI BASE</div>
       <div class="basemap-grid">
         <button class="baseopt active" data-base="operational">Operativa</button>
@@ -293,35 +300,47 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
       </div>
     </div>
 
-    <div class="control-section">
+    <div class="control-section meteo-section">
       <div class="section-label">LAYER METEO</div>
-      <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
-      <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
+      <div class="layer-subgroup">
+        <div class="layer-subgroup-title">PRECIPITAZIONI</div>
+        <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
+        <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
 
-      <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
-      <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
+        <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
+        <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
 
-      <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
-      <div class="layer-note" id="cumInfo">Accumulo precipitazione
-        <div class="cum-switch">
-          <button class="cumopt" data-cum="off">OFF</button>
-          <button class="cumopt" data-cum="cum1">CUM1h</button>
-          <button class="cumopt" data-cum="cum3">CUM3h</button>
-          <button class="cumopt" data-cum="cum6">CUM6h</button>
-          <button class="cumopt" data-cum="cum12">CUM12h</button>
-          <button class="cumopt" data-cum="cum24">CUM24h</button>
+        <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
+        <div class="layer-note" id="cumInfo">Accumulo precipitazione
+          <div class="cum-switch">
+            <button class="cumopt" data-cum="off">OFF</button>
+            <button class="cumopt" data-cum="cum1">CUM1h</button>
+            <button class="cumopt" data-cum="cum3">CUM3h</button>
+            <button class="cumopt" data-cum="cum6">CUM6h</button>
+            <button class="cumopt" data-cum="cum12">CUM12h</button>
+            <button class="cumopt" data-cum="cum24">CUM24h</button>
+          </div>
+          <div id="cumStamp" style="margin-top:7px"></div>
         </div>
-        <div id="cumStamp" style="margin-top:7px"></div>
       </div>
 
-      <button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button>
-      <div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT</div>
+      <div class="layer-subgroup">
+        <div class="layer-subgroup-title">SATELLITE</div>
+        <button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button>
+        <div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT</div>
+      </div>
 
-      <button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button>
-      <div class="layer-note" id="lightningInfo">Blitzortung / LightningMaps · LIVE<div id="lightningMeta" style="margin-top:5px">scariche in tempo reale · ultimi 60 min</div></div>
+      <div class="layer-subgroup">
+        <div class="layer-subgroup-title">FULMINAZIONI</div>
+        <button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button>
+        <div class="layer-note" id="lightningInfo">Blitzortung / LightningMaps · LIVE<div id="lightningMeta" style="margin-top:5px">scariche in tempo reale · ultimi 60 min</div></div>
+      </div>
 
-      <button class="btn disabled">Vento <span>—</span></button>
-      <button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button>
+      <div class="layer-subgroup">
+        <div class="layer-subgroup-title">ALTRI LAYER</div>
+        <button class="btn disabled">Vento <span>—</span></button>
+        <button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button>
+      </div>
     </div>
   </div>
 </aside>
@@ -836,7 +855,7 @@ function cumLegendHtml(){
 }
 function lightningLegendHtml(){
   if(!lightningOn)return '';
-  return '<div class="map-legend-row"><div class="map-legend-title">Fulmini LIVE · età scariche</div><div class="lightning-scale"><span><i class="lightning-dot" style="background:#fff34d"></i>0–5 min</span><span><i class="lightning-dot" style="background:#ff9f1a"></i>5–15</span><span><i class="lightning-dot" style="background:#ef5b35"></i>15–30</span><span><i class="lightning-dot" style="background:#b53b4b"></i>30–45</span><span><i class="lightning-dot" style="background:#6f3a44"></i>45–60</span></div><div class="map-legend-note">Blitzortung / LightningMaps · aggiornamento realtime</div></div>'
+  return '<div class="map-legend-row"><div class="map-legend-title">Fulmini LIVE · colore = età della scarica</div><div class="lightning-scale"><span><i class="lightning-dot" style="background:#fff34d"></i>0–5 min</span><span><i class="lightning-dot" style="background:#ff9f1a"></i>5–15 min</span><span><i class="lightning-dot" style="background:#ef5b35"></i>15–30 min</span><span><i class="lightning-dot" style="background:#b53b4b"></i>30–45 min</span><span><i class="lightning-dot" style="background:#6f3a44"></i>45–60 min</span></div><div class="lightning-direction"><span>Più recente</span><span>Più vecchio</span></div><div class="map-legend-note">Anello bianco pulsante = scarica appena ricevuta · Blitzortung / LightningMaps</div></div>'
 }
 function syncLegendPosition(){
   const el=document.getElementById('mapLegends');
