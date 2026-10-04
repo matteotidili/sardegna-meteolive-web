@@ -129,8 +129,14 @@ map.createPane('satmet');map.getPane('satmet').style.zIndex=300;map.getPane('sat
 map.createPane('satbounds');map.getPane('satbounds').style.zIndex=335;map.getPane('satbounds').style.pointerEvents='none';
 map.createPane('weather');map.getPane('weather').style.zIndex=350;map.getPane('weather').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
-const MAPTILER_KEY='bNbnXwEQK158XbnOwP63';
-const dark=L.tileLayer('https://api.maptiler.com/maps/topo-v4-dark/256/{z}/{x}/{y}.png?key='+MAPTILER_KEY,{minZoom:1,maxZoom:20,attribution:'© MapTiler © OpenStreetMap contributors',crossOrigin:true});
+const MAPTILER_KEY='';
+const dark=MAPTILER_KEY
+  ? L.tileLayer('https://api.maptiler.com/maps/topo-v4-dark/256/{z}/{x}/{y}.png?key='+MAPTILER_KEY,{minZoom:1,maxZoom:20,attribution:'© MapTiler © OpenStreetMap contributors',crossOrigin:true})
+  : L.layerGroup([
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16}),
+      L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{maxZoom:13,pane:'shade'}),
+      L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,pane:'labels'})
+    ]);
 const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
 const sat=L.tileLayer('https://api.maptiler.com/maps/hybrid-v4/256/{z}/{x}/{y}.jpg?key='+MAPTILER_KEY,{minZoom:1,maxZoom:20,attribution:'© MapTiler © OpenStreetMap contributors',crossOrigin:true});
 const satShade=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{pane:'satshade',maxNativeZoom:13,maxZoom:18,opacity:.42});
