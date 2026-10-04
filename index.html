@@ -335,12 +335,17 @@ function priority(s){
 }
 function selectedMarkers(){
   const candidates=marks.filter(x=>baseVisible(x.s));
-  if(query)return new Set(candidates.map(x=>x.m));
+  /* Quando l'utente seleziona una singola rete, mostra tutte le stazioni.
+     In vista "Tutte", le stazioni aeronautiche restano sempre visibili,
+     mentre DPCN/WU vengono diradate per evitare sovrapposizioni eccessive. */
+  if(query||netFilter!=='all')return new Set(candidates.map(x=>x.m));
+
+  const fixed=candidates.filter(x=>x.s.network==='aeronautica-militare');
+  const variable=candidates.filter(x=>x.s.network!=='aeronautica-militare');
   const cell=densityCell();
   const chosen=new Map();
-  candidates.forEach(x=>{
-    /* Coordinate globali Leaflet: la griglia resta ancorata alla mappa e
-       non cambia quando l'utente trascina la Sardegna senza modificare lo zoom. */
+
+  variable.forEach(x=>{
     const p=map.project(x.m.getLatLng(),map.getZoom());
     const gx=Math.floor(p.x/cell),gy=Math.floor(p.y/cell),key=gx+':'+gy;
     const cx=(gx+.5)*cell,cy=(gy+.5)*cell;
@@ -348,7 +353,11 @@ function selectedMarkers(){
     const prev=chosen.get(key);
     if(!prev||score.pri<prev.score.pri||(score.pri===prev.score.pri&&score.dist<prev.score.dist))chosen.set(key,{x,score});
   });
-  return new Set([...chosen.values()].map(v=>v.x.m))
+
+  return new Set([
+    ...fixed.map(x=>x.m),
+    ...[...chosen.values()].map(v=>v.x.m)
+  ])
 }
 function applyFilters(){
   const selected=selectedMarkers();
