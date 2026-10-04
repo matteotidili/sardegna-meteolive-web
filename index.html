@@ -396,7 +396,7 @@ const lightningFrame=document.getElementById('lightningFrame');
 let lightningOn=false;
 lightningBtn.onclick=()=>{
   lightningOn=!lightningOn;
-  if(lightningOn&&!lightningFrame.src)lightningFrame.src=lightningFrame.dataset.src;
+  if(lightningOn&&!lightningFrame.getAttribute('src'))lightningFrame.src=lightningFrame.dataset.src;
   lightningEmbed.classList.toggle('on',lightningOn);
   lightningEmbed.setAttribute('aria-hidden',lightningOn?'false':'true');
   document.querySelector('main').classList.toggle('lightning-active',lightningOn);
