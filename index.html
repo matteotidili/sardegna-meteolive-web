@@ -1898,7 +1898,7 @@ async function loadObservations(){
   if(stations.length)build();else document.getElementById('status').textContent='Errore caricamento dati stazioni';
 }
 loadObservations();
-setInterval(loadObservations,5*60*1000);
+setInterval(loadObservations,2*60*1000);
 setInterval(()=>{if(stations.length)render()},60*1000);
 </script>
 </body></html>
