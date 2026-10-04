@@ -316,10 +316,10 @@ const light=(typeof L.maplibreGL==='function')
       attribution:'© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors'
     })
   : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
-const sat=L.layerGroup([
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles © Esri'}),
-  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,pane:'labels',attribution:'Reference © Esri'})
-]);
+const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+  maxZoom:18,
+  attribution:'Tiles © Esri'
+});
 const relief=(typeof L.maplibreGL==='function')
   ? L.maplibreGL({
       interactive:false,
