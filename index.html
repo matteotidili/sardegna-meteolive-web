@@ -281,8 +281,8 @@ function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
   const q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);
   const hasValue=Number.isFinite(s[cur]);
-  const usable=obsAgeMin(s)<=360;
-  return net&&q&&hasValue&&usable
+  const fresh=obsAgeMin(s)<=90;
+  return net&&q&&hasValue&&fresh
 }
 function densityCell(){
   const z=map.getZoom();
@@ -683,10 +683,9 @@ const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-da
 let lastDpcnData=null,lastWuData=null;
 function dataStampLabel(d,label){
   if(!d?.generated_at)return label+' —';
-  const t=new Date(d.generated_at),age=Math.max(0,(Date.now()-t.getTime())/60000);
+  const t=new Date(d.generated_at),age=(Date.now()-t.getTime())/60000;
   const stamp=t.toLocaleTimeString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit'});
-  const warn=age>90?' · ⚠ '+Math.round(age)+' min':'';
-  return label+' '+(d.stations?.length||0)+' · '+stamp+warn
+  return label+' '+(d.stations?.length||0)+' · '+stamp+(age>90?' ⚠':'')
 }
 async function loadObservations(){
   const results=await Promise.allSettled([
