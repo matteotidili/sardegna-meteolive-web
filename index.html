@@ -41,7 +41,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-words span:nth-child(5){flex:5 1 0}
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
-.badge{position:relative;box-sizing:border-box;min-width:46px;height:26px;padding:0 5px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:#061018;font-weight:900;font-size:11px;border:0;box-shadow:0 2px 7px #000b}.badge.suspect{opacity:.58}.badge.stale{background:#68727d!important;color:#fff;opacity:.72}
+.badge{position:relative;box-sizing:border-box;min-width:38px;height:22px;padding:0 4px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#061018;font-weight:900;font-size:9.5px;line-height:1;border:0;box-shadow:0 1px 5px #000a;white-space:nowrap}.badge.suspect{opacity:.58}.badge.stale{background:#68727d!important;color:#fff;opacity:.72}
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
 .status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
 .timeline{display:none;position:absolute;z-index:980;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));background:#07131ff0;border:1px solid #294055;border-radius:13px;padding:9px 11px;box-shadow:0 10px 28px #0007;backdrop-filter:blur(12px);align-items:center;gap:8px}.timeline.on{display:flex}.timeline.stacked{bottom:103px}
@@ -243,7 +243,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
   .time-label{min-width:72px;font-size:9px}
   .timeline input[type=range]{width:100%}
   .leaflet-control-zoom{display:none}
-  .badge{min-width:42px;height:24px;padding:0 4px;font-size:10px}
+  .badge{min-width:36px;height:21px;padding:0 3px;font-size:9px;border-radius:10.5px}
   .leaflet-popup-content{margin:12px 14px}
 }
 @media(max-width:480px){
@@ -885,7 +885,29 @@ function obsAgeMin(s){
   }
   return Number.isFinite(s?.stale_min)?s.stale_min:999
 }
-function ico(s){let v=s[cur],bg=col(v,P[cur].st);return L.divIcon({className:'',html:'<div class="badge" style="background:'+bg+'">'+fmt(v,cur,s)+'</div>',iconSize:[48,26],iconAnchor:[24,13]})}
+function markerMetrics(){
+  const z=map.getZoom(),mobile=MOBILE_MAP();
+  if(mobile){
+    if(z<=7)return {w:36,h:21,sx:39,sy:23};
+    if(z===8)return {w:36,h:21,sx:38,sy:23};
+    if(z===9)return {w:36,h:21,sx:37,sy:22};
+    return {w:36,h:21,sx:36,sy:22}
+  }
+  if(z<=7)return {w:40,h:22,sx:44,sy:25};
+  if(z===8)return {w:39,h:22,sx:42,sy:24};
+  if(z===9)return {w:38,h:22,sx:40,sy:24};
+  if(z===10)return {w:38,h:22,sx:39,sy:23};
+  return {w:38,h:22,sx:38,sy:23}
+}
+function ico(s){
+  const v=s[cur],bg=col(v,P[cur].st),m=markerMetrics();
+  return L.divIcon({
+    className:'',
+    html:'<div class="badge" style="background:'+bg+';min-width:'+m.w+'px;height:'+m.h+'px">'+fmt(v,cur,s)+'</div>',
+    iconSize:[m.w,m.h],
+    iconAnchor:[m.w/2,m.h/2]
+  })
+}
 function popup(s){let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
 function tooltipHtml(s){const net=s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
 function stationLegendHtml(){
@@ -939,15 +961,8 @@ function baseVisible(s){
   return net&&q&&hasValue
 }
 function markerSpacing(){
-  const z=map.getZoom();
-  /* Marker compatti (circa 48x26 px) con un piccolo margine anti-collisione.
-     La densità cambia solo con lo zoom, non con il trascinamento della mappa. */
-  if(z<=7)return {x:62,y:36};
-  if(z===8)return {x:58,y:34};
-  if(z===9)return {x:55,y:32};
-  if(z===10)return {x:53,y:31};
-  if(z===11)return {x:51,y:30};
-  return {x:50,y:29}
+  const m=markerMetrics();
+  return {x:m.sx,y:m.sy}
 }
 function priority(s){
   if(s.network==='aeronautica-militare')return 0;
@@ -960,32 +975,41 @@ function selectedMarkers(){
   const candidates=marks.filter(x=>baseVisible(x.s));
   if(query)return new Set(candidates.map(x=>x.m));
 
-  const spacing=markerSpacing();
-  const center=map.getSize().divideBy(2);
-
-  /* Selezione greedy sullo spazio dello schermo.
-     La distanza dal centro mappa serve solo come criterio secondario:
-     evita concentrazioni casuali ai bordi e mantiene una copertura visiva
-     più uniforme dell'area osservata. */
+  const spacing=markerSpacing(),z=map.getZoom();
+  /* Coordinate globali al livello di zoom corrente:
+     la selezione non dipende dal centro o dal pan della mappa. */
   const projected=candidates.map(x=>{
-    const p=map.latLngToContainerPoint(x.m.getLatLng());
-    const dx=p.x-center.x,dy=p.y-center.y;
-    return {x,p,pri:priority(x.s),centerDist:dx*dx+dy*dy}
-  }).sort((a,b)=>a.pri-b.pri||a.centerDist-b.centerDist);
+    const p=map.project(x.m.getLatLng(),z);
+    const stable=String(x.s.station_id||x.s.name||'');
+    return {x,p,pri:priority(x.s),stable}
+  }).sort((a,b)=>a.pri-b.pri||a.stable.localeCompare(b.stable,'it'));
 
-  const accepted=[];
+  /* Griglia spaziale: controlliamo solo le celle vicine.
+     Consente una distanza quasi pari alla dimensione reale dei badge,
+     massimizzando il riempimento senza sovrapposizioni evidenti. */
+  const grid=new Map(),accepted=[];
+  const cellX=spacing.x,cellY=spacing.y;
   for(const item of projected){
+    const gx=Math.floor(item.p.x/cellX),gy=Math.floor(item.p.y/cellY);
     let collide=false;
-    for(const keep of accepted){
-      if(Math.abs(item.p.x-keep.p.x)<spacing.x &&
-         Math.abs(item.p.y-keep.p.y)<spacing.y){
-        collide=true;
-        break
+    for(let ix=gx-1;ix<=gx+1&&!collide;ix++){
+      for(let iy=gy-1;iy<=gy+1&&!collide;iy++){
+        const bucket=grid.get(ix+','+iy);
+        if(!bucket)continue;
+        for(const keep of bucket){
+          if(Math.abs(item.p.x-keep.p.x)<spacing.x &&
+             Math.abs(item.p.y-keep.p.y)<spacing.y){
+            collide=true;break
+          }
+        }
       }
     }
-    if(!collide)accepted.push(item)
+    if(collide)continue;
+    accepted.push(item);
+    const key=gx+','+gy;
+    if(!grid.has(key))grid.set(key,[]);
+    grid.get(key).push(item)
   }
-
   return new Set(accepted.map(v=>v.x.m))
 }
 function applyFilters(){
@@ -1007,7 +1031,7 @@ function render(){
 }
 function build(){
   layer.clearLayers();marks=[];
-  stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s)).bindTooltip(tooltipHtml(s),{direction:'top',offset:[0,-12],opacity:1,className:'station-tip',sticky:true});marks.push({m,s,n:(s.name||'').toLowerCase()})});
+  stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s)).bindTooltip(tooltipHtml(s),{direction:'top',offset:[0,-10],opacity:1,className:'station-tip',sticky:true});marks.push({m,s,n:(s.name||'').toLowerCase()})});
   render()
 }
 map.on('zoomend',()=>{if(marks.length)render()})
