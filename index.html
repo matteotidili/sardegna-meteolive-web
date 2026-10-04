@@ -90,7 +90,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<br>cache WebP · animazione ultime 3 ore · © Radar-DPC<div class="radar-legend"><div class="radar-legend-title">Intensità precipitazione · mm/h</div><div class="radar-legend-bar"></div><div class="radar-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div></div><button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button><div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · Europa · rain rate<br>solo osservazioni reali · 15 min · nessun forecast<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU</div><div class="opera-legend"><div class="opera-legend-title">Riflettività visualizzata · dBZ</div><div class="opera-legend-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="opera-legend-labels"><span>5</span><span>15</span><span>25</span><span>35</span><span>45</span><span>55</span><span>65</span></div><div class="opera-legend-words"><span>Debole</span><span>Moderata</span><span>Forte</span><span>Molto forte</span><span>Intensità radar elevata</span></div><div class="opera-legend-note">Palette RadarEU: rain rate OPERA NIMBUS convertito in dBZ solo per la visualizzazione.</div></div></div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1 · 1 h</button><button class="cumopt" data-cum="cum3">CUM3 · 3 h</button><button class="cumopt" data-cum="cum6">CUM6 · 6 h</button><button class="cumopt" data-cum="cum12">CUM12 · 12 h</button><button class="cumopt" data-cum="cum24">CUM24 · 24 h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen · alta risoluzione WMS · confini</div><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<div class="radar-legend"><div class="radar-legend-title">Intensità precipitazione · mm/h</div><div class="radar-legend-bar"></div><div class="radar-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div></div><button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button><div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · Europa · rain rate<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU</div><div class="opera-legend"><div class="opera-legend-title">Riflettività visualizzata · dBZ</div><div class="opera-legend-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="opera-legend-labels"><span>5</span><span>15</span><span>25</span><span>35</span><span>45</span><span>55</span><span>65</span></div><div class="opera-legend-words"><span>Debole</span><span>Moderata</span><span>Forte</span><span>Molto forte</span><span>Intensità radar elevata</span></div></div></div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1h</button><button class="cumopt" data-cum="cum3">CUM3h</button><button class="cumopt" data-cum="cum6">CUM6h</button><button class="cumopt" data-cum="cum12">CUM12h</button><button class="cumopt" data-cum="cum24">CUM24h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen · alta risoluzione WMS · confini</div><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button></div></aside>
 <div class="styles"><button class="base" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
 <div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="timeline" id="operaTimeline"><div class="time-kind">EU RADAR</div><button class="timebtn" id="operaPrev" title="Frame precedente">‹</button><button class="timebtn" id="operaPlay" title="Riproduci">▶</button><button class="timebtn" id="operaNext" title="Frame successivo">›</button><input id="operaRange" type="range" min="0" max="11" value="11" step="1" aria-label="Sequenza temporale radar Europa"><div class="time-label" id="operaTime">ULTIMO</div></div>
@@ -503,7 +503,6 @@ async function preloadSatFrames(){
   satPreloadedImages=[];
   satPreloadPromise=(async()=>{
     let done=0;
-    satMetInfo.innerHTML='MTG GeoColour · precaricamento 0/'+satFrames.length+'<br>© EUMETSAT / NASA';
     const queue=satFrames.map((d,i)=>({d,i}));
     const worker=async()=>{
       while(queue.length){
@@ -517,7 +516,6 @@ async function preloadSatFrames(){
         if(generation!==satViewGeneration)return;
         satPreloadedImages[i]=img;
         done++;
-        if(satMetOn)satMetInfo.innerHTML='MTG GeoColour · precaricamento '+done+'/'+satFrames.length+'<br>© EUMETSAT / NASA'
       }
     };
     await Promise.all([worker(),worker(),worker()]);
@@ -534,7 +532,7 @@ async function startSatAnimation(){
   if(satHdLayer&&map.hasLayer(satHdLayer))map.removeLayer(satHdLayer);
   satHdFrameIndex=-1;
   if(satMetLayer)satMetLayer.setOpacity(.82);
-  satPlay.textContent='…';satPlay.classList.add('active');satPlay.title='Precaricamento';
+  satPlay.textContent='…';satPlay.classList.add('active');satPlay.title='Avvio animazione';
   await preloadSatFrames();
   if(!satMetOn)return;
   if(satIndex>=satFrames.length-1)showSatFrame(0,'preview');
@@ -735,10 +733,8 @@ function prepareOperaFrameLayers(){
       counted=true;
       operaPreloadReady++;
       if(operaOn){
-        const pct=Math.round(operaPreloadReady/operaFrames.length*100);
         operaMeta.innerHTML='OPERA NIMBUS · '+operaLabel(operaFrames[operaIndex])+
-          '<br>frame precaricati '+operaPreloadReady+'/'+operaFrames.length+' · '+pct+'%'+
-          '<br>solo osservazioni reali · nessun forecast'
+          '<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU'
       }
     });
     return layer
@@ -771,8 +767,7 @@ function setOperaFrame(i){
   const d=operaFrames[operaIndex];
   operaTime.textContent=operaLabel(d);
   operaMeta.innerHTML='OPERA NIMBUS · '+operaLabel(d)+
-    '<br>precaricamento '+operaPreloadReady+'/'+operaFrames.length+
-    '<br>solo osservazioni reali · 15 min · nessun forecast'
+    '<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU'
 }
 function queueOperaFrame(i){
   operaPendingIndex=Number(i);
