@@ -314,17 +314,23 @@ function baseVisible(s){
   const hasValue=Number.isFinite(s[cur]);
   return net&&q&&hasValue
 }
-function densityCell(){
+function markerSpacing(){
   const z=map.getZoom();
-  if(z<=7)return 68;
-  if(z===8)return 62;
-  if(z===9)return 56;
-  if(z===10)return 50;
-  if(z===11)return 44;
-  if(z===12)return 38;
-  if(z===13)return 32;
-  if(z===14)return 27;
-  return 22
+  /* Spaziatura minima in pixel tra i centri dei marker.
+     Diminuisce progressivamente con lo zoom: a scala regionale la rete
+     resta leggibile e omogenea; avvicinandosi compaiono via via più stazioni. */
+  if(z<=7)return {x:62,y:36};
+  if(z===8)return {x:58,y:34};
+  if(z===9)return {x:54,y:32};
+  if(z===10)return {x:50,y:30};
+  if(z===11)return {x:46,y:28};
+  if(z===12)return {x:42,y:26};
+  if(z===13)return {x:38,y:24};
+  if(z===14)return {x:34,y:22};
+  if(z===15)return {x:30,y:20};
+  if(z===16)return {x:26,y:18};
+  if(z===17)return {x:22,y:16};
+  return {x:18,y:14}
 }
 function priority(s){
   if(s.network==='aeronautica-militare')return 0;
@@ -335,29 +341,35 @@ function priority(s){
 }
 function selectedMarkers(){
   const candidates=marks.filter(x=>baseVisible(x.s));
-  /* Quando l'utente seleziona una singola rete, mostra tutte le stazioni.
-     In vista "Tutte", le stazioni aeronautiche restano sempre visibili,
-     mentre DPCN/WU vengono diradate per evitare sovrapposizioni eccessive. */
-  if(query||netFilter!=='all')return new Set(candidates.map(x=>x.m));
+  if(query)return new Set(candidates.map(x=>x.m));
 
-  const fixed=candidates.filter(x=>x.s.network==='aeronautica-militare');
-  const variable=candidates.filter(x=>x.s.network!=='aeronautica-militare');
-  const cell=densityCell();
-  const chosen=new Map();
+  const spacing=markerSpacing();
+  const center=map.getSize().divideBy(2);
 
-  variable.forEach(x=>{
-    const p=map.project(x.m.getLatLng(),map.getZoom());
-    const gx=Math.floor(p.x/cell),gy=Math.floor(p.y/cell),key=gx+':'+gy;
-    const cx=(gx+.5)*cell,cy=(gy+.5)*cell;
-    const score={pri:priority(x.s),dist:(p.x-cx)*(p.x-cx)+(p.y-cy)*(p.y-cy)};
-    const prev=chosen.get(key);
-    if(!prev||score.pri<prev.score.pri||(score.pri===prev.score.pri&&score.dist<prev.score.dist))chosen.set(key,{x,score});
-  });
+  /* Selezione greedy sullo spazio dello schermo.
+     La distanza dal centro mappa serve solo come criterio secondario:
+     evita concentrazioni casuali ai bordi e mantiene una copertura visiva
+     più uniforme dell'area osservata. */
+  const projected=candidates.map(x=>{
+    const p=map.latLngToContainerPoint(x.m.getLatLng());
+    const dx=p.x-center.x,dy=p.y-center.y;
+    return {x,p,pri:priority(x.s),centerDist:dx*dx+dy*dy}
+  }).sort((a,b)=>a.pri-b.pri||a.centerDist-b.centerDist);
 
-  return new Set([
-    ...fixed.map(x=>x.m),
-    ...[...chosen.values()].map(v=>v.x.m)
-  ])
+  const accepted=[];
+  for(const item of projected){
+    let collide=false;
+    for(const keep of accepted){
+      if(Math.abs(item.p.x-keep.p.x)<spacing.x &&
+         Math.abs(item.p.y-keep.p.y)<spacing.y){
+        collide=true;
+        break
+      }
+    }
+    if(!collide)accepted.push(item)
+  }
+
+  return new Set(accepted.map(v=>v.x.m))
 }
 function applyFilters(){
   const selected=selectedMarkers();
