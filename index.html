@@ -14,10 +14,10 @@
 main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{display:none;position:absolute;inset:0;z-index:1}#map3d.on{display:block}#map.map-hidden{display:none}
 
 .panel{position:absolute;z-index:1000;top:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 15px 40px #0007;backdrop-filter:blur(16px);overflow:hidden}
-.left{left:14px;width:290px}.right{right:14px;width:240px}.pt{padding:14px 15px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#a8bbcc;font-weight:800;border-bottom:1px solid #20364a}
+.left{left:14px;width:300px;max-height:calc(100% - 28px);overflow-y:auto;overscroll-behavior:contain}.pt{padding:14px 15px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#a8bbcc;font-weight:800;border-bottom:1px solid #20364a}
 .net{padding:11px 15px;border-bottom:1px solid #20364a;font-size:12px}.counter{font-size:10px;color:var(--muted);margin-top:5px}.network-switch{display:flex;gap:5px;margin-top:9px}.netbtn{flex:1;border:1px solid #2a4358;background:#0d1b29;color:#9fb4c6;border-radius:8px;padding:6px 5px;font-size:9px;font-weight:800;cursor:pointer}.netbtn.active{background:#12394d;border-color:#42d7ff;color:#fff}
 .list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
-.basemap-group{padding:2px 0 9px;margin-bottom:6px;border-bottom:1px solid #20364a}.basemap-title{padding:4px 8px 7px;font-size:8px;font-weight:900;letter-spacing:.14em;color:#8fa5b8}.basemap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.baseopt{min-width:0;border:1px solid #2a4358;background:#0d1b29;color:#afc1d1;border-radius:8px;padding:7px 5px;font-size:9px;font-weight:850;cursor:pointer}.baseopt.active{background:#12394d;border-color:#42d7ff;color:#fff}.baseopt[data-base="3d"]{grid-column:1/-1}
+.control-list{padding:8px}.control-section{padding:5px 0 10px;margin-bottom:7px;border-bottom:1px solid #20364a}.control-section:last-child{border-bottom:0;margin-bottom:0}.section-label{padding:4px 8px 7px;font-size:8px;font-weight:900;letter-spacing:.14em;color:#8fa5b8}.submenu{display:none;margin:3px 0 6px;padding:4px 5px 3px;border-left:2px solid #24445a}.submenu.open{display:block}.submenu-title{padding:10px 8px 5px;font-size:8px;font-weight:900;letter-spacing:.1em;color:#8299ad}.params-list .btn{padding-left:14px}.basemap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.baseopt{min-width:0;border:1px solid #2a4358;background:#0d1b29;color:#afc1d1;border-radius:8px;padding:7px 5px;font-size:9px;font-weight:850;cursor:pointer}.baseopt.active{background:#12394d;border-color:#42d7ff;color:#fff}.baseopt[data-base="3d"]{grid-column:1/-1}
 .layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
 .opera-legend{margin-top:10px;padding-top:8px;border-top:1px solid #20364a}
 .opera-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#c5d7e6;margin-bottom:5px;font-weight:800}
@@ -44,7 +44,8 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .badge{position:relative;box-sizing:border-box;min-width:46px;height:26px;padding:0 5px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:#061018;font-weight:900;font-size:11px;border:0;box-shadow:0 2px 7px #000b}.badge.suspect{opacity:.58}.badge.stale{background:#68727d!important;color:#fff;opacity:.72}
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
 .status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
-.timeline{display:none;position:absolute;z-index:980;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));background:#07131ff0;border:1px solid #294055;border-radius:13px;padding:9px 11px;box-shadow:0 10px 28px #0007;backdrop-filter:blur(12px);align-items:center;gap:8px}.timeline.on{display:flex}.timeline.stacked{bottom:103px}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
+.timeline{display:none;position:absolute;z-index:980;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));background:#07131ff0;border:1px solid #294055;border-radius:13px;padding:9px 11px;box-shadow:0 10px 28px #0007;backdrop-filter:blur(12px);align-items:center;gap:8px}.timeline.on{display:flex}.timeline.stacked{bottom:103px}
+.map-legends{display:none;position:absolute;z-index:985;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));max-height:190px;overflow-y:auto;background:#07131ff2;border:1px solid #35516a;border-radius:13px;padding:8px 10px;box-shadow:0 10px 28px #0008;backdrop-filter:blur(12px)}.map-legends.on{display:block}.map-legends.one-timeline{bottom:108px}.map-legends.two-timelines{bottom:153px}.map-legend-row{padding:5px 0}.map-legend-row+.map-legend-row{border-top:1px solid #20364a}.map-legend-title{font-size:8px;font-weight:900;letter-spacing:.08em;color:#c5d7e6;text-transform:uppercase;margin-bottom:5px}.map-legend-bar{height:10px;border-radius:8px;border:1px solid #ffffff2b;overflow:hidden}.map-legend-labels{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:7px;color:#c0d1df;font-variant-numeric:tabular-nums}.map-legend-note{font-size:7px;color:#8196a8;margin-top:3px}.lightning-scale{display:flex;gap:12px;align-items:center;font-size:8px;color:#c0d1df}.lightning-scale span{display:inline-flex;align-items:center;gap:4px}.lightning-dot{width:8px;height:8px;border-radius:50%;border:1px solid #111}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
 .popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
 .station-tip{background:#081522f2!important;color:#f2f8ff!important;border:1px solid #3a5870!important;border-radius:9px!important;box-shadow:0 8px 22px #0008!important;padding:7px 9px!important;font-size:11px!important;line-height:1.3!important}
 .station-tip:before{border-top-color:#3a5870!important}
@@ -71,7 +72,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
     left:50%;
     transform:translateX(-50%);
     gap:8px;
-    width:min(310px,calc(100% - 28px));
+    width:min(180px,calc(100% - 28px));
     pointer-events:none
   }
   .mobile-tool{
@@ -186,8 +187,9 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
     border-radius:12px
   }
   .panel .btn span{font-size:12px}
-  .basemap-group{padding:2px 0 12px;margin-bottom:9px}
-  .basemap-title{padding:6px 6px 10px;font-size:10px}
+  .control-section{padding:5px 0 12px;margin-bottom:9px}
+  .section-label{padding:7px 6px 10px;font-size:10px}
+  .submenu-title{font-size:9px;padding:11px 8px 6px}
   .basemap-grid{gap:7px}
   .baseopt{
     min-height:46px;
@@ -227,6 +229,10 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
     gap:6px
   }
   .timeline.stacked{bottom:99px}
+  .map-legends{left:8px;right:8px;width:auto;transform:none;bottom:54px;max-height:180px;padding:8px 10px}
+  .map-legends.one-timeline{bottom:103px}
+  .map-legends.two-timelines{bottom:148px}
+  .map-legend-title{font-size:9px}.map-legend-labels{font-size:8px}
   .time-kind{font-size:8px}
   .timebtn{width:34px;height:34px;flex:0 0 34px}
   .time-label{min-width:72px;font-size:9px}
@@ -238,7 +244,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 @media(max-width:480px){
   .brand{min-width:122px;font-size:9px}
   .brand small{display:none}
-  .mobile-tools{width:min(286px,calc(100% - 20px));gap:6px}
+  .mobile-tools{width:min(170px,calc(100% - 20px));gap:6px}
   .mobile-tool{min-height:44px;padding:10px 11px;font-size:11px}
   .panel{left:5px!important;right:5px!important;bottom:5px!important;max-height:82dvh}
   .panel .btn{font-size:12px}
@@ -253,10 +259,73 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 <main>
 <div id="map"></div>
 <div id="map3d" aria-hidden="true"></div>
-<div class="mobile-tools"><button class="mobile-tool" id="mobileParams" aria-expanded="false">Parametri</button><button class="mobile-tool" id="mobileLayers" aria-expanded="false">Layer</button></div>
+<div class="mobile-tools"><button class="mobile-tool" id="mobileMenu" aria-expanded="false">Menu</button></div>
 <div class="mobile-backdrop" id="mobileBackdrop" aria-hidden="true"></div>
-<aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="aeronautica-militare">AM</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><div class="basemap-group"><div class="basemap-title">MAPPA DI BASE</div><div class="basemap-grid"><button class="baseopt active" data-base="operational">Operativa</button><button class="baseopt" data-base="light">Chiara</button><button class="baseopt" data-base="sat">Satellite</button><button class="baseopt" data-base="relief">Rilievo</button><button class="baseopt" data-base="3d">3D</button></div></div><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<div class="radar-legend"><div class="radar-legend-title">Intensità precipitazione · mm/h</div><div class="radar-legend-bar"></div><div class="radar-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div></div><button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button><div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · Europa · rain rate<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU</div><div class="opera-legend"><div class="opera-legend-title">Riflettività visualizzata · dBZ</div><div class="opera-legend-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="opera-legend-labels"><span>5</span><span>15</span><span>25</span><span>35</span><span>45</span><span>55</span><span>65</span></div><div class="opera-legend-words"><span>Debole</span><span>Moderata</span><span>Forte</span><span>Molto forte</span><span>Intensità radar elevata</span></div></div></div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1h</button><button class="cumopt" data-cum="cum3">CUM3h</button><button class="cumopt" data-cum="cum6">CUM6h</button><button class="cumopt" data-cum="cum12">CUM12h</button><button class="cumopt" data-cum="cum24">CUM24h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen · alta risoluzione WMS · confini</div><button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button><div class="layer-note" id="lightningInfo">LAMPINET · Aeronautica Militare/CNMCA · Radar-DPC · CC BY-SA<div id="lightningMeta" style="margin-top:5px">ultimi 15 min</div></div><button class="btn disabled">Vento <span>—</span></button><button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button></div></aside>
+<aside class="panel left">
+  <div class="pt">Controlli mappa<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div>
+  <div class="list control-list">
+    <div class="control-section stations-section">
+      <div class="section-label">RETE STAZIONI</div>
+      <button class="btn active" id="stationsBtn">Rete stazioni <span>ON</span></button>
+      <div class="submenu open" id="stationsSub">
+        <div class="net">Reti disponibili
+          <div id="counter" class="counter">Caricamento dati…</div>
+          <div class="network-switch">
+            <button class="netbtn active" data-net="all">Tutte</button>
+            <button class="netbtn" data-net="dpcn-sardegna">DPCN</button>
+            <button class="netbtn" data-net="aeronautica-militare">AM</button>
+            <button class="netbtn" data-net="wunderground">WU</button>
+          </div>
+        </div>
+        <div class="submenu-title">PARAMETRO VISUALIZZATO</div>
+        <div id="params" class="params-list"></div>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="section-label">MAPPA DI BASE</div>
+      <div class="basemap-grid">
+        <button class="baseopt active" data-base="operational">Operativa</button>
+        <button class="baseopt" data-base="light">Chiara</button>
+        <button class="baseopt" data-base="sat">Satellite</button>
+        <button class="baseopt" data-base="relief">Rilievo</button>
+        <button class="baseopt" data-base="3d">3D</button>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <div class="section-label">LAYER METEO</div>
+      <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
+      <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
+
+      <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
+      <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
+
+      <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
+      <div class="layer-note" id="cumInfo">Accumulo precipitazione
+        <div class="cum-switch">
+          <button class="cumopt" data-cum="off">OFF</button>
+          <button class="cumopt" data-cum="cum1">CUM1h</button>
+          <button class="cumopt" data-cum="cum3">CUM3h</button>
+          <button class="cumopt" data-cum="cum6">CUM6h</button>
+          <button class="cumopt" data-cum="cum12">CUM12h</button>
+          <button class="cumopt" data-cum="cum24">CUM24h</button>
+        </div>
+        <div id="cumStamp" style="margin-top:7px"></div>
+      </div>
+
+      <button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button>
+      <div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT</div>
+
+      <button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button>
+      <div class="layer-note" id="lightningInfo">LAMPINET · AM/CNMCA · Radar-DPC<div id="lightningMeta" style="margin-top:5px">ultimi 15 min</div></div>
+
+      <button class="btn disabled">Vento <span>—</span></button>
+      <button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button>
+    </div>
+  </div>
+</aside>
+<div class="map-legends" id="mapLegends" aria-live="polite"></div>
 <div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="timeline" id="operaTimeline"><div class="time-kind">EU RADAR</div><button class="timebtn" id="operaPrev" title="Frame precedente">‹</button><button class="timebtn" id="operaPlay" title="Riproduci">▶</button><button class="timebtn" id="operaNext" title="Frame successivo">›</button><input id="operaRange" type="range" min="0" max="11" value="11" step="1" aria-label="Sequenza temporale radar Europa"><div class="time-label" id="operaTime">ULTIMO</div></div>
 <div class="timeline" id="satTimeline"><div class="time-kind">SAT</div><button class="timebtn" id="satPrev" title="Frame precedente">‹</button><button class="timebtn" id="satPlay" title="Riproduci">▶</button><button class="timebtn" id="satNext" title="Frame successivo">›</button><input id="satRange" type="range" min="0" max="18" value="18" step="1" aria-label="Sequenza temporale satellite"><div class="time-label" id="satTime">ULTIMO</div></div>
@@ -673,32 +742,25 @@ function leave3d(){
   render()
 }
 const layer=L.layerGroup().addTo(map);
-const leftPanel=document.querySelector('.panel.left'),rightPanel=document.querySelector('.panel.right');
-const mobileParams=document.getElementById('mobileParams'),mobileLayers=document.getElementById('mobileLayers');
+const leftPanel=document.querySelector('.panel.left');
+const mobileMenu=document.getElementById('mobileMenu');
 const mobileBackdrop=document.getElementById('mobileBackdrop');
 function syncMobileButtons(){
-  const leftOpen=leftPanel.classList.contains('open'),rightOpen=rightPanel.classList.contains('open');
-  mobileParams.classList.toggle('active',leftOpen);
-  mobileLayers.classList.toggle('active',rightOpen);
-  mobileParams.setAttribute('aria-expanded',leftOpen?'true':'false');
-  mobileLayers.setAttribute('aria-expanded',rightOpen?'true':'false');
-  const anyOpen=leftOpen||rightOpen;
-  mobileBackdrop.classList.toggle('on',anyOpen);
-  mobileBackdrop.setAttribute('aria-hidden',anyOpen?'false':'true')
+  const open=leftPanel.classList.contains('open');
+  mobileMenu.classList.toggle('active',open);
+  mobileMenu.setAttribute('aria-expanded',open?'true':'false');
+  mobileBackdrop.classList.toggle('on',open);
+  mobileBackdrop.setAttribute('aria-hidden',open?'false':'true')
 }
 function closeMobilePanels(){
   if(window.innerWidth>800)return;
-  leftPanel.classList.remove('open');rightPanel.classList.remove('open');syncMobileButtons()
+  leftPanel.classList.remove('open');syncMobileButtons()
 }
-function toggleMobilePanel(panel){
+function toggleMobilePanel(){
   if(window.innerWidth>800)return;
-  const wasOpen=panel.classList.contains('open');
-  leftPanel.classList.remove('open');rightPanel.classList.remove('open');
-  if(!wasOpen)panel.classList.add('open');
-  syncMobileButtons()
+  leftPanel.classList.toggle('open');syncMobileButtons()
 }
-mobileParams.onclick=()=>toggleMobilePanel(leftPanel);
-mobileLayers.onclick=()=>toggleMobilePanel(rightPanel);
+mobileMenu.onclick=toggleMobilePanel;
 mobileBackdrop.onclick=closeMobilePanels;
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeMobilePanels);
 map.on('click',closeMobilePanels);
@@ -721,7 +783,7 @@ map.getContainer().addEventListener('pointerup',e=>{
     lastTouchTap=now;lastTouchPoint=p;
   }
 },{passive:true});
-window.addEventListener('resize',()=>{syncMapExtent();if(map3d)map3d.resize();if(window.innerWidth>800){leftPanel.classList.remove('open');rightPanel.classList.remove('open')}syncMobileButtons()});
+window.addEventListener('resize',()=>{syncMapExtent();if(map3d)map3d.resize();if(window.innerWidth>800)leftPanel.classList.remove('open');syncMobileButtons()});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
 function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
 function obsAgeMin(s){
@@ -734,7 +796,42 @@ function obsAgeMin(s){
 function ico(s){let v=s[cur],bg=col(v,P[cur].st);return L.divIcon({className:'',html:'<div class="badge" style="background:'+bg+'">'+fmt(v,cur,s)+'</div>',iconSize:[48,26],iconAnchor:[24,13]})}
 function popup(s){let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
 function tooltipHtml(s){const net=s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
-function legend(){let p=P[cur];document.getElementById('lt').textContent=p.n+' · '+p.u;document.getElementById('ll').innerHTML=p.labs.map(x=>'<span>'+x+'</span>').join('');document.getElementById('lb').style.background='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')'}
+function stationLegendHtml(){
+  if(!stationsOn)return '';
+  const p=P[cur];
+  const grad='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')';
+  return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div></div>'
+}
+function radarLegendHtml(){
+  if(!radarOn)return '';
+  return '<div class="map-legend-row"><div class="map-legend-title">Radar DPC · intensità precipitazione · mm/h</div><div class="map-legend-bar radar-legend-bar"></div><div class="map-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div>'
+}
+function operaLegendHtml(){
+  if(!operaOn)return '';
+  return '<div class="map-legend-row"><div class="map-legend-title">Radar Europa OPERA NIMBUS · intensità precipitazione · mm/h</div><div class="map-legend-bar opera-legend-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="map-legend-labels"><span>0,1</span><span>0,3</span><span>1,3</span><span>5,6</span><span>24</span><span>100</span><span>420+</span></div><div class="map-legend-note">Rain rate NIMBUS · relazione Z–R Marshall–Palmer</div></div>'
+}
+function cumLegendHtml(){
+  if(!cumActive)return '';
+  return '<div class="map-legend-row"><div class="map-legend-title">'+cumActive.toUpperCase()+' · accumulo precipitazione · mm</div><div class="map-legend-bar radar-legend-bar"></div><div class="map-legend-labels"><span>0</span><span>10</span><span>30</span><span>60</span><span>100</span><span>150</span><span>200+</span></div></div>'
+}
+function lightningLegendHtml(){
+  if(!lightningOn)return '';
+  return '<div class="map-legend-row"><div class="map-legend-title">Fulmini · età scariche</div><div class="lightning-scale"><span><i class="lightning-dot" style="background:#fff36a"></i>0–5 min</span><span><i class="lightning-dot" style="background:#ff9e1a"></i>5–10 min</span><span><i class="lightning-dot" style="background:#ff4d3d"></i>10–15 min</span></div></div>'
+}
+function syncLegendPosition(){
+  const el=document.getElementById('mapLegends');
+  const timelines=[radarTimeline,operaTimeline,satTimeline].filter(x=>x&&x.classList.contains('on')).length;
+  el.classList.toggle('one-timeline',timelines===1);
+  el.classList.toggle('two-timelines',timelines>=2)
+}
+function legend(){
+  const el=document.getElementById('mapLegends');
+  if(!el)return;
+  const html=stationLegendHtml()+radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+lightningLegendHtml();
+  el.innerHTML=html;
+  el.classList.toggle('on',!!html);
+  syncLegendPosition()
+}
 function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
   const q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);
@@ -815,7 +912,7 @@ function build(){
 }
 map.on('zoomend',()=>{if(marks.length)render()})
 document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
-document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
+document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render()});
 const BASEMAPS={operational,light,sat,relief};
 function setBaseMode(choice){
   if(choice==='3d'){
@@ -830,8 +927,8 @@ function setBaseMode(choice){
   }
   document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x.dataset.base===currentBaseMode))
 }
-document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{setBaseMode(b.dataset.base);if(window.innerWidth<=800)closeMobilePanels()});
-document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
+document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>setBaseMode(b.dataset.base));
+document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render()});
 const boundariesBtn=document.getElementById('boundariesBtn');
 let boundariesPreference=true,boundariesLoaded=false,boundariesLoading=false;
 const boundariesLayer=L.layerGroup();
@@ -878,12 +975,11 @@ function syncBoundaries(){
 boundariesBtn.onclick=()=>{
   boundariesPreference=!boundariesPreference;
   syncBoundaries();
-  if(window.innerWidth<=800)closeMobilePanels()
 };
 syncBoundaries();
 const satMetBtn=document.getElementById('satMetBtn'),satMetInfo=document.getElementById('satMetInfo');
 const satTimeline=document.getElementById('satTimeline'),satRange=document.getElementById('satRange'),satTime=document.getElementById('satTime'),satPlay=document.getElementById('satPlay');
-function syncTimelineStack(){satTimeline.classList.toggle('stacked',satMetOn&&(radarOn||operaOn))}
+function syncTimelineStack(){satTimeline.classList.toggle('stacked',satMetOn&&(radarOn||operaOn));legend()}
 function satLabel(d){return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' ·')}
 function buildSatFrames(latest){
   const end=new Date(latest),frames=[];
@@ -1047,7 +1143,6 @@ function setSatMet(on){
   satMetBtn.classList.toggle('active',on);
   satMetBtn.lastElementChild.textContent=on?'ON':'OFF';
   satMetInfo.classList.toggle('on',on);
-  if(window.innerWidth<=800)closeMobilePanels()
 }
 satMetBtn.onclick=()=>setSatMet(!satMetOn);
 document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1,'preview');scheduleSatHd(satIndex,250)};
@@ -1057,14 +1152,16 @@ satRange.oninput=()=>{stopSatAnimation();showSatFrame(Number(satRange.value),'pr
 satRange.onchange=()=>scheduleSatHd(satIndex,120);
 setInterval(()=>{if(satMetOn&&!satTimer&&satIndex===satFrames.length-1)loadSatTimeline(false)},10*60*1000);
 const stationsBtn=document.getElementById('stationsBtn');
+const stationsSub=document.getElementById('stationsSub');
 stationsBtn.onclick=()=>{
   stationsOn=!stationsOn;
   if(stationsOn){if(!map.hasLayer(layer))layer.addTo(map)}else if(map.hasLayer(layer))map.removeLayer(layer);
   stationsBtn.classList.toggle('active',stationsOn);
   stationsBtn.lastElementChild.textContent=stationsOn?'ON':'OFF';
+  stationsSub.classList.toggle('open',stationsOn);
   document.getElementById('status').style.display=stationsOn?'':'none';
   update3dStations();
-  if(window.innerWidth<=800)closeMobilePanels()
+  legend()
 };
 const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
 const radarTimeline=document.getElementById('radarTimeline'),radarRange=document.getElementById('radarRange'),radarTime=document.getElementById('radarTime'),radarPlay=document.getElementById('radarPlay');
@@ -1121,7 +1218,7 @@ function setRadarState(on){
   radarInfo.classList.toggle('on',on);
   syncTimelineStack()
 }
-radarBtn.onclick=()=>{setRadarState(!radarOn);if(window.innerWidth<=800)closeMobilePanels()};
+radarBtn.onclick=()=>setRadarState(!radarOn);
 document.getElementById('radarPrev').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex-1)};
 document.getElementById('radarNext').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex+1)};
 radarPlay.onclick=()=>radarTimer?stopRadarAnimation():startRadarAnimation();
@@ -1179,7 +1276,7 @@ function prepareOperaFrameLayers(){
   const opts={
     pane:'weather',opacity:0,tileSize:256,minNativeZoom:0,maxNativeZoom:7,maxZoom:15,
     updateWhenZooming:false,updateWhenIdle:true,keepBuffer:2,
-    attribution:'Radar: EUMETNET OPERA NIMBUS · CC BY 4.0 · tiles/scala RadarEU'
+    attribution:'Radar: EUMETNET OPERA NIMBUS · CC BY 4.0 · rain rate · mm/h'
   };
   operaFrameLayers=operaFrames.map((d,idx)=>{
     const layer=L.tileLayer(operaFrameUrl(d),opts);
@@ -1190,7 +1287,7 @@ function prepareOperaFrameLayers(){
       operaPreloadReady++;
       if(operaOn){
         operaMeta.innerHTML='OPERA NIMBUS · '+operaLabel(operaFrames[operaIndex])+
-          '<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU'
+          '<br>EUMETNET CC BY 4.0 · rain rate · mm/h'
       }
     });
     return layer
@@ -1223,7 +1320,7 @@ function setOperaFrame(i){
   const d=operaFrames[operaIndex];
   operaTime.textContent=operaLabel(d);
   operaMeta.innerHTML='OPERA NIMBUS · '+operaLabel(d)+
-    '<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU'
+    '<br>EUMETNET CC BY 4.0 · rain rate · mm/h'
 }
 function queueOperaFrame(i){
   operaPendingIndex=Number(i);
@@ -1281,7 +1378,7 @@ function setOperaState(on){
   operaInfo.classList.toggle('on',on);
   syncTimelineStack()
 }
-operaBtn.onclick=()=>{setOperaState(!operaOn);if(window.innerWidth<=800)closeMobilePanels()};
+operaBtn.onclick=()=>setOperaState(!operaOn);
 document.getElementById('operaPrev').onclick=()=>{stopOperaAnimation();setOperaFrame(operaIndex-1)};
 document.getElementById('operaNext').onclick=()=>{stopOperaAnimation();setOperaFrame(operaIndex+1)};
 operaPlay.onclick=()=>operaTimer?stopOperaAnimation():startOperaAnimation();
@@ -1383,9 +1480,10 @@ function setLightningState(on){
   }
   lightningBtn.classList.toggle('active',on);
   lightningBtn.lastElementChild.textContent=on?'ON':'OFF';
-  lightningInfo.classList.toggle('on',on)
+  lightningInfo.classList.toggle('on',on);
+  legend()
 }
-lightningBtn.onclick=()=>{setLightningState(!lightningOn);if(window.innerWidth<=800)closeMobilePanels()};
+lightningBtn.onclick=()=>setLightningState(!lightningOn);
 map.on('moveend',()=>{if(lightningOn)renderLightning()});
 
 async function setCumState(code){
@@ -1411,7 +1509,8 @@ async function setCumState(code){
       cumStamp.textContent=code.toUpperCase()+' · ultimo campo disponibile'
     }
   }
-  document.querySelectorAll('[data-cum]').forEach(b=>b.classList.toggle('active',(code||'off')===b.dataset.cum))
+  document.querySelectorAll('[data-cum]').forEach(b=>b.classList.toggle('active',(code||'off')===b.dataset.cum));
+  legend()
 }
 cumBtn.onclick=()=>cumInfo.classList.toggle('on');
 document.querySelectorAll('[data-cum]').forEach(b=>b.onclick=()=>{const code=b.dataset.cum==='off'?null:b.dataset.cum;setCumState(code)});
