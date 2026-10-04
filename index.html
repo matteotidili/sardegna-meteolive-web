@@ -312,8 +312,7 @@ function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
   const q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);
   const hasValue=Number.isFinite(s[cur]);
-  const fresh=obsAgeMin(s)<=90;
-  return net&&q&&hasValue&&fresh
+  return net&&q&&hasValue
 }
 function densityCell(){
   const z=map.getZoom();
