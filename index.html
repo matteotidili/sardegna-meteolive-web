@@ -91,7 +91,7 @@ main{position:relative;min-height:0}#map{height:100%;width:100%}
 <div id="map"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="aeronautica-militare">AM</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<div class="radar-legend"><div class="radar-legend-title">Intensità precipitazione · mm/h</div><div class="radar-legend-bar"></div><div class="radar-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div></div><button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button><div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · Europa · rain rate<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU</div><div class="opera-legend"><div class="opera-legend-title">Riflettività visualizzata · dBZ</div><div class="opera-legend-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="opera-legend-labels"><span>5</span><span>15</span><span>25</span><span>35</span><span>45</span><span>55</span><span>65</span></div><div class="opera-legend-words"><span>Debole</span><span>Moderata</span><span>Forte</span><span>Molto forte</span><span>Intensità radar elevata</span></div></div></div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1h</button><button class="cumopt" data-cum="cum3">CUM3h</button><button class="cumopt" data-cum="cum6">CUM6h</button><button class="cumopt" data-cum="cum12">CUM12h</button><button class="cumopt" data-cum="cum24">CUM24h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen · alta risoluzione WMS · confini</div><button class="btn disabled">Fulmini <span>—</span></button><button class="btn disabled">Vento <span>—</span></button><button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button></div></aside>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<div class="radar-legend"><div class="radar-legend-title">Intensità precipitazione · mm/h</div><div class="radar-legend-bar"></div><div class="radar-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div></div><button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button><div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · Europa · rain rate<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU</div><div class="opera-legend"><div class="opera-legend-title">Riflettività visualizzata · dBZ</div><div class="opera-legend-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="opera-legend-labels"><span>5</span><span>15</span><span>25</span><span>35</span><span>45</span><span>55</span><span>65</span></div><div class="opera-legend-words"><span>Debole</span><span>Moderata</span><span>Forte</span><span>Molto forte</span><span>Intensità radar elevata</span></div></div></div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1h</button><button class="cumopt" data-cum="cum3">CUM3h</button><button class="cumopt" data-cum="cum6">CUM6h</button><button class="cumopt" data-cum="cum12">CUM12h</button><button class="cumopt" data-cum="cum24">CUM24h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen · alta risoluzione WMS · confini</div><button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button><div class="layer-note" id="lightningInfo">LAMPINET · Aeronautica Militare/CNMCA · Radar-DPC · CC BY-SA<div id="lightningMeta" style="margin-top:5px">ultimi 15 min</div></div><button class="btn disabled">Vento <span>—</span></button><button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button></div></aside>
 <div class="styles"><button class="base" data-base="dark">Operativa</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
 <div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="timeline" id="operaTimeline"><div class="time-kind">EU RADAR</div><button class="timebtn" id="operaPrev" title="Frame precedente">‹</button><button class="timebtn" id="operaPlay" title="Riproduci">▶</button><button class="timebtn" id="operaNext" title="Frame successivo">›</button><input id="operaRange" type="range" min="0" max="11" value="11" step="1" aria-label="Sequenza temporale radar Europa"><div class="time-label" id="operaTime">ULTIMO</div></div>
@@ -129,6 +129,7 @@ map.createPane('satshade');map.getPane('satshade').style.zIndex=235;map.getPane(
 map.createPane('satmet');map.getPane('satmet').style.zIndex=300;map.getPane('satmet').style.pointerEvents='none';
 map.createPane('satbounds');map.getPane('satbounds').style.zIndex=335;map.getPane('satbounds').style.pointerEvents='none';
 map.createPane('weather');map.getPane('weather').style.zIndex=350;map.getPane('weather').style.pointerEvents='none';
+map.createPane('lightning');map.getPane('lightning').style.zIndex=445;map.getPane('lightning').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
 const dark=L.layerGroup([
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:'© Esri'}),
@@ -260,6 +261,8 @@ const DpcV2Layer=L.GridLayer.extend({
 });
 const radarLayer=new DpcV2Layer({pane:'weather',opacity:.92,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
 const cumLayer=new DpcV2Layer({pane:'weather',opacity:.88,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
+const lightningLayer=L.layerGroup();
+let lightningOn=false,lightningTimer=null,lightningPoints=[];
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
@@ -853,6 +856,94 @@ async function latestProductTime(apiType){
   }catch(e){}
   return null
 }
+const lightningBtn=document.getElementById('lightningBtn');
+const lightningInfo=document.getElementById('lightningInfo');
+const lightningMeta=document.getElementById('lightningMeta');
+function parseDpcLightning(buffer,frameIndex){
+  const dv=new DataView(buffer);
+  if(dv.byteLength<3||dv.getUint8(0)!==2)return [];
+  const count=dv.getUint16(1,false),out=[];
+  let pos=3;
+  for(let i=0;i<count&&pos+5<dv.byteLength;i++){
+    const x0=dv.getUint16(pos,false),y0=dv.getUint16(pos+2,false);
+    const flags=dv.getUint8(pos+4),extra=dv.getUint8(pos+5);
+    const x=x0+((flags>>6)&3)*65536;
+    const y=y0+((flags>>4)&3)*65536;
+    const lon=x*(360/262144)-180;
+    const lat=y*(180/262144)-90;
+    if(Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180){
+      out.push({lat,lon,frameIndex})
+    }
+    pos+=extra<255?6:8
+  }
+  return out
+}
+async function fetchDpcLightningFrame(d,frameIndex){
+  const url=RADAR_V2_TILES+'/LGT/lgt_5min_'+d.getTime()+'.bin';
+  try{
+    const r=await fetch(url,{cache:'no-store'});
+    if(r.status===403||r.status===404)return {available:false,points:[]};
+    if(!r.ok)throw new Error('LTG '+r.status);
+    return {available:true,points:parseDpcLightning(await r.arrayBuffer(),frameIndex)}
+  }catch(e){
+    return {available:false,points:[]}
+  }
+}
+function renderLightning(){
+  lightningLayer.clearLayers();
+  if(!lightningOn)return;
+  const visible=map.getBounds().pad(.25);
+  const colors=['#fff36a','#ff9e1a','#ff4d3d'];
+  for(const p of lightningPoints){
+    if(!visible.contains([p.lat,p.lon]))continue;
+    L.circleMarker([p.lat,p.lon],{
+      pane:'lightning',renderer:L.canvas({pane:'lightning'}),
+      radius:p.frameIndex===0?4.2:3.6,
+      weight:1.2,color:'#10151a',opacity:.95,
+      fillColor:colors[p.frameIndex]||colors[2],fillOpacity:.98,
+      interactive:false
+    }).addTo(lightningLayer)
+  }
+}
+async function loadLightning(){
+  if(!lightningOn)return;
+  lightningMeta.textContent='aggiornamento…';
+  const latest=await latestProductTime('SRI')||fallbackRadarLatest();
+  const end=new Date(Math.floor(latest.getTime()/300000)*300000);
+  const frames=[0,5,10].map(m=>new Date(end.getTime()-m*60000));
+  const results=await Promise.all(frames.map((d,i)=>fetchDpcLightningFrame(d,i)));
+  if(!lightningOn)return;
+  lightningPoints=results.flatMap(r=>r.points);
+  renderLightning();
+  const available=results.map((r,i)=>r.available?i:null).filter(i=>i!==null);
+  const stamp=radarLabel(end);
+  if(available.length){
+    lightningMeta.textContent=lightningPoints.length+' scariche · ultimi 15 min · riferimento '+stamp
+  }else{
+    lightningMeta.textContent='nessun punto LTG disponibile negli ultimi 15 min · '+stamp
+  }
+}
+function setLightningState(on){
+  lightningOn=on;
+  if(on){
+    if(!map.hasLayer(lightningLayer))lightningLayer.addTo(map);
+    loadLightning();
+    if(lightningTimer)clearInterval(lightningTimer);
+    lightningTimer=setInterval(loadLightning,2*60*1000)
+  }else{
+    if(lightningTimer){clearInterval(lightningTimer);lightningTimer=null}
+    lightningPoints=[];
+    lightningLayer.clearLayers();
+    if(map.hasLayer(lightningLayer))map.removeLayer(lightningLayer);
+    lightningMeta.textContent='ultimi 15 min'
+  }
+  lightningBtn.classList.toggle('active',on);
+  lightningBtn.lastElementChild.textContent=on?'ON':'OFF';
+  lightningInfo.classList.toggle('on',on)
+}
+lightningBtn.onclick=()=>{setLightningState(!lightningOn);if(window.innerWidth<=800)closeMobilePanels()};
+map.on('moveend',()=>{if(lightningOn)renderLightning()});
+
 async function setCumState(code){
   cumActive=code;
   if(!code){
