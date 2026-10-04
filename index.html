@@ -159,10 +159,49 @@ const sat=L.layerGroup([
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles © Esri'}),
   L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,pane:'labels',attribution:'Reference © Esri'})
 ]);
-const relief=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
-  subdomains:'abc',maxNativeZoom:17,maxZoom:19,
-  attribution:'Kartendaten © OpenStreetMap-Mitwirkende, SRTM | Kartendarstellung © OpenTopoMap (CC-BY-SA)'
-});
+const relief=(typeof L.maplibreGL==='function')
+  ? L.maplibreGL({
+      interactive:false,
+      attributionControl:false,
+      attribution:'© Mapterhorn · fonti DEM open data',
+      style:{
+        version:8,
+        sources:{
+          terrain:{
+            type:'raster-dem',
+            tiles:['https://tiles.mapterhorn.com/{z}/{x}/{y}.webp'],
+            encoding:'terrarium',
+            tileSize:512,
+            maxzoom:17,
+            attribution:'© Mapterhorn'
+          }
+        },
+        layers:[
+          {
+            id:'relief-background',
+            type:'background',
+            paint:{'background-color':'#d9d9d9'}
+          },
+          {
+            id:'relief-hillshade',
+            type:'hillshade',
+            source:'terrain',
+            paint:{
+              'hillshade-exaggeration':0.88,
+              'hillshade-shadow-color':'#4a4a4a',
+              'hillshade-highlight-color':'#f7f7f7',
+              'hillshade-accent-color':'#888888',
+              'hillshade-illumination-direction':315,
+              'hillshade-illumination-anchor':'map'
+            }
+          }
+        ]
+      }
+    })
+  : L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}',{
+      maxZoom:18,
+      attribution:'Sources: Esri, USGS, NGA, NASA, CGIAR e altri'
+    });
 const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
 let satMetLayer=null,satHdLayer=null,satViewBounds=null,satViewGeneration=0,satHdFrameIndex=-1;
 let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[],satHdTimer=null;
