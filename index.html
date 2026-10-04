@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sardegna Meteo Monitor · Osservazioni & Nowcasting</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.12.0/dist/maplibre-gl.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css">
 <style>
 :root{--bg:#07111d;--panel:#0b1724ee;--border:#294055;--text:#eef6ff;--muted:#91a4b8;--accent:#42d7ff}
 *{box-sizing:border-box}html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial;background:var(--bg);color:var(--text)}body{overflow:hidden}
@@ -16,7 +16,9 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .panel{position:absolute;z-index:1000;top:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 15px 40px #0007;backdrop-filter:blur(16px);overflow:hidden}
 .left{left:14px;width:290px}.right{right:14px;width:240px}.pt{padding:14px 15px 11px;font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#a8bbcc;font-weight:800;border-bottom:1px solid #20364a}
 .net{padding:11px 15px;border-bottom:1px solid #20364a;font-size:12px}.counter{font-size:10px;color:var(--muted);margin-top:5px}.network-switch{display:flex;gap:5px;margin-top:9px}.netbtn{flex:1;border:1px solid #2a4358;background:#0d1b29;color:#9fb4c6;border-radius:8px;padding:6px 5px;font-size:9px;font-weight:800;cursor:pointer}.netbtn.active{background:#12394d;border-color:#42d7ff;color:#fff}
-.list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}.layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
+.list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
+.basemap-group{padding:2px 0 9px;margin-bottom:6px;border-bottom:1px solid #20364a}.basemap-title{padding:4px 8px 7px;font-size:8px;font-weight:900;letter-spacing:.14em;color:#8fa5b8}.basemap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}.baseopt{min-width:0;border:1px solid #2a4358;background:#0d1b29;color:#afc1d1;border-radius:8px;padding:7px 5px;font-size:9px;font-weight:850;cursor:pointer}.baseopt.active{background:#12394d;border-color:#42d7ff;color:#fff}.baseopt[data-base="3d"]{grid-column:1/-1}
+.layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
 .opera-legend{margin-top:10px;padding-top:8px;border-top:1px solid #20364a}
 .opera-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#c5d7e6;margin-bottom:5px;font-weight:800}
 .opera-legend-bar{display:grid;grid-template-columns:repeat(13,1fr);height:12px;border:1px solid #ffffff38;border-radius:5px;overflow:hidden;box-shadow:0 1px 5px #0008}
@@ -66,7 +68,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
   .panel{top:auto!important;left:8px!important;right:8px!important;bottom:52px;width:auto!important;max-height:64dvh;overflow-y:auto;transform:translateY(calc(100% + 90px));opacity:0;pointer-events:none;transition:transform .22s ease,opacity .18s ease;border-radius:16px}
   .panel.open{transform:translateY(0);opacity:1;pointer-events:auto}
   .panel .btn{padding:12px 12px;margin:4px 0;font-size:12px;border-radius:11px;min-height:44px}
-  .panel .netbtn{padding:9px 7px;font-size:10px;min-height:38px}
+  .panel .netbtn{padding:9px 7px;font-size:10px;min-height:38px}.baseopt{min-height:38px;font-size:10px}
   .pt{position:sticky;top:0;z-index:2;background:#0b1724;padding-right:46px}
   .panel-close{display:block;position:absolute;right:10px;top:8px;width:28px;height:28px;border-radius:50%;border:1px solid #35516a;background:#112235;color:#fff;font-size:18px;line-height:24px}
   .styles{left:8px;right:auto;bottom:8px;padding:4px;gap:3px}
@@ -93,15 +95,15 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 <div id="map3d" aria-hidden="true"></div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileParams">Parametri</button><button class="mobile-tool" id="mobileLayers">Layer</button></div>
 <aside class="panel left"><div class="pt">Parametri stazioni<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div><div class="net">Reti di osservazione<div id="counter" class="counter">Caricamento dati…</div><div class="network-switch"><button class="netbtn active" data-net="all">Tutte</button><button class="netbtn" data-net="dpcn-sardegna">DPCN</button><button class="netbtn" data-net="aeronautica-militare">AM</button><button class="netbtn" data-net="wunderground">WU</button></div></div><div class="list" id="params"></div><div class="legend"><div id="lt" class="legend-title"></div><div id="lb" class="legend-bar"></div><div id="ll" class="legend-labs"></div></div></aside>
-<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<div class="radar-legend"><div class="radar-legend-title">Intensità precipitazione · mm/h</div><div class="radar-legend-bar"></div><div class="radar-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div></div><button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button><div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · Europa · rain rate<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU</div><div class="opera-legend"><div class="opera-legend-title">Riflettività visualizzata · dBZ</div><div class="opera-legend-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="opera-legend-labels"><span>5</span><span>15</span><span>25</span><span>35</span><span>45</span><span>55</span><span>65</span></div><div class="opera-legend-words"><span>Debole</span><span>Moderata</span><span>Forte</span><span>Molto forte</span><span>Intensità radar elevata</span></div></div></div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1h</button><button class="cumopt" data-cum="cum3">CUM3h</button><button class="cumopt" data-cum="cum6">CUM6h</button><button class="cumopt" data-cum="cum12">CUM12h</button><button class="cumopt" data-cum="cum24">CUM24h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen · alta risoluzione WMS · confini</div><button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button><div class="layer-note" id="lightningInfo">LAMPINET · Aeronautica Militare/CNMCA · Radar-DPC · CC BY-SA<div id="lightningMeta" style="margin-top:5px">ultimi 15 min</div></div><button class="btn disabled">Vento <span>—</span></button><button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button></div></aside>
-<div class="styles"><button class="base" data-base="3d">3D</button><button class="base" data-base="light">Chiara</button><button class="base active" data-base="sat">Satellite</button></div>
+<aside class="panel right"><div class="pt">Layer mappa<button class="panel-close" data-close="right" aria-label="Chiudi">×</button></div><div class="list"><div class="basemap-group"><div class="basemap-title">MAPPA DI BASE</div><div class="basemap-grid"><button class="baseopt active" data-base="operational">Operativa</button><button class="baseopt" data-base="light">Chiara</button><button class="baseopt" data-base="sat">Satellite</button><button class="baseopt" data-base="relief">Rilievo</button><button class="baseopt" data-base="3d">3D</button></div></div><button class="btn active" id="stationsBtn">Stazioni <span>ON</span></button><button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button><div class="layer-note" id="radarInfo">SRI · Radar-DPC v2 ufficiale<div class="radar-legend"><div class="radar-legend-title">Intensità precipitazione · mm/h</div><div class="radar-legend-bar"></div><div class="radar-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div></div><button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button><div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · Europa · rain rate<br>EUMETNET CC BY 4.0 · tiles/scala RadarEU</div><div class="opera-legend"><div class="opera-legend-title">Riflettività visualizzata · dBZ</div><div class="opera-legend-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="opera-legend-labels"><span>5</span><span>15</span><span>25</span><span>35</span><span>45</span><span>55</span><span>65</span></div><div class="opera-legend-words"><span>Debole</span><span>Moderata</span><span>Forte</span><span>Molto forte</span><span>Intensità radar elevata</span></div></div></div><button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button><div class="layer-note" id="cumInfo">Stessi prodotti della piattaforma Radar-DPC<div class="cum-switch"><button class="cumopt" data-cum="off">OFF</button><button class="cumopt" data-cum="cum1">CUM1h</button><button class="cumopt" data-cum="cum3">CUM3h</button><button class="cumopt" data-cum="cum6">CUM6h</button><button class="cumopt" data-cum="cum12">CUM12h</button><button class="cumopt" data-cum="cum24">CUM24h</button></div><div id="cumStamp" style="margin-top:7px"></div></div><button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button><div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT<br>near real-time · full screen · alta risoluzione WMS · confini</div><button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button><div class="layer-note" id="lightningInfo">LAMPINET · Aeronautica Militare/CNMCA · Radar-DPC · CC BY-SA<div id="lightningMeta" style="margin-top:5px">ultimi 15 min</div></div><button class="btn disabled">Vento <span>—</span></button><button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button></div></aside>
 <div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="timeline" id="operaTimeline"><div class="time-kind">EU RADAR</div><button class="timebtn" id="operaPrev" title="Frame precedente">‹</button><button class="timebtn" id="operaPlay" title="Riproduci">▶</button><button class="timebtn" id="operaNext" title="Frame successivo">›</button><input id="operaRange" type="range" min="0" max="11" value="11" step="1" aria-label="Sequenza temporale radar Europa"><div class="time-label" id="operaTime">ULTIMO</div></div>
 <div class="timeline" id="satTimeline"><div class="time-kind">SAT</div><button class="timebtn" id="satPrev" title="Frame precedente">‹</button><button class="timebtn" id="satPlay" title="Riproduci">▶</button><button class="timebtn" id="satNext" title="Frame successivo">›</button><input id="satRange" type="range" min="0" max="18" value="18" step="1" aria-label="Sequenza temporale satellite"><div class="time-label" id="satTime">ULTIMO</div></div>
 <div class="status" id="status">Caricamento dati MeteoHub…</div>
 </main></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/maplibre-gl@6.12.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
 <script>
 const P={
  temp:{n:'Temperatura attuale',u:'°C',fmt:v=>v.toFixed(1)+'°',labs:['≤0','10','20','30','40+'],st:[[-10,[70,50,126]],[0,[54,92,186]],[10,[31,161,135]],[20,[160,218,57]],[25,[253,231,37]],[30,[253,174,50]],[35,[244,109,67]],[40,[215,48,39]],[45,[142,27,85]]]},
@@ -134,8 +136,33 @@ map.createPane('satbounds');map.getPane('satbounds').style.zIndex=335;map.getPan
 map.createPane('weather');map.getPane('weather').style.zIndex=350;map.getPane('weather').style.pointerEvents='none';
 map.createPane('lightning');map.getPane('lightning').style.zIndex=445;map.getPane('lightning').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
-const light=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'});
-const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'© Esri'});
+const operational=(typeof L.maplibreGL==='function')
+  ? L.maplibreGL({
+      style:'https://tiles.openfreemap.org/styles/dark',
+      interactive:false,
+      attributionControl:false,
+      attribution:'© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors'
+    })
+  : L.layerGroup([
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:'© Esri'}),
+      L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,pane:'labels'})
+    ]);
+const light=(typeof L.maplibreGL==='function')
+  ? L.maplibreGL({
+      style:'https://tiles.openfreemap.org/styles/positron',
+      interactive:false,
+      attributionControl:false,
+      attribution:'© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors'
+    })
+  : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+const sat=L.layerGroup([
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,attribution:'Tiles © Esri'}),
+  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,pane:'labels',attribution:'Reference © Esri'})
+]);
+const relief=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{
+  subdomains:'abc',maxNativeZoom:17,maxZoom:19,
+  attribution:'Kartendaten © OpenStreetMap-Mitwirkende, SRTM | Kartendarstellung © OpenTopoMap (CC-BY-SA)'
+});
 const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
 let satMetLayer=null,satHdLayer=null,satViewBounds=null,satViewGeneration=0,satHdFrameIndex=-1;
 let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[],satHdTimer=null;
@@ -265,9 +292,75 @@ let lightningOn=false,lightningTimer=null,lightningPoints=[];
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
-let base=sat;sat.addTo(map);
+let base=operational,currentBaseMode='operational';operational.addTo(map);
 let map3d=null,mode3d=false,statusBefore3d='';
 const map3dEl=document.getElementById('map3d');
+function fc(features=[]){return {type:'FeatureCollection',features}}
+function ensure3dDataLayers(){
+  if(!map3d||!map3d.isStyleLoaded())return;
+  if(!map3d.getSource('stations-3d')){
+    map3d.addSource('stations-3d',{type:'geojson',data:fc()});
+    map3d.addLayer({
+      id:'stations-3d-points',type:'circle',source:'stations-3d',
+      paint:{
+        'circle-radius':['interpolate',['linear'],['zoom'],6,5.5,10,7,14,9],
+        'circle-color':['get','color'],
+        'circle-stroke-color':'#07111d','circle-stroke-width':1.4,'circle-opacity':.96
+      }
+    });
+    map3d.addLayer({
+      id:'stations-3d-labels',type:'symbol',source:'stations-3d',minzoom:7,
+      layout:{
+        'text-field':['get','label'],'text-size':10,'text-offset':[0,-1.25],
+        'text-anchor':'bottom','text-allow-overlap':false,'text-ignore-placement':false
+      },
+      paint:{'text-color':'#061018','text-halo-color':'rgba(255,255,255,.9)','text-halo-width':1.2}
+    });
+    map3d.on('click','stations-3d-points',e=>{
+      const f=e.features&&e.features[0];if(!f)return;
+      new maplibregl.Popup({closeButton:false,offset:10})
+        .setLngLat(f.geometry.coordinates)
+        .setHTML('<b>'+String(f.properties.name||'Stazione')+'</b><br>'+String(f.properties.param||'')+': '+String(f.properties.label||'—')+'<br><span style="opacity:.75">'+String(f.properties.net||'')+'</span>')
+        .addTo(map3d)
+    });
+    map3d.on('mouseenter','stations-3d-points',()=>{map3d.getCanvas().style.cursor='pointer'});
+    map3d.on('mouseleave','stations-3d-points',()=>{map3d.getCanvas().style.cursor=''})
+  }
+  if(!map3d.getSource('lightning-3d')){
+    map3d.addSource('lightning-3d',{type:'geojson',data:fc()});
+    map3d.addLayer({
+      id:'lightning-3d-points',type:'circle',source:'lightning-3d',
+      paint:{
+        'circle-radius':['case',['==',['get','age'],0],5,4],
+        'circle-color':['match',['get','age'],0,'#fff36a',1,'#ff9e1a','#ff4d3d'],
+        'circle-stroke-color':'#10151a','circle-stroke-width':1.2,'circle-opacity':.98
+      }
+    })
+  }
+  update3dStations();
+  update3dLightning()
+}
+function update3dStations(){
+  if(!map3d||!map3d.isStyleLoaded()||!map3d.getSource('stations-3d'))return;
+  const features=stationsOn?stations.filter(baseVisible).map(s=>({
+    type:'Feature',
+    geometry:{type:'Point',coordinates:[s.lon,s.lat]},
+    properties:{
+      name:s.name||'Stazione',
+      net:s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna',
+      param:P[cur].n,label:fmt(s[cur],cur,s),color:col(s[cur],P[cur].st)
+    }
+  })):[];
+  map3d.getSource('stations-3d').setData(fc(features))
+}
+function update3dLightning(){
+  if(!map3d||!map3d.isStyleLoaded()||!map3d.getSource('lightning-3d'))return;
+  const features=lightningOn?lightningPoints.map(p=>({
+    type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
+    properties:{age:p.frameIndex}
+  })):[];
+  map3d.getSource('lightning-3d').setData(fc(features))
+}
 function ensureMap3d(){
   if(map3d)return map3d;
   const c=map.getCenter();
@@ -276,50 +369,50 @@ function ensureMap3d(){
     style:'https://tiles.openfreemap.org/styles/bright',
     center:[c.lng,c.lat],
     zoom:map.getZoom(),
-    pitch:45,
+    pitch:48,
     bearing:-12,
     maxPitch:80,
     canvasContextAttributes:{antialias:true}
   });
-  map3d.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
+  map3d.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'bottom-right');
   map3d.on('load',()=>{
     try{
       if(!map3d.getSource('terrain-3d')){
-        map3d.addSource('terrain-3d',{
-          type:'raster-dem',
-          url:'https://demotiles.maplibre.org/terrain-tiles/tiles.json',
-          tileSize:256
-        });
+        map3d.addSource('terrain-3d',{type:'raster-dem',url:'https://tiles.mapterhorn.com/tilejson.json'});
+        map3d.addSource('hillshade-3d',{type:'raster-dem',url:'https://tiles.mapterhorn.com/tilejson.json'});
         map3d.setTerrain({source:'terrain-3d',exaggeration:1.08});
       }
       const layers=map3d.getStyle().layers||[];
-      const labelLayerId=(layers.find(l=>l.type==='symbol'&&l.layout&&l.layout['text-field'])||{}).id;
-      if(!map3d.getSource('openfreemap-3d')){
-        map3d.addSource('openfreemap-3d',{url:'https://tiles.openfreemap.org/planet',type:'vector'});
+      const firstSymbol=(layers.find(l=>l.type==='symbol')||{}).id;
+      if(!map3d.getLayer('terrain-hillshade')){
+        map3d.addLayer({
+          id:'terrain-hillshade',type:'hillshade',source:'hillshade-3d',
+          paint:{
+            'hillshade-exaggeration':.45,
+            'hillshade-shadow-color':'#26323a',
+            'hillshade-highlight-color':'#f4f0e8',
+            'hillshade-accent-color':'#596b72'
+          }
+        },firstSymbol)
+      }
+      let buildingSource='openmaptiles';
+      if(!map3d.getSource(buildingSource)){
+        buildingSource='openfreemap-3d';
+        map3d.addSource(buildingSource,{url:'https://tiles.openfreemap.org/planet',type:'vector'})
       }
       if(!map3d.getLayer('3d-buildings')){
         map3d.addLayer({
-          id:'3d-buildings',
-          source:'openfreemap-3d',
-          'source-layer':'building',
-          type:'fill-extrusion',
-          minzoom:15,
+          id:'3d-buildings',source:buildingSource,'source-layer':'building',type:'fill-extrusion',minzoom:15,
           filter:['!=',['get','hide_3d'],true],
           paint:{
-            'fill-extrusion-color':[
-              'interpolate',['linear'],['coalesce',['get','render_height'],0],
-              0,'lightgray',200,'royalblue',400,'lightblue'
-            ],
-            'fill-extrusion-height':[
-              'interpolate',['linear'],['zoom'],
-              15,0,
-              16,['coalesce',['get','render_height'],0]
-            ],
+            'fill-extrusion-color':'#d8d8d8',
+            'fill-extrusion-height':['interpolate',['linear'],['zoom'],15,0,16,['coalesce',['get','render_height'],0]],
             'fill-extrusion-base':['coalesce',['get','render_min_height'],0],
-            'fill-extrusion-opacity':0.78
+            'fill-extrusion-opacity':.72
           }
-        },labelLayerId);
+        },firstSymbol)
       }
+      ensure3dDataLayers()
     }catch(e){console.warn('3D init',e)}
   });
   return map3d
@@ -332,10 +425,11 @@ function enter3d(){
   map3dEl.setAttribute('aria-hidden','false');
   const m=ensureMap3d();
   m.resize();
-  m.jumpTo({center:[c.lng,c.lat],zoom:map.getZoom(),pitch:45,bearing:m.getBearing()||-12});
+  m.jumpTo({center:[c.lng,c.lat],zoom:map.getZoom(),pitch:48,bearing:m.getBearing()||-12});
+  if(m.isStyleLoaded())ensure3dDataLayers();
   const status=document.getElementById('status');
   statusBefore3d=status.textContent;
-  status.textContent='Vista 3D OpenFreeMap · rilievo + edifici 3D · layer operativi disponibili in 2D'
+  status.textContent='Vista 3D · OpenFreeMap + Mapterhorn · stazioni e fulmini compatibili'
 }
 function leave3d(){
   if(!mode3d)return;
@@ -348,7 +442,7 @@ function leave3d(){
   map3dEl.setAttribute('aria-hidden','true');
   document.getElementById('map').classList.remove('map-hidden');
   map.invalidateSize();
-  if(statusBefore3d)document.getElementById('status').textContent=statusBefore3d
+  render()
 }
 const layer=L.layerGroup().addTo(map);
 const leftPanel=document.querySelector('.panel.left'),rightPanel=document.querySelector('.panel.right');
@@ -378,7 +472,7 @@ map.getContainer().addEventListener('pointerup',e=>{
     lastTouchTap=now;lastTouchPoint=p;
   }
 },{passive:true});
-window.addEventListener('resize',()=>{syncMapExtent();if(window.innerWidth>800){leftPanel.classList.remove('open');rightPanel.classList.remove('open');syncMobileButtons()}});
+window.addEventListener('resize',()=>{syncMapExtent();if(map3d)map3d.resize();if(window.innerWidth>800){leftPanel.classList.remove('open');rightPanel.classList.remove('open');syncMobileButtons()}});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
 function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
 function obsAgeMin(s){
@@ -461,8 +555,9 @@ function render(){
   marks.forEach(x=>{x.m.setIcon(ico(x.s));x.m.setTooltipContent(tooltipHtml(x.s))});
   const shown=applyFilters();
   const eligible=stations.filter(baseVisible).length;
-  document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n;
-  legend()
+  document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n+(mode3d?' · vista 3D':'');
+  legend();
+  update3dStations()
 }
 function build(){
   layer.clearLayers();marks=[];
@@ -472,18 +567,21 @@ function build(){
 map.on('zoomend',()=>{if(marks.length)render()})
 document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
-document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{
-  const choice=b.dataset.base;
+const BASEMAPS={operational,light,sat,relief};
+function setBaseMode(choice){
   if(choice==='3d'){
+    currentBaseMode='3d';
     enter3d()
   }else{
     if(mode3d)leave3d();
-    if(map.hasLayer(base))map.removeLayer(base);
-    base=choice==='light'?light:sat;
-    base.addTo(map)
+    if(base&&map.hasLayer(base))map.removeLayer(base);
+    base=BASEMAPS[choice]||operational;
+    currentBaseMode=BASEMAPS[choice]?choice:'operational';
+    if(!map.hasLayer(base))base.addTo(map)
   }
-  document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))
-});
+  document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x.dataset.base===currentBaseMode))
+}
+document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{setBaseMode(b.dataset.base);if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render();if(window.innerWidth<=800)closeMobilePanels()});
 const boundariesBtn=document.getElementById('boundariesBtn');
 let boundariesPreference=true,boundariesLoaded=false,boundariesLoading=false;
@@ -716,6 +814,7 @@ stationsBtn.onclick=()=>{
   stationsBtn.classList.toggle('active',stationsOn);
   stationsBtn.lastElementChild.textContent=stationsOn?'ON':'OFF';
   document.getElementById('status').style.display=stationsOn?'':'none';
+  update3dStations();
   if(window.innerWidth<=800)closeMobilePanels()
 };
 const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
@@ -985,7 +1084,7 @@ async function fetchDpcLightningFrame(d,frameIndex){
 }
 function renderLightning(){
   lightningLayer.clearLayers();
-  if(!lightningOn)return;
+  if(!lightningOn){update3dLightning();return;}
   const visible=map.getBounds().pad(.25);
   const colors=['#fff36a','#ff9e1a','#ff4d3d'];
   for(const p of lightningPoints){
@@ -998,6 +1097,7 @@ function renderLightning(){
       interactive:false
     }).addTo(lightningLayer)
   }
+  update3dLightning()
 }
 async function loadLightning(){
   if(!lightningOn)return;
@@ -1029,7 +1129,8 @@ function setLightningState(on){
     lightningPoints=[];
     lightningLayer.clearLayers();
     if(map.hasLayer(lightningLayer))map.removeLayer(lightningLayer);
-    lightningMeta.textContent='ultimi 15 min'
+    lightningMeta.textContent='ultimi 15 min';
+    update3dLightning()
   }
   lightningBtn.classList.toggle('active',on);
   lightningBtn.lastElementChild.textContent=on?'ON':'OFF';
