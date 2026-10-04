@@ -335,23 +335,51 @@ const relief=(typeof L.maplibreGL==='function')
             tileSize:512,
             maxzoom:17,
             attribution:'© Mapterhorn'
+          },
+          cartography:{
+            type:'vector',
+            url:'https://tiles.openfreemap.org/planet',
+            attribution:'© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors'
           }
         },
         layers:[
           {
             id:'relief-background',
             type:'background',
-            paint:{'background-color':'#d9d9d9'}
+            paint:{'background-color':'#d8d6d1'}
+          },
+          {
+            id:'relief-water',
+            type:'fill',
+            source:'cartography',
+            'source-layer':'water',
+            paint:{
+              'fill-color':'#9ca8b0',
+              'fill-opacity':1,
+              'fill-outline-color':'#68757d'
+            }
+          },
+          {
+            id:'relief-waterways',
+            type:'line',
+            source:'cartography',
+            'source-layer':'waterway',
+            minzoom:7,
+            paint:{
+              'line-color':'#7d8a92',
+              'line-opacity':0.58,
+              'line-width':['interpolate',['linear'],['zoom'],7,0.35,11,0.8,15,1.25]
+            }
           },
           {
             id:'relief-hillshade',
             type:'hillshade',
             source:'terrain',
             paint:{
-              'hillshade-exaggeration':0.88,
-              'hillshade-shadow-color':'#4a4a4a',
-              'hillshade-highlight-color':'#f7f7f7',
-              'hillshade-accent-color':'#888888',
+              'hillshade-exaggeration':0.92,
+              'hillshade-shadow-color':'#444444',
+              'hillshade-highlight-color':'#fafafa',
+              'hillshade-accent-color':'#858585',
               'hillshade-illumination-direction':315,
               'hillshade-illumination-anchor':'map'
             }
