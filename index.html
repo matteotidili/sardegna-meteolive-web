@@ -316,21 +316,15 @@ function baseVisible(s){
 }
 function markerSpacing(){
   const z=map.getZoom();
-  /* Spaziatura minima in pixel tra i centri dei marker.
-     Diminuisce progressivamente con lo zoom: a scala regionale la rete
-     resta leggibile e omogenea; avvicinandosi compaiono via via più stazioni. */
-  if(z<=7)return {x:62,y:36};
-  if(z===8)return {x:58,y:34};
-  if(z===9)return {x:54,y:32};
-  if(z===10)return {x:50,y:30};
-  if(z===11)return {x:46,y:28};
-  if(z===12)return {x:42,y:26};
-  if(z===13)return {x:38,y:24};
-  if(z===14)return {x:34,y:22};
-  if(z===15)return {x:30,y:20};
-  if(z===16)return {x:26,y:18};
-  if(z===17)return {x:22,y:16};
-  return {x:18,y:14}
+  /* Il marker misura circa 52x30 px: non scendiamo mai sotto 56x34,
+     così le caselle non si sovrappongono. Lo zoom aumenta da solo la
+     distanza in pixel tra le stazioni e ne fa comparire progressivamente di più. */
+  if(z<=7)return {x:70,y:42};
+  if(z===8)return {x:66,y:40};
+  if(z===9)return {x:62,y:38};
+  if(z===10)return {x:60,y:36};
+  if(z===11)return {x:58,y:35};
+  return {x:56,y:34}
 }
 function priority(s){
   if(s.network==='aeronautica-militare')return 0;
@@ -394,6 +388,7 @@ function build(){
   render()
 }
 map.on('zoomend',()=>{if(marks.length)render()})
+map.on('moveend',()=>{if(marks.length)render()})
 document.getElementById('params').innerHTML=Object.entries(P).map(([k,v],i)=>'<button class="btn '+(i?'':'active')+'" data-k="'+k+'">'+v.n+' <span>'+(i?'':'✓')+'</span></button>').join('');
 document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{cur=b.dataset.k;document.querySelectorAll('[data-k]').forEach(x=>{x.classList.toggle('active',x===b);x.lastElementChild.textContent=x===b?'✓':''});render();if(window.innerWidth<=800)closeMobilePanels()});
 document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>{map.removeLayer(base);base=b.dataset.base==='dark'?dark:b.dataset.base==='light'?light:sat;base.addTo(map);if(base===sat){if(!map.hasLayer(satShade))satShade.addTo(map)}else if(map.hasLayer(satShade))map.removeLayer(satShade);if(landOverlay){if(base===dark&&!map.hasLayer(landOverlay))landOverlay.addTo(map);if(base!==dark&&map.hasLayer(landOverlay))map.removeLayer(landOverlay)}document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x===b))});
