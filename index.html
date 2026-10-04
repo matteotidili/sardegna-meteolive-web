@@ -119,7 +119,7 @@ const MOBILE_MAP=()=>window.innerWidth<=800;
 const SARDINIA_BOUNDS=L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25);
 const MED_BOUNDS=L.latLngBounds([33.0,-3.0],[47.5,19.5]);
 const OPERA_BOUNDS=L.latLngBounds([30,-15],[55,28]);
-const map=L.map('map',{minZoom:MOBILE_MAP()?6:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true}).setView([40.02,9.02],8);
+const map=L.map('map',{minZoom:MOBILE_MAP()?6:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true,zoomAnimation:false,markerZoomAnimation:false,fadeAnimation:false}).setView([40.02,9.02],8);
 function syncMapExtent(){
   const mobile=MOBILE_MAP();
   const min=operaMapWide?5:(mobile?6:7);
@@ -466,7 +466,7 @@ map.getContainer().addEventListener('pointerup',e=>{
     const rect=map.getContainer().getBoundingClientRect();
     const cp=L.point(e.clientX-rect.left,e.clientY-rect.top);
     const ll=map.containerPointToLatLng(cp);
-    map.setView(ll,Math.min(map.getZoom()+1,map.getMaxZoom()),{animate:true});
+    map.setView(ll,Math.min(map.getZoom()+1,map.getMaxZoom()),{animate:false});
     lastTouchTap=0;lastTouchPoint=null;
   }else{
     lastTouchTap=now;lastTouchPoint=p;
