@@ -335,7 +335,7 @@ function enter3d(){
   m.jumpTo({center:[c.lng,c.lat],zoom:map.getZoom(),pitch:45,bearing:m.getBearing()||-12});
   const status=document.getElementById('status');
   statusBefore3d=status.textContent;
-  status.textContent='Vista 3D OpenFreeMap · rilievo + edifici 3D ad alto zoom'
+  status.textContent='Vista 3D OpenFreeMap · rilievo + edifici 3D · layer operativi disponibili in 2D'
 }
 function leave3d(){
   if(!mode3d)return;
