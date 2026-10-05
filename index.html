@@ -1889,7 +1889,7 @@ setInterval(()=>{
 },5*60*1000);
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
-let lastDpcnData=null,lastAmData=null,lastWuData=null;
+let lastDpcnData=null,lastAmData=null,lastWuData=null,observationsLoading=false;
 function dataStampLabel(d,label){
   if(!d?.generated_at)return label+' —';
   const t=new Date(d.generated_at),age=(Date.now()-t.getTime())/60000;
@@ -1897,10 +1897,13 @@ function dataStampLabel(d,label){
   return label+' '+(d.stations?.length||0)+' · '+stamp+(age>90?' ⚠':'')
 }
 async function loadObservations(){
+  if(observationsLoading)return;
+  observationsLoading=true;
+  try{
   const results=await Promise.allSettled([
-    fetch(DATA+'stations.json?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('DPCN '+r.status);return r.json()}),
-    fetch(DATA+'am.json?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('AM '+r.status);return r.json()}),
-    fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()})
+    fetch(DATA+'stations.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('DPCN '+r.status);return r.json()}),
+    fetch(DATA+'am.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('AM '+r.status);return r.json()}),
+    fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()})
   ]);
   if(results[0].status==='fulfilled')lastDpcnData=results[0].value;
   if(results[1].status==='fulfilled')lastAmData=results[1].value;
@@ -1913,9 +1916,12 @@ async function loadObservations(){
   const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));if(wu)parts.push(dataStampLabel(wu,'WU'));
   document.getElementById('counter').textContent=parts.length?parts.join(' · '):'Nessuna rete disponibile';
   if(stations.length)build();else document.getElementById('status').textContent='Errore caricamento dati stazioni';
+  }finally{observationsLoading=false}
 }
 loadObservations();
-setInterval(loadObservations,2*60*1000);
+// Controllo rapido dei JSON; nessuna richiesta duplicata o polling in background.
+setInterval(()=>{if(!document.hidden)loadObservations()},30*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadObservations()});
 setInterval(()=>{if(stations.length)render()},60*1000);
 </script>
 </body></html>
