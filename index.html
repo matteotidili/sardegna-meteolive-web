@@ -259,20 +259,54 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
   .baseopt{font-size:10.5px}
   .status{max-width:48vw}
 }
+
+/* Elenco chiaro accanto alla mappa, con controlli in una scheda separata. */
+header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{color:#607886}header .live{margin-left:auto;color:#486271}
+.panel.left{display:flex;flex-direction:column;overflow:hidden}.panel.directory-open{background:#fff;border-color:#dbe5ea;color:#203947}
+.sidebar-head{flex:0 0 auto;padding:12px;border-bottom:1px solid #dbe5ea;background:#fff;color:#203947}
+.sidebar-tabs{display:flex;gap:5px;margin-bottom:10px}.sidebar-tab{flex:1;min-height:38px;border:0;border-radius:7px;background:#edf3f6;color:#496272;font:700 12px Inter,system-ui,Arial;cursor:pointer}.sidebar-tab[aria-selected="true"]{background:#087ca6;color:#fff}.sidebar-tab:focus-visible,.station-row:focus-visible{outline:2px solid #087ca6;outline-offset:-2px}
+.sidebar-head .search{margin:0;padding:9px 10px;min-width:0;background:#f5f8fa;border:1px solid #dbe5ea;border-radius:8px}.sidebar-head .search input{color:#203947;font-size:13px}.sidebar-head .network-switch{margin-top:10px}.sidebar-head .netbtn{color:#456273;background:#f2f6f8;border-color:#dbe5ea}.sidebar-head .netbtn.active{background:#e0f3fa;color:#086283;border-color:#087ca6}
+.directory-view{display:flex;flex-direction:column;min-height:0;flex:1}.directory-summary{padding:10px 14px;font-size:11px;color:#617986;border-bottom:1px solid #edf1f3}.station-directory{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}.station-row{width:100%;display:flex;gap:10px;align-items:center;padding:12px 14px;text-align:left;background:#fff;border:0;border-bottom:1px solid #e7eef2;color:#213c4c;cursor:pointer}.station-row:hover,.station-row[aria-pressed="true"]{background:#eaf6fb}.station-details{flex:1;min-width:0}.station-name{display:block;font-size:12px;font-weight:750;line-height:1.4}.station-meta{display:block;margin-top:4px;color:#637b89;font-size:10px;line-height:1.4}.station-value{flex:0 0 auto;min-width:46px;padding:9px 6px;border-radius:9px;color:#112b39;text-align:center;font-size:12px;font-weight:800;border:1px solid #00000012}.directory-empty{padding:20px 14px;color:#637b89;font-size:12px}.directory-view[hidden],.control-list[hidden]{display:none}.panel .control-list{overflow-y:auto;min-height:0;flex:1}
+@media(min-width:801px){
+  main{padding-left:300px}#map3d{left:300px;width:calc(100% - 300px)}
+  .panel.left{top:0;left:0;bottom:0;width:300px;max-height:100%;border-radius:0;border-width:0 1px 0 0;box-shadow:2px 0 12px #0002}
+  .map-legends,.timeline,.status{left:calc(50% + 150px)}
+}
+@media(max-width:800px){
+  .panel.left{height:min(76dvh,760px)}.sidebar-head{padding:12px}.sidebar-tabs{padding-right:42px}.sidebar-head .panel-close{background:#edf3f6;border-color:#dbe5ea;color:#203947;top:14px}
+  .sidebar-head .netbtn{min-height:36px;padding:7px}.station-row{min-height:70px}.station-name{font-size:13px}.station-meta{font-size:11px}
+}
 </style>
 </head>
 <body>
 <div class="app">
-<header><div class="brand">SARDEGNA METEO MONITOR<small>OSSERVAZIONI & NOWCASTING</small></div><div class="search"><input id="q" placeholder="Cerca stazione…"></div><div class="live"><span class="dot"></span>DPCN + WU + AM</div></header>
+<header><div class="brand">SARDEGNA METEO MONITOR<small>OSSERVAZIONI & NOWCASTING</small></div><div class="live"><span class="dot"></span>DPCN + WU + AM</div></header>
 <div id="params" class="parameter-bar" role="group" aria-label="Parametro delle stazioni sulla mappa"></div>
 <main>
 <div id="map"></div>
 <div id="map3d" aria-hidden="true"></div>
-<div class="mobile-tools"><button class="mobile-tool" id="mobileMenu" aria-expanded="false">Menu</button></div>
+<div class="mobile-tools"><button class="mobile-tool" id="mobileMenu" aria-expanded="false">Stazioni e layer</button></div>
 <div class="mobile-backdrop" id="mobileBackdrop" aria-hidden="true"></div>
-<aside class="panel left">
-  <div class="pt">Controlli mappa<button class="panel-close" data-close="left" aria-label="Chiudi">×</button></div>
-  <div class="list control-list">
+<aside class="panel left directory-open" aria-label="Stazioni e controlli mappa">
+  <div class="sidebar-head">
+    <div class="sidebar-tabs" role="tablist" aria-label="Pannello mappa">
+      <button class="sidebar-tab" id="directoryTab" role="tab" aria-selected="true" aria-controls="directoryView">Elenco stazioni</button>
+      <button class="sidebar-tab" id="controlsTab" role="tab" aria-selected="false" aria-controls="controlsView" tabindex="-1">Layer e mappe</button>
+    </div>
+    <button class="panel-close" data-close="left" aria-label="Chiudi">×</button>
+    <div class="search"><input id="q" placeholder="Cerca stazione…" aria-label="Cerca stazione" type="search"></div>
+    <div class="network-switch" aria-label="Filtra rete">
+      <button class="netbtn active" data-net="all">Tutte</button>
+      <button class="netbtn" data-net="dpcn-sardegna">DPCN</button>
+      <button class="netbtn" data-net="aeronautica-militare">AM</button>
+      <button class="netbtn" data-net="wunderground">WU</button>
+    </div>
+  </div>
+  <div class="directory-view" id="directoryView" role="tabpanel" aria-labelledby="directoryTab">
+    <div class="directory-summary" id="directorySummary" aria-live="polite">Caricamento stazioni…</div>
+    <div class="station-directory" id="stationDirectory"></div>
+  </div>
+  <div class="list control-list" id="controlsView" role="tabpanel" aria-labelledby="controlsTab" hidden>
     <div class="accordion-item open" data-acc-item="stations">
       <button class="accordion-head" type="button" data-acc="stations" aria-expanded="true">
         <span class="acc-title">Stazioni</span><span class="acc-state on" id="accStationsState">ON</span><span class="acc-chevron">⌄</span>
@@ -296,13 +330,13 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 
     <div class="accordion-item" data-acc-item="base">
       <button class="accordion-head" type="button" data-acc="base" aria-expanded="false">
-        <span class="acc-title">Mappa base</span><span class="acc-state on" id="accBaseState">Operativa</span><span class="acc-chevron">⌄</span>
+        <span class="acc-title">Mappa base</span><span class="acc-state on" id="accBaseState">Satellite</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
         <div class="basemap-grid">
-          <button class="baseopt active" data-base="operational">Operativa</button>
+          <button class="baseopt" data-base="operational">Operativa</button>
           <button class="baseopt" data-base="light">Chiara</button>
-          <button class="baseopt" data-base="sat">Satellite</button>
+          <button class="baseopt active" data-base="sat">Satellite</button>
           <button class="baseopt" data-base="relief">Rilievo</button>
           <button class="baseopt" data-base="3d">3D</button>
         </div>
@@ -384,7 +418,7 @@ const P={
  rain_today:{n:'Pioggia accumulata',u:'mm',fmt:v=>v.toFixed(v<10?1:0),labs:['0','20','50','100','150+'],st:[[0,[130,145,155]],[.1,[80,180,225]],[10,[45,130,220]],[30,[70,190,120]],[60,[235,220,70]],[100,[245,135,50]],[160,[190,45,90]]]},
  rh:{n:'Umidità relativa',u:'%',fmt:v=>v.toFixed(0)+'%',labs:['0','25','50','75','100'],st:[[0,[180,150,90]],[30,[215,200,110]],[50,[115,190,170]],[70,[65,150,205]],[90,[65,90,185]],[100,[80,55,155]]]}
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
-let stations=[],cur='temp',marks=[],netFilter='all',query='',operaMapWide=false;
+let stations=[],cur='temp',marks=[],netFilter='all',query='',operaMapWide=false,focusedStationKey='';
 const MOBILE_MAP=()=>window.innerWidth<=800;
 const SARDINIA_BOUNDS=L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25);
 const MED_BOUNDS=L.latLngBounds([33.0,-3.0],[47.5,19.5]);
@@ -641,7 +675,7 @@ let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,light
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
-let base=operational,currentBaseMode='operational';operational.addTo(map);
+let base=sat,currentBaseMode='sat';sat.addTo(map);
 let map3d=null,mode3d=false,statusBefore3d='';
 const map3dEl=document.getElementById('map3d');
 function fc(features=[]){return {type:'FeatureCollection',features}}
@@ -815,6 +849,58 @@ const layer=L.layerGroup().addTo(map);
 const leftPanel=document.querySelector('.panel.left');
 const mobileMenu=document.getElementById('mobileMenu');
 const mobileBackdrop=document.getElementById('mobileBackdrop');
+const directoryTab=document.getElementById('directoryTab'),controlsTab=document.getElementById('controlsTab');
+function showSidebarTab(showDirectory){
+  leftPanel.classList.toggle('directory-open',showDirectory);
+  document.getElementById('directoryView').hidden=!showDirectory;
+  document.getElementById('controlsView').hidden=showDirectory;
+  [directoryTab,controlsTab].forEach((b,i)=>{const selected=i===0?showDirectory:!showDirectory;b.setAttribute('aria-selected',String(selected));b.tabIndex=selected?0:-1})
+}
+directoryTab.onclick=()=>showSidebarTab(true);
+controlsTab.onclick=()=>showSidebarTab(false);
+[directoryTab,controlsTab].forEach(b=>b.onkeydown=e=>{
+  if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){
+    e.preventDefault();const directory=e.key==='Home'||(e.key!=='End'&&b===controlsTab);
+    showSidebarTab(directory);(directory?directoryTab:controlsTab).focus()
+  }
+});
+function stationKey(s){return [s.network,s.station_id||s.name,s.lat,s.lon].join('|')}
+function renderStationDirectory(){
+  const list=document.getElementById('stationDirectory');
+  const scroll=list.scrollTop;
+  const focused=document.activeElement?.closest('[data-station-key]')?.dataset.stationKey;
+  const rows=stations.filter(baseVisible).sort((a,b)=>(a.name||'').localeCompare(b.name||'','it'));
+  document.getElementById('directorySummary').textContent=rows.length+' stazioni · '+P[cur].n+' · '+P[cur].u;
+  const fragment=document.createDocumentFragment();
+  for(const s of rows){
+    const key=stationKey(s),row=document.createElement('button');
+    row.type='button';row.className='station-row';row.dataset.stationKey=key;
+    row.setAttribute('aria-pressed',String(key===focusedStationKey));
+    const details=document.createElement('span');details.className='station-details';
+    const name=document.createElement('span');name.className='station-name';name.textContent=s.name||s.station_id||'Stazione';
+    const meta=document.createElement('span');meta.className='station-meta';
+    const net=s.network==='wunderground'?'WU':s.network==='aeronautica-militare'?'AM':'DPCN';
+    const date=s.last?new Date(s.last):null;
+    const time=date&&Number.isFinite(date.getTime())?date.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'orario non disponibile';
+    meta.textContent=net+(Number.isFinite(s.elev)?' · '+Math.round(s.elev)+' m':'')+' · '+time;
+    const value=document.createElement('span');value.className='station-value';value.style.background=col(s[cur],P[cur].st);value.textContent=fmtMarker(s[cur],cur);
+    details.append(name,meta);row.append(details,value);fragment.append(row)
+  }
+  if(!rows.length){const empty=document.createElement('div');empty.className='directory-empty';empty.textContent='Nessuna stazione con questo parametro e questi filtri.';fragment.append(empty)}
+  list.replaceChildren(fragment);list.scrollTop=scroll;
+  if(focused){Array.from(list.children).find(b=>b.dataset.stationKey===focused)?.focus({preventScroll:true})}
+}
+document.getElementById('stationDirectory').onclick=e=>{
+  const button=e.target.closest('[data-station-key]');if(!button)return;
+  const item=marks.find(x=>stationKey(x.s)===button.dataset.stationKey);if(!item)return;
+  focusedStationKey=stationKey(item.s);
+  if(!stationsOn)document.getElementById('stationsBtn').click();
+  if(mode3d)setBaseMode('sat');
+  closeMobilePanels();
+  map.setView([item.s.lat,item.s.lon],Math.max(map.getZoom(),11),{animate:false});
+  render();item.m.openPopup()
+};
+
 function syncMobileButtons(){
   const open=leftPanel.classList.contains('open');
   mobileMenu.classList.toggle('active',open);
@@ -998,9 +1084,9 @@ function selectedMarkers(){
      la selezione non dipende dal centro o dal pan della mappa. */
   const projected=candidates.map(x=>{
     const p=map.project(x.m.getLatLng(),z);
-    const stable=String(x.s.station_id||x.s.name||'');
+    const stable=stationKey(x.s);
     return {x,p,pri:priority(x.s),stable}
-  }).sort((a,b)=>a.pri-b.pri||a.stable.localeCompare(b.stable,'it'));
+  }).sort((a,b)=>Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||a.pri-b.pri||a.stable.localeCompare(b.stable,'it'));
 
   /* Griglia spaziale: controlliamo solo le celle vicine.
      Consente una distanza quasi pari alla dimensione reale dei badge,
@@ -1045,7 +1131,8 @@ function render(){
   const eligible=stations.filter(baseVisible).length;
   document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n+(mode3d?' · vista 3D':'');
   legend();
-  update3dStations()
+  update3dStations();
+  renderStationDirectory()
 }
 function build(){
   layer.clearLayers();marks=[];
@@ -1083,7 +1170,7 @@ document.querySelectorAll('[data-base]').forEach(b=>{
   if(b.dataset.base==='3d'&&!CAN_USE_WEBGL){b.disabled=true;b.title='Vista 3D non disponibile su questo dispositivo'}
   b.onclick=()=>setBaseMode(b.dataset.base)
 });
-document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render()});
+document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x.dataset.net===netFilter));render()});
 const boundariesBtn=document.getElementById('boundariesBtn');
 let boundariesPreference=true,boundariesLoaded=false,boundariesLoading=false;
 const boundariesLayer=L.layerGroup();
