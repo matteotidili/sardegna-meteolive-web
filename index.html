@@ -328,8 +328,8 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
     <div class="station-directory" id="stationDirectory"></div>
   </div>
   <div class="list control-list" id="controlsView" role="tabpanel" aria-labelledby="controlsTab" hidden>
-    <div class="accordion-item open" data-acc-item="stations">
-      <button class="accordion-head" type="button" data-acc="stations" aria-expanded="true">
+    <div class="accordion-item" data-acc-item="stations">
+      <button class="accordion-head" type="button" data-acc="stations" aria-expanded="false">
         <span class="acc-title">Stazioni</span><span class="acc-state on" id="accStationsState">ON</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body" id="stationsSub"><div class="accordion-inner station-controls">
@@ -366,7 +366,7 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 
     <div class="accordion-item" data-acc-item="precip">
       <button class="accordion-head" type="button" data-acc="precip" aria-expanded="false">
-        <span class="acc-title">Precipitazioni</span><span class="acc-state" id="accPrecipState">OFF</span><span class="acc-chevron">⌄</span>
+        <span class="acc-title">Radar</span><span class="acc-state" id="accPrecipState">OFF</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
@@ -875,6 +875,7 @@ function showSidebarTab(showDirectory){
   leftPanel.classList.toggle('directory-open',showDirectory);
   document.getElementById('directoryView').hidden=!showDirectory;
   document.getElementById('controlsView').hidden=showDirectory;
+  if(!showDirectory)setAccordion('stations',false);
   [directoryTab,controlsTab].forEach((b,i)=>{const selected=i===0?showDirectory:!showDirectory;b.setAttribute('aria-selected',String(selected));b.tabIndex=selected?0:-1})
 }
 directoryTab.onclick=()=>showSidebarTab(true);
