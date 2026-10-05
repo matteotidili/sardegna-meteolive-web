@@ -289,7 +289,7 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 .panel.left:not(.directory-open) .baseopt.active{background:#e0f3fa;border-color:#087ca6;color:#075675}
 .panel.left:not(.directory-open) .layer-note{color:#607986}
 /* La legenda resta laterale e verticale: lascia libera la fascia degli slider. */
-.map-legends{left:auto;right:14px;top:14px;bottom:auto;transform:none;width:min(300px,calc(100% - 330px));max-height:min(70vh,430px);padding:10px 12px;border-radius:12px}
+@media(min-width:801px){.map-legends{left:auto;right:14px;top:14px;bottom:auto;transform:none;width:min(300px,calc(100% - 330px));max-height:min(70vh,430px);padding:10px 12px;border-radius:12px}}
 .map-legend-row{padding:7px 0}.map-legend-title{font-size:9px;line-height:1.3}.map-legend-labels{font-size:8px;flex-wrap:wrap;row-gap:3px}.map-legend-note{font-size:8px;line-height:1.3}.lightning-scale{grid-template-columns:1fr;gap:5px;font-size:9px}.lightning-scale span{justify-content:flex-start;padding:6px}.lightning-direction{font-size:8px}
 @media(min-width:801px){
   main{padding-left:300px}#map3d{left:300px;width:calc(100% - 300px)}
@@ -1075,7 +1075,8 @@ function layoutTimelineStack(){
   if(legends){
     // Desktop: la scheda è a destra e non deve salire sopra gli slider.
     // Mobile: la spostiamo sopra la pila temporale quando presente.
-    legends.style.bottom=(mobile?(timelines.length?base+timelines.length*step+5:base):14)+'px'
+    legends.style.top=mobile?'auto':'14px'
+    legends.style.bottom=mobile?(timelines.length?base+timelines.length*step+5:base):'auto'
   }
 }
 function syncLegendPosition(){layoutTimelineStack()}
