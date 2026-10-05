@@ -446,8 +446,8 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
           <div class="meteoalarm-summary" id="meteoalarmSummary">Caricamento allerte MeteoAlarm…</div>
           <label>Periodo <select id="meteoalarmPeriod"><option value="active">In vigore adesso</option><option value="upcoming">Prossime allerte</option></select></label>
           <label>Paese <select id="meteoalarmCountry"><option value="">Tutti i paesi</option></select></label>
-          <div class="meteoalarm-source" id="meteoalarmCoverage"></div>
           <div class="meteoalarm-list" id="meteoalarmList"></div>
+          <details class="meteoalarm-source"><summary>Copertura e disponibilità dei paesi</summary><div id="meteoalarmCoverage"></div></details>
           <div class="meteoalarm-source">Fonte: MeteoAlarm / EUMETNET · feed CAP dei paesi mediterranei coperti. Gli avvisi italiani non sostituiscono i bollettini della Protezione Civile. Per IT019 (Sardegna) il contorno regionale viene usato come fallback quando il CAP non include il poligono.</div>
         </div>
       </div></div>
@@ -1345,11 +1345,11 @@ function syncMeteoalarmBadge(){
   el.classList.remove('alert-yellow','alert-orange','alert-red','on');
   if(meteoalarmLoading&&!meteoalarmData){el.textContent='…';return}
   if(!meteoalarmData){el.textContent='N/D';return}
-  if(!meteoalarmFresh()){el.textContent='DA VERIFICARE';return}
   const active=selectedMeteoalarmWarnings('active').length;
   const upcoming=selectedMeteoalarmWarnings('upcoming').length;
   const level=Math.max(0,...selectedMeteoalarmWarnings('active').map(w=>Number(w.level)));
   el.textContent=active&&upcoming?active+' ORA · '+upcoming+' PROSS':active?active+' ATTIVE':upcoming?upcoming+' PROSS':'NESSUNA';
+  if(!meteoalarmFresh())el.textContent=(active+upcoming)+' · DA VERIFICARE';
   if(level>=4)el.classList.add('alert-red');
   else if(level>=3)el.classList.add('alert-orange');
   else if(level>=2)el.classList.add('alert-yellow')
@@ -1360,6 +1360,7 @@ function meteoalarmPopup(w){
   const state=w.status==='upcoming'?'Prossima':'In vigore';
   const desc=w.headline||w.description||'';
   return '<div class="popup"><b>'+escAlert(title)+' · '+meteoalarmLevelLabel(w.level)+'</b><br>'+
+    (meteoalarmFresh()?'':'<b>Aggiornamento in ritardo: ultimo avviso ricevuto, da verificare.</b><br>')+
     '<span style="color:#9fb4c6">'+escAlert((w.country||'Italia')+' · '+w.area_desc)+'</span><br>'+
     '<b>'+state+'</b> · '+escAlert(valid)+(desc?'<br><br>'+escAlert(desc):'')+
     '<br><span style="color:#8299ad">Fonte: MeteoAlarm / EUMETNET</span></div>'
@@ -1383,7 +1384,7 @@ async function loadMeteoalarmAreaGeometry(w){
 async function renderMeteoalarmLayer(){
   const version=++meteoalarmRenderVersion;
   meteoalarmLayer.clearLayers();meteoalarmFeatureLayers.clear();
-  if(!meteoalarmOn||!meteoalarmFresh())return;
+  if(!meteoalarmOn||!meteoalarmData?.warnings)return;
   const groups=new Map();
   selectedMeteoalarmWarnings().forEach((w,i)=>{
     const key=[w.country,w.emma_id||w.area_desc,JSON.stringify(w.geometry)].join('|');
@@ -1427,7 +1428,7 @@ function renderMeteoalarmList(){
   const warnings=selectedMeteoalarmWarnings();
   const level=Math.max(0,...warnings.map(w=>Number(w.level)));
   const period=meteoalarmPeriod.value==='active'?'in vigore':'prossime';
-  meteoalarmSummary.textContent=(meteoalarmFresh()?'':'DATI NON RECENTI · ')+(warnings.length
+  meteoalarmSummary.textContent=(meteoalarmFresh()?'':'AGGIORNAMENTO IN RITARDO: ultimi avvisi ricevuti, possibili variazioni non acquisite. ')+(warnings.length
     ? warnings.length+' allerte '+period+' · massimo '+meteoalarmLevelLabel(level)
     : 'Nessun avviso '+period+' nei dati ricevuti')+' · ultimo controllo '+stamp+' (ora italiana)';
   document.getElementById('meteoalarmCoverage').textContent=(d.countries||[]).map(c=>c.country+': '+(c.status==='ok'?'verificato':c.status==='partial'?'dati incompleti':'non disponibile')).join(' · ')+'. Senza copertura in questa integrazione: '+(d.uncovered||[]).join(', ');
@@ -1484,7 +1485,7 @@ function setMeteoalarmState(on){
   if(meteoalarmOn){
     if(mode3d)setBaseMode('sat');
     renderMeteoalarmLayer();
-    if(!meteoalarmData)loadMeteoalarm(true)
+    if(!meteoalarmFresh())loadMeteoalarm(true)
   }else if(map.hasLayer(meteoalarmLayer)){
     map.removeLayer(meteoalarmLayer)
   }
@@ -1497,7 +1498,7 @@ function meteoalarmLegendHtml(){
   const count=selectedMeteoalarmWarnings().length;
   return '<div class="map-legend-row"><div class="map-legend-title">MeteoAlarm · Mediterraneo · '+(meteoalarmPeriod.value==='active'?'in vigore':'prossime')+(count?' · '+count:'')+'</div>'+
     '<div class="alert-legend-scale"><span><i class="alert-legend-swatch yellow"></i>Giallo</span><span><i class="alert-legend-swatch orange"></i>Arancione</span><span><i class="alert-legend-swatch red"></i>Rosso</span></div>'+
-    '<div class="map-legend-note">Riempimento = in vigore · bordo tratteggiato = prossima · contorno IT019 usato come fallback quando il CAP non contiene il poligono</div></div>'
+    '<div class="map-legend-note">'+(meteoalarmFresh()?'':'⚠ Aggiornamento in ritardo · ultimi avvisi ricevuti al '+meteoalarmTime(meteoalarmData?.generated_at)+'. ')+'Riempimento = in vigore · bordo tratteggiato = prossima · contorno IT019 usato come fallback quando il CAP non contiene il poligono</div></div>'
 }
 meteoalarmPeriod.onchange=meteoalarmCountry.onchange=()=>{renderMeteoalarmList();renderMeteoalarmLayer();legend()};
 setInterval(()=>{renderMeteoalarmList();renderMeteoalarmLayer();legend()},60000);
