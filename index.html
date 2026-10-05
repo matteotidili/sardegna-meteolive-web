@@ -398,6 +398,8 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
       <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button>
         <div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT</div>
+        <button class="btn" id="satHrfiBtn">FCI HRFI · 0,5 km <span>OFF</span></button>
+        <div class="layer-note" id="satHrfiInfo">FCI VIS 0,6 µm · alta risoluzione · ultimo frame</div>
       </div></div>
     </div>
 
@@ -568,8 +570,8 @@ const relief=(CAN_USE_WEBGL&&typeof L.maplibreGL==='function')
       attribution:'Sources: Esri, USGS, NGA, NASA, CGIAR e altri'
     });
 const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
-let satMetLayer=null,satHdLayer=null,satViewBounds=null,satViewGeneration=0,satHdFrameIndex=-1;
-let satMetOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[],satHdTimer=null;
+let satMetLayer=null,satHdLayer=null,satHrfiLayer=null,satViewBounds=null,satViewGeneration=0,satHdFrameIndex=-1;
+let satMetOn=false,satHrfiOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satPreloadPromise=null,satPreloadedImages=[],satHdTimer=null;
 function currentSatBounds(){return map.getBounds().pad(1.5)}
 function satImageUrl(time,width=1800,bounds=satViewBounds||currentSatBounds()){
   const sw=L.CRS.EPSG3857.project(bounds.getSouthWest()),ne=L.CRS.EPSG3857.project(bounds.getNorthEast());
@@ -595,7 +597,7 @@ async function satFrameAvailable(d){
 }
 async function findLatestSatTime(){
   const step=10*60000;
-  const start=Math.floor((Date.now()-10*60000)/step)*step;
+  const start=Math.floor(Date.now()/step)*step;
   const candidates=Array.from({length:10},(_,i)=>new Date(start-i*step));
   const checks=await Promise.all(candidates.map(d=>satFrameAvailable(d)));
   const i=checks.findIndex(Boolean);
@@ -972,7 +974,7 @@ function syncAccordionStates(){
   if(operaOn)precip.push('EU');
   if(cumActive)precip.push(cumActive.toUpperCase());
   setAccState('accPrecipState',precip.length?precip.join(' · '):'OFF',precip.length>0);
-  setAccState('accSatelliteState',satMetOn?'ON':'OFF',satMetOn);
+  setAccState('accSatelliteState',(satMetOn||satHrfiOn)?'ON':'OFF',satMetOn||satHrfiOn);
   setAccState('accLightningState',lightningOn?(lightningMode==='live'?'LIVE':'STORICO'):'OFF',lightningOn);
   setAccState('accOtherState',boundariesPreference?'1 ON':'OFF',boundariesPreference)
 }
@@ -1251,9 +1253,31 @@ boundariesBtn.onclick=()=>{
 };
 syncBoundaries();
 const satMetBtn=document.getElementById('satMetBtn'),satMetInfo=document.getElementById('satMetInfo');
+const satHrfiBtn=document.getElementById('satHrfiBtn'),satHrfiInfo=document.getElementById('satHrfiInfo');
 const satTimeline=document.getElementById('satTimeline'),satRange=document.getElementById('satRange'),satTime=document.getElementById('satTime'),satPlay=document.getElementById('satPlay');
 function syncTimelineStack(){layoutTimelineStack();legend()}
 function satLabel(d){return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' ·')}
+function updateSatHrfiFrame(time){
+  if(!satHrfiOn)return;
+  const fallback=new Date(Math.floor(Date.now()/(10*60000))*10*60000);
+  const d=time?new Date(time):fallback;
+  if(!satHrfiLayer){
+    satHrfiLayer=L.tileLayer.wms(SAT_WMS,{
+      pane:'satmet',layers:'mtg_fd:vis06_hrfi',styles:'',format:'image/png',transparent:true,
+      version:'1.1.1',time:d.toISOString(),opacity:.9,maxZoom:18,tileSize:256,detectRetina:true,
+      updateWhenZooming:false,updateWhenIdle:true,keepBuffer:3,
+      attribution:'© EUMETSAT · FCI HRFI VIS 0,6 µm · 500 m'
+    });
+  }else{
+    satHrfiLayer.setParams({time:d.toISOString()},false);satHrfiLayer.redraw();satHrfiLayer.setOpacity(.9)
+  }
+  if(!map.hasLayer(satHrfiLayer))satHrfiLayer.addTo(map);
+  satHrfiInfo.innerHTML='FCI HRFI VIS 0,6 µm · 500 m · '+satLabel(d)+'<br>© EUMETSAT'
+}
+function removeSatHrfiLayer(){
+  if(satHrfiLayer&&map.hasLayer(satHrfiLayer))map.removeLayer(satHrfiLayer);
+  satHrfiInfo.innerHTML='FCI VIS 0,6 µm · alta risoluzione · ultimo frame'
+}
 function buildSatFrames(latest){
   const end=new Date(latest),frames=[];
   for(let i=18;i>=0;i--)frames.push(new Date(end.getTime()-i*10*60000));
@@ -1286,6 +1310,7 @@ function scheduleSatHd(i,delay=450){
 async function upgradeSatFrame(i){
   if(!satFrames.length||!satMetOn||satTimer)return;
   const idx=Math.max(0,Math.min(satFrames.length-1,i)),d=satFrames[idx];
+  if(satHrfiOn){updateSatHrfiFrame(satLatestTime||d);return}
   satHdFrameIndex=idx;
   if(!satHdLayer){
     satHdLayer=L.tileLayer.wms(SAT_WMS,{
@@ -1373,8 +1398,9 @@ async function loadSatTimeline(forceLatest=true){
       buildSatFrames(newLatest);
       satPreloadedImages=[];satPreloadPromise=null;
       if(forceLatest||wasLatest){showSatFrame(satFrames.length-1,'preview');upgradeSatFrame(satFrames.length-1)}
+      if(satHrfiOn)updateSatHrfiFrame(newLatest);
       preloadSatFrames()
-    }else if(forceLatest&&satFrames.length){showSatFrame(satFrames.length-1,'preview');upgradeSatFrame(satFrames.length-1)}
+    }else if(forceLatest&&satFrames.length){showSatFrame(satFrames.length-1,'preview');upgradeSatFrame(satFrames.length-1);if(satHrfiOn)updateSatHrfiFrame(satLatestTime)}
   }catch(e){
     satMetInfo.innerHTML='MTG GeoColour · aggiornamento non disponibile<br>© EUMETSAT / NASA'
   }
@@ -1409,6 +1435,7 @@ function setSatMet(on){
     if(satHdLayer&&map.hasLayer(satHdLayer))map.removeLayer(satHdLayer);
     satHdFrameIndex=-1;
     if(satMetLayer&&map.hasLayer(satMetLayer))map.removeLayer(satMetLayer);
+    satHrfiOn=false;removeSatHrfiLayer();satHrfiBtn.classList.remove('active');satHrfiBtn.lastElementChild.textContent='OFF';satHrfiInfo.classList.remove('on');
     satTimeline.classList.remove('on')
   }
   syncTimelineStack();
@@ -1419,12 +1446,28 @@ function setSatMet(on){
   syncAccordionStates()
 }
 satMetBtn.onclick=()=>setSatMet(!satMetOn);
+satHrfiBtn.onclick=()=>{
+  satHrfiOn=!satHrfiOn;
+  if(satHrfiOn){
+    if(!satMetOn)setSatMet(true);
+    if(satHdLayer&&map.hasLayer(satHdLayer))map.removeLayer(satHdLayer);
+    satHdFrameIndex=-1;
+    updateSatHrfiFrame(satLatestTime)
+  }else{
+    removeSatHrfiLayer();
+    if(satMetOn&&satFrames.length&&!satTimer)upgradeSatFrame(satIndex)
+  }
+  satHrfiBtn.classList.toggle('active',satHrfiOn);
+  satHrfiBtn.lastElementChild.textContent=satHrfiOn?'ON':'OFF';
+  satHrfiInfo.classList.toggle('on',satHrfiOn);
+  syncAccordionStates()
+};
 document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1,'preview');scheduleSatHd(satIndex,250)};
 document.getElementById('satNext').onclick=()=>{stopSatAnimation();showSatFrame(satIndex+1,'preview');scheduleSatHd(satIndex,250)};
 satPlay.onclick=()=>satTimer?stopSatAnimation():startSatAnimation();
 satRange.oninput=()=>{stopSatAnimation();showSatFrame(Number(satRange.value),'preview');scheduleSatHd(satIndex,550)};
 satRange.onchange=()=>scheduleSatHd(satIndex,120);
-setInterval(()=>{if(satMetOn&&!satTimer&&satIndex===satFrames.length-1)loadSatTimeline(false)},10*60*1000);
+setInterval(()=>{if(satMetOn&&!satTimer&&satIndex===satFrames.length-1)loadSatTimeline(false)},5*60*1000);
 const stationsBtn=document.getElementById('stationsBtn');
 stationsBtn.onclick=()=>{
   stationsOn=!stationsOn;
