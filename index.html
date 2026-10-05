@@ -41,11 +41,11 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-words span:nth-child(5){flex:5 1 0}
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
-.badge{position:relative;box-sizing:border-box;min-width:38px;height:22px;padding:0 4px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#061018;font-weight:900;font-size:9.5px;line-height:1;border:0;box-shadow:0 1px 5px #000a;white-space:nowrap}.badge.suspect{opacity:.58}.badge.stale{background:#68727d!important;color:#fff;opacity:.72}
+.badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:900;font-size:8.5px;line-height:1;border:2px solid #fff;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;text-shadow:0 1px 1px #ffffff66}.badge.suspect{opacity:.62}.badge.stale{background:#7b8791!important;color:#fff;opacity:.75;text-shadow:none}
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
 .status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
 .timeline{display:none;position:absolute;z-index:980;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));background:#07131ff0;border:1px solid #294055;border-radius:13px;padding:9px 11px;box-shadow:0 10px 28px #0007;backdrop-filter:blur(12px);align-items:center;gap:8px}.timeline.on{display:flex}.timeline.stacked{bottom:103px}
-.map-legends{display:none;position:absolute;z-index:985;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));max-height:190px;overflow-y:auto;background:#07131ff2;border:1px solid #35516a;border-radius:13px;padding:8px 10px;box-shadow:0 10px 28px #0008;backdrop-filter:blur(12px)}.map-legends.on{display:block}.map-legends.one-timeline{bottom:108px}.map-legends.two-timelines{bottom:153px}.map-legend-row{padding:5px 0}.map-legend-row+.map-legend-row{border-top:1px solid #20364a}.map-legend-title{font-size:8px;font-weight:900;letter-spacing:.08em;color:#c5d7e6;text-transform:uppercase;margin-bottom:5px}.map-legend-bar{height:10px;border-radius:8px;border:1px solid #ffffff2b;overflow:hidden}.map-legend-labels{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:7px;color:#c0d1df;font-variant-numeric:tabular-nums}.map-legend-note{font-size:7px;color:#8196a8;margin-top:3px}.lightning-scale{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:6px;font-size:8px;color:#d1deea}.lightning-scale span{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:5px 4px;border:1px solid #ffffff12;border-radius:7px;background:#0d1a27}.lightning-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;border:1px solid #111;box-shadow:0 0 5px #0008}.lightning-direction{display:flex;justify-content:space-between;margin-top:5px;font-size:7px;color:#7f96a9;text-transform:uppercase;letter-spacing:.06em}.li-legend-img{display:block;width:100%;max-width:640px;height:auto;margin-top:5px;border-radius:6px}.lightning-pulse-icon{background:transparent!important;border:0!important}.lightning-pulse-ring{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #fff;animation:lightningPulse 1.25s ease-out infinite;transform-origin:center}@keyframes lightningPulse{0%{transform:scale(.25);opacity:1}70%{opacity:.75}100%{transform:scale(2.1);opacity:0}}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
+.map-legends{display:none;position:absolute;z-index:985;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));max-height:190px;overflow-y:auto;background:#fffffff2;border:1px solid #d5dde4;border-radius:12px;padding:8px 10px;box-shadow:0 6px 20px #0004;backdrop-filter:blur(10px)}.map-legends.on{display:block}.map-legends.one-timeline{bottom:108px}.map-legends.two-timelines{bottom:153px}.map-legend-row{padding:5px 0}.map-legend-row+.map-legend-row{border-top:1px solid #dce3e8}.map-legend-title{font-size:8px;font-weight:900;letter-spacing:.08em;color:#263746;text-transform:uppercase;margin-bottom:5px}.map-legend-bar{height:10px;border-radius:8px;border:1px solid #b7c2cb;overflow:hidden}.map-legend-labels{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:7px;color:#34495a;font-variant-numeric:tabular-nums}.map-legend-note{font-size:7px;color:#647887;margin-top:3px}.lightning-scale{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:6px;font-size:8px;color:#d1deea}.lightning-scale span{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:5px 4px;border:1px solid #ffffff12;border-radius:7px;background:#0d1a27}.lightning-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;border:1px solid #111;box-shadow:0 0 5px #0008}.lightning-direction{display:flex;justify-content:space-between;margin-top:5px;font-size:7px;color:#7f96a9;text-transform:uppercase;letter-spacing:.06em}.li-legend-img{display:block;width:100%;max-width:640px;height:auto;margin-top:5px;border-radius:6px}.lightning-pulse-icon{background:transparent!important;border:0!important}.lightning-pulse-ring{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #fff;animation:lightningPulse 1.25s ease-out infinite;transform-origin:center}@keyframes lightningPulse{0%{transform:scale(.25);opacity:1}70%{opacity:.75}100%{transform:scale(2.1);opacity:0}}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
 .popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
 .station-tip{background:#081522f2!important;color:#f2f8ff!important;border:1px solid #3a5870!important;border-radius:9px!important;box-shadow:0 8px 22px #0008!important;padding:7px 9px!important;font-size:11px!important;line-height:1.3!important}
 .station-tip:before{border-top-color:#3a5870!important}
@@ -243,7 +243,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
   .time-label{min-width:72px;font-size:9px}
   .timeline input[type=range]{width:100%}
   .leaflet-control-zoom{display:none}
-  .badge{min-width:36px;height:21px;padding:0 3px;font-size:9px;border-radius:10.5px}
+  .badge{width:28px;height:28px;padding:0;font-size:8px;border-width:2px}
   .leaflet-popup-content{margin:12px 14px}
 }
 @media(max-width:480px){
@@ -878,6 +878,13 @@ map.getContainer().addEventListener('pointerup',e=>{
 window.addEventListener('resize',()=>{syncMapExtent();if(map3d)map3d.resize();if(window.innerWidth>800)leftPanel.classList.remove('open');syncMobileButtons();layoutTimelineStack()});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
 function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
+function fmtMarker(v,k=cur){
+  if(!Number.isFinite(v))return'—';
+  if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1);
+  if(k==='rh'||k==='wind_kmh'||k==='gust_kmh')return Math.round(v).toString();
+  if(k==='rain_rate'||k==='rain_today')return v<10?v.toFixed(1):Math.round(v).toString();
+  return String(Math.round(v))
+}
 function obsAgeMin(s){
   if(s&&s.last){
     const t=new Date(s.last).getTime();
@@ -888,24 +895,27 @@ function obsAgeMin(s){
 function markerMetrics(){
   const z=map.getZoom(),mobile=MOBILE_MAP();
   if(mobile){
-    if(z<=7)return {w:36,h:21,sx:39,sy:23};
-    if(z===8)return {w:36,h:21,sx:38,sy:23};
-    if(z===9)return {w:36,h:21,sx:37,sy:22};
-    return {w:36,h:21,sx:36,sy:22}
+    if(z<=7)return {d:26,sx:29,sy:29};
+    if(z===8)return {d:27,sx:30,sy:30};
+    if(z===9)return {d:28,sx:30,sy:30};
+    return {d:29,sx:31,sy:31}
   }
-  if(z<=7)return {w:40,h:22,sx:44,sy:25};
-  if(z===8)return {w:39,h:22,sx:42,sy:24};
-  if(z===9)return {w:38,h:22,sx:40,sy:24};
-  if(z===10)return {w:38,h:22,sx:39,sy:23};
-  return {w:38,h:22,sx:38,sy:23}
+  if(z<=7)return {d:27,sx:30,sy:30};
+  if(z===8)return {d:28,sx:31,sy:31};
+  if(z===9)return {d:29,sx:31,sy:31};
+  if(z===10)return {d:30,sx:32,sy:32};
+  return {d:31,sx:33,sy:33}
 }
 function ico(s){
   const v=s[cur],bg=col(v,P[cur].st),m=markerMetrics();
+  const age=obsAgeMin(s);
+  const suspect=s.network==='wunderground'&&s.qc_status===0;
+  const cls='badge'+(suspect?' suspect':'')+(age>90?' stale':'');
   return L.divIcon({
     className:'',
-    html:'<div class="badge" style="background:'+bg+';min-width:'+m.w+'px;height:'+m.h+'px">'+fmt(v,cur,s)+'</div>',
-    iconSize:[m.w,m.h],
-    iconAnchor:[m.w/2,m.h/2]
+    html:'<div class="'+cls+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px">'+fmtMarker(v,cur)+'</div>',
+    iconSize:[m.d,m.d],
+    iconAnchor:[m.d/2,m.d/2]
   })
 }
 function popup(s){let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
