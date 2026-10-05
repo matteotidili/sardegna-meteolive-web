@@ -300,6 +300,29 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
   .panel.left{height:min(76dvh,760px)}.sidebar-head{padding:12px}.sidebar-tabs{padding-right:42px}.sidebar-head .panel-close{background:#edf3f6;border-color:#dbe5ea;color:#203947;top:14px}
   .sidebar-head .netbtn{min-height:36px;padding:7px}.station-row{min-height:70px}.station-name{font-size:13px}.station-meta{font-size:11px}
 }
+
+/* MeteoAlarm: pannello operativo e simbologia delle allerte. */
+.meteoalarm-summary{padding:7px 8px;border:1px solid #dbe5ea;border-radius:8px;background:#f7fafb;color:#405b6a;font-size:9px;line-height:1.45}
+.meteoalarm-list{display:grid;gap:6px;margin-top:7px}
+.meteoalarm-card{width:100%;display:block;text-align:left;border:1px solid #dbe5ea;border-left-width:5px;border-radius:9px;background:#fff;color:#294454;padding:8px 9px;cursor:pointer}
+.meteoalarm-card:hover{background:#f5fafc}
+.meteoalarm-card.no-map{cursor:default}
+.meteoalarm-card.level-2{border-left-color:#e5c51d}.meteoalarm-card.level-3{border-left-color:#e88519}.meteoalarm-card.level-4{border-left-color:#d63232}
+.meteoalarm-card-title{display:block;font-size:10px;font-weight:900;line-height:1.35}
+.meteoalarm-card-area{display:block;margin-top:3px;font-size:9px;font-weight:750;color:#536f7f;line-height:1.35}
+.meteoalarm-card-time{display:block;margin-top:4px;font-size:8px;color:#718794;line-height:1.35}
+.meteoalarm-source{margin-top:7px;font-size:7.5px;color:#748b98;line-height:1.35}
+.acc-state.alert-yellow{background:#fff8ce!important;border-color:#d9bb22!important;color:#745f00!important}
+.acc-state.alert-orange{background:#fff0dc!important;border-color:#e08018!important;color:#8a4300!important}
+.acc-state.alert-red{background:#ffe1e1!important;border-color:#d63232!important;color:#9b1616!important}
+.alert-legend-scale{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:5px;font-size:8px;color:#34495a}
+.alert-legend-scale span{display:flex;align-items:center;gap:5px}
+.alert-legend-swatch{width:12px;height:12px;border-radius:3px;border:1px solid #6d7780}
+.alert-legend-swatch.yellow{background:#f4d03f}.alert-legend-swatch.orange{background:#e67e22}.alert-legend-swatch.red{background:#e53935}
+@media(max-width:800px){
+  .meteoalarm-summary{font-size:10px}.meteoalarm-card{padding:10px}.meteoalarm-card-title{font-size:11px}.meteoalarm-card-area{font-size:10px}.meteoalarm-card-time{font-size:9px}
+}
+
 </style>
 </head>
 <body>
@@ -413,6 +436,20 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
       </div></div>
     </div>
 
+    <div class="accordion-item" data-acc-item="alerts">
+      <button class="accordion-head" type="button" data-acc="alerts" aria-expanded="false">
+        <span class="acc-title">Allerte MeteoAlarm</span><span class="acc-state" id="accAlertsState">…</span><span class="acc-chevron">⌄</span>
+      </button>
+      <div class="accordion-body"><div class="accordion-inner">
+        <button class="btn" id="meteoalarmBtn">Aree di allerta <span>OFF</span></button>
+        <div class="layer-note on" id="meteoalarmInfo">
+          <div class="meteoalarm-summary" id="meteoalarmSummary">Caricamento allerte MeteoAlarm…</div>
+          <div class="meteoalarm-list" id="meteoalarmList"></div>
+          <div class="meteoalarm-source">Fonte: MeteoAlarm / EUMETNET · feed CAP Italia. Il layer mostra le geometrie disponibili nei messaggi CAP.</div>
+        </div>
+      </div></div>
+    </div>
+
     <div class="accordion-item" data-acc-item="other">
       <button class="accordion-head" type="button" data-acc="other" aria-expanded="false">
         <span class="acc-title">Altri layer</span><span class="acc-state on" id="accOtherState">1 ON</span><span class="acc-chevron">⌄</span>
@@ -445,6 +482,7 @@ const P={
  rh:{n:'Umidità relativa',u:'%',fmt:v=>v.toFixed(0)+'%',labs:['0','25','50','75','100'],st:[[0,[180,150,90]],[30,[215,200,110]],[50,[115,190,170]],[70,[65,150,205]],[90,[65,90,185]],[100,[80,55,155]]]}
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
 let stations=[],cur='temp',marks=[],netFilter='all',query='',operaMapWide=false,focusedStationKey='';
+let meteoalarmOn=false,meteoalarmData=null,meteoalarmLoading=false;
 const MOBILE_MAP=()=>window.innerWidth<=800;
 const SARDINIA_BOUNDS=L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25);
 const MED_BOUNDS=L.latLngBounds([33.0,-3.0],[47.5,19.5]);
@@ -464,6 +502,7 @@ map.createPane('satshade');map.getPane('satshade').style.zIndex=235;map.getPane(
 map.createPane('satmet');map.getPane('satmet').style.zIndex=300;map.getPane('satmet').style.pointerEvents='none';
 map.createPane('satbounds');map.getPane('satbounds').style.zIndex=335;map.getPane('satbounds').style.pointerEvents='none';
 map.createPane('weather');map.getPane('weather').style.zIndex=350;map.getPane('weather').style.pointerEvents='none';
+map.createPane('alerts');map.getPane('alerts').style.zIndex=390;
 map.createPane('lightning');map.getPane('lightning').style.zIndex=445;map.getPane('lightning').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
 // Mantiene attiva la mappa Leaflet anche sui dispositivi senza WebGL2.
@@ -872,6 +911,8 @@ function leave3d(){
   render()
 }
 const layer=L.layerGroup().addTo(map);
+const meteoalarmLayer=L.layerGroup();
+const meteoalarmFeatureLayers=new Map();
 const leftPanel=document.querySelector('.panel.left');
 const mobileMenu=document.getElementById('mobileMenu');
 const mobileBackdrop=document.getElementById('mobileBackdrop');
@@ -976,6 +1017,7 @@ function syncAccordionStates(){
   setAccState('accPrecipState',precip.length?precip.join(' · '):'OFF',precip.length>0);
   setAccState('accSatelliteState',(satMetOn||satHrfiOn)?'ON':'OFF',satMetOn||satHrfiOn);
   setAccState('accLightningState',lightningOn?(lightningMode==='live'?'LIVE':'STORICO'):'OFF',lightningOn);
+  syncMeteoalarmBadge();
   setAccState('accOtherState',boundariesPreference?'1 ON':'OFF',boundariesPreference)
 }
 
@@ -1085,7 +1127,7 @@ function syncLegendPosition(){layoutTimelineStack()}
 function legend(){
   const el=document.getElementById('mapLegends');
   if(!el)return;
-  const html=stationLegendHtml()+radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+lightningLegendHtml();
+  const html=stationLegendHtml()+radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
   el.innerHTML=html;
   el.classList.toggle('on',!!html);
   syncLegendPosition()
@@ -1252,6 +1294,158 @@ boundariesBtn.onclick=()=>{
   syncBoundaries();
 };
 syncBoundaries();
+
+const METEOALARM_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/meteoalarm.json';
+const meteoalarmBtn=document.getElementById('meteoalarmBtn');
+const meteoalarmSummary=document.getElementById('meteoalarmSummary');
+const meteoalarmList=document.getElementById('meteoalarmList');
+
+function meteoalarmColor(level){
+  if(Number(level)>=4)return '#e53935';
+  if(Number(level)>=3)return '#e67e22';
+  return '#f4d03f'
+}
+function meteoalarmLevelLabel(level){
+  if(Number(level)>=4)return 'ROSSO';
+  if(Number(level)>=3)return 'ARANCIONE';
+  if(Number(level)>=2)return 'GIALLO';
+  return 'INFO'
+}
+function meteoalarmTime(value){
+  if(!value)return '—';
+  const d=new Date(value);if(!Number.isFinite(d.getTime()))return '—';
+  return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
+}
+function meteoalarmKey(w,i){
+  return [w.id||'',w.area_desc||'',w.onset||'',w.expires||'',i].join('|')
+}
+function escAlert(value){
+  return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))
+}
+function syncMeteoalarmBadge(){
+  const el=document.getElementById('accAlertsState');if(!el)return;
+  el.classList.remove('alert-yellow','alert-orange','alert-red','on');
+  if(meteoalarmLoading&&!meteoalarmData){el.textContent='…';return}
+  if(!meteoalarmData){el.textContent='N/D';return}
+  const count=Number(meteoalarmData.warning_count??meteoalarmData.warnings?.length??0);
+  const level=Number(meteoalarmData.max_level||0);
+  el.textContent=count?count+' ATTIVE':'NESSUNA';
+  if(level>=4)el.classList.add('alert-red');
+  else if(level>=3)el.classList.add('alert-orange');
+  else if(level>=2)el.classList.add('alert-yellow')
+}
+function meteoalarmPopup(w){
+  const title=w.type_name||w.event||'Allerta meteo';
+  const valid='Valida '+meteoalarmTime(w.onset||w.effective)+' → '+meteoalarmTime(w.expires);
+  const desc=w.headline||w.description||'';
+  return '<div class="popup"><b>'+escAlert(title)+' · '+meteoalarmLevelLabel(w.level)+'</b><br>'+
+    '<span style="color:#9fb4c6">'+escAlert(w.area_desc||'Sardegna')+'</span><br>'+
+    escAlert(valid)+(desc?'<br><br>'+escAlert(desc):'')+
+    '<br><span style="color:#8299ad">Fonte: MeteoAlarm / EUMETNET</span></div>'
+}
+function renderMeteoalarmLayer(){
+  meteoalarmLayer.clearLayers();meteoalarmFeatureLayers.clear();
+  if(!meteoalarmOn||!meteoalarmData?.warnings)return;
+  meteoalarmData.warnings.forEach((w,i)=>{
+    const g=w.geometry;if(!g)return;
+    const color=meteoalarmColor(w.level);
+    let feature=null;
+    try{
+      if(g.type==='Point'&&Number.isFinite(Number(w.radius_km))){
+        feature=L.circle([Number(g.coordinates[1]),Number(g.coordinates[0])],{
+          pane:'alerts',radius:Number(w.radius_km)*1000,color,weight:2.5,opacity:.95,fillColor:color,fillOpacity:.22
+        })
+      }else{
+        feature=L.geoJSON(g,{
+          pane:'alerts',
+          style:{color,weight:2.5,opacity:.95,fillColor:color,fillOpacity:.22}
+        })
+      }
+      feature.bindPopup(meteoalarmPopup(w));
+      feature.addTo(meteoalarmLayer);
+      meteoalarmFeatureLayers.set(meteoalarmKey(w,i),feature)
+    }catch(e){console.warn('MeteoAlarm geometry',e)}
+  });
+  if(meteoalarmOn&&!map.hasLayer(meteoalarmLayer))meteoalarmLayer.addTo(map)
+}
+function renderMeteoalarmList(){
+  const d=meteoalarmData;
+  if(!d){
+    meteoalarmSummary.textContent=meteoalarmLoading?'Caricamento allerte MeteoAlarm…':'Dati MeteoAlarm non disponibili';
+    meteoalarmList.replaceChildren();syncMeteoalarmBadge();return
+  }
+  const stamp=d.generated_at?meteoalarmTime(d.generated_at):'in attesa';
+  const warnings=Array.isArray(d.warnings)?d.warnings:[];
+  meteoalarmSummary.textContent=warnings.length
+    ? warnings.length+' allerte attive · livello massimo '+meteoalarmLevelLabel(d.max_level)+' · aggiornato '+stamp
+    : 'Nessuna allerta MeteoAlarm attiva per la Sardegna · aggiornato '+stamp;
+  const frag=document.createDocumentFragment();
+  warnings.forEach((w,i)=>{
+    const b=document.createElement('button');
+    b.type='button';
+    b.className='meteoalarm-card level-'+(Number(w.level)||0)+(w.geometry?'':' no-map');
+    b.dataset.alertKey=meteoalarmKey(w,i);
+    const t=document.createElement('span');t.className='meteoalarm-card-title';
+    t.textContent=(w.type_name||w.event||'Allerta meteo')+' · '+meteoalarmLevelLabel(w.level);
+    const a=document.createElement('span');a.className='meteoalarm-card-area';a.textContent=w.area_desc||'Sardegna';
+    const tm=document.createElement('span');tm.className='meteoalarm-card-time';
+    tm.textContent='Validità: '+meteoalarmTime(w.onset||w.effective)+' → '+meteoalarmTime(w.expires)+(w.geometry?' · clic per localizzare':' · area non cartografata nel CAP');
+    b.append(t,a,tm);frag.append(b)
+  });
+  meteoalarmList.replaceChildren(frag);syncMeteoalarmBadge()
+}
+meteoalarmList.onclick=e=>{
+  const b=e.target.closest('[data-alert-key]');if(!b)return;
+  const feature=meteoalarmFeatureLayers.get(b.dataset.alertKey);if(!feature)return;
+  if(!meteoalarmOn)setMeteoalarmState(true);
+  try{
+    const bounds=feature.getBounds?.();
+    if(bounds?.isValid?.())map.fitBounds(bounds.pad(.18),{maxZoom:10,animate:false});
+    feature.openPopup?.()
+  }catch(e){}
+};
+async function loadMeteoalarm(forceRender=true){
+  if(meteoalarmLoading)return;
+  meteoalarmLoading=true;syncMeteoalarmBadge();
+  try{
+    const r=await fetch(METEOALARM_DATA+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});
+    if(!r.ok)throw new Error('MeteoAlarm '+r.status);
+    meteoalarmData=await r.json();
+    renderMeteoalarmList();
+    if(meteoalarmOn||forceRender)renderMeteoalarmLayer()
+  }catch(e){
+    if(!meteoalarmData){
+      meteoalarmSummary.textContent='Aggiornamento MeteoAlarm temporaneamente non disponibile';
+      meteoalarmList.replaceChildren()
+    }
+  }finally{
+    meteoalarmLoading=false;syncMeteoalarmBadge();syncAccordionStates();legend()
+  }
+}
+function setMeteoalarmState(on){
+  meteoalarmOn=!!on;
+  if(meteoalarmOn){
+    if(mode3d)setBaseMode('sat');
+    renderMeteoalarmLayer();
+    if(!meteoalarmData)loadMeteoalarm(true)
+  }else if(map.hasLayer(meteoalarmLayer)){
+    map.removeLayer(meteoalarmLayer)
+  }
+  meteoalarmBtn.classList.toggle('active',meteoalarmOn);
+  meteoalarmBtn.lastElementChild.textContent=meteoalarmOn?'ON':'OFF';
+  syncAccordionStates();legend()
+}
+function meteoalarmLegendHtml(){
+  if(!meteoalarmOn)return '';
+  const count=Number(meteoalarmData?.warning_count??meteoalarmData?.warnings?.length??0);
+  return '<div class="map-legend-row"><div class="map-legend-title">MeteoAlarm · allerte attive Sardegna'+(count?' · '+count:'')+'</div>'+
+    '<div class="alert-legend-scale"><span><i class="alert-legend-swatch yellow"></i>Giallo</span><span><i class="alert-legend-swatch orange"></i>Arancione</span><span><i class="alert-legend-swatch red"></i>Rosso</span></div>'+
+    '<div class="map-legend-note">Fonte MeteoAlarm / EUMETNET · geometrie CAP quando disponibili</div></div>'
+}
+meteoalarmBtn.onclick=()=>setMeteoalarmState(!meteoalarmOn);
+setInterval(()=>{if(!document.hidden)loadMeteoalarm(false)},2*60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadMeteoalarm(false)});
+
 const satMetBtn=document.getElementById('satMetBtn'),satMetInfo=document.getElementById('satMetInfo');
 const satHrfiBtn=document.getElementById('satHrfiBtn'),satHrfiInfo=document.getElementById('satHrfiInfo');
 const satTimeline=document.getElementById('satTimeline'),satRange=document.getElementById('satRange'),satTime=document.getElementById('satTime'),satPlay=document.getElementById('satPlay');
@@ -2092,6 +2286,7 @@ async function loadObservations(){
   }finally{observationsLoading=false}
 }
 loadObservations();
+loadMeteoalarm(false);
 // Controllo rapido dei JSON; nessuna richiesta duplicata o polling in background.
 setInterval(()=>{if(!document.hidden)loadObservations()},30*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadObservations()});
