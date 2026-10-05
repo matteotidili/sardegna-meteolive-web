@@ -406,7 +406,16 @@ map.createPane('satbounds');map.getPane('satbounds').style.zIndex=335;map.getPan
 map.createPane('weather');map.getPane('weather').style.zIndex=350;map.getPane('weather').style.pointerEvents='none';
 map.createPane('lightning');map.getPane('lightning').style.zIndex=445;map.getPane('lightning').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
-const operational=(typeof L.maplibreGL==='function')
+// Mantiene attiva la mappa Leaflet anche sui dispositivi senza WebGL2.
+const CAN_USE_WEBGL=(()=>{
+  try{
+    const gl=document.createElement('canvas').getContext('webgl2');
+    if(!gl)return false;
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return true
+  }catch{return false}
+})();
+const operational=(CAN_USE_WEBGL&&typeof L.maplibreGL==='function')
   ? L.maplibreGL({
       style:'https://tiles.openfreemap.org/styles/dark',
       interactive:false,
@@ -417,7 +426,7 @@ const operational=(typeof L.maplibreGL==='function')
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:'© Esri'}),
       L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,pane:'labels'})
     ]);
-const light=(typeof L.maplibreGL==='function')
+const light=(CAN_USE_WEBGL&&typeof L.maplibreGL==='function')
   ? L.maplibreGL({
       style:'https://tiles.openfreemap.org/styles/positron',
       interactive:false,
@@ -429,7 +438,7 @@ const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Worl
   maxZoom:18,
   attribution:'Tiles © Esri'
 });
-const relief=(typeof L.maplibreGL==='function')
+const relief=(CAN_USE_WEBGL&&typeof L.maplibreGL==='function')
   ? L.maplibreGL({
       interactive:false,
       attributionControl:false,
@@ -1056,6 +1065,7 @@ params.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
 });
 const BASEMAPS={operational,light,sat,relief};
 function setBaseMode(choice){
+  if(choice==='3d'&&!CAN_USE_WEBGL)return;
   if(choice==='3d'){
     currentBaseMode='3d';
     enter3d()
@@ -1069,7 +1079,10 @@ function setBaseMode(choice){
   document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x.dataset.base===currentBaseMode));
   syncAccordionStates()
 }
-document.querySelectorAll('[data-base]').forEach(b=>b.onclick=()=>setBaseMode(b.dataset.base));
+document.querySelectorAll('[data-base]').forEach(b=>{
+  if(b.dataset.base==='3d'&&!CAN_USE_WEBGL){b.disabled=true;b.title='Vista 3D non disponibile su questo dispositivo'}
+  b.onclick=()=>setBaseMode(b.dataset.base)
+});
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x===b));render()});
 const boundariesBtn=document.getElementById('boundariesBtn');
 let boundariesPreference=true,boundariesLoaded=false,boundariesLoading=false;
