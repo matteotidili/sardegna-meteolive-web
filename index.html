@@ -1412,6 +1412,8 @@ async function renderMeteoalarmLayer(){
         })
       }
       feature.bindPopup(item.members.map(({w})=>meteoalarmPopup(w)).join('<hr>'));
+      feature.on('mouseover',e=>{if(!MOBILE_MAP())feature.openPopup(e.latlng)});
+      feature.on('mouseout',()=>{if(!MOBILE_MAP())feature.closePopup()});
       feature.addTo(meteoalarmLayer);
       item.members.forEach(({w,i})=>meteoalarmFeatureLayers.set(meteoalarmKey(w,i),feature))
     }catch(e){console.warn('MeteoAlarm geometry',e)}
