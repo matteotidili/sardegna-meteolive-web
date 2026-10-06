@@ -448,7 +448,7 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
           <label>Paese <select id="meteoalarmCountry"><option value="">Tutti i paesi</option></select></label>
           <div class="meteoalarm-list" id="meteoalarmList"></div>
           <details class="meteoalarm-source"><summary>Copertura e disponibilità dei paesi</summary><div id="meteoalarmCoverage"></div></details>
-          <div class="meteoalarm-source">Fonte: MeteoAlarm / EUMETNET · feed CAP dei paesi mediterranei coperti e geometrie regionali MeteoAlarm. Gli avvisi italiani non sostituiscono i bollettini della Protezione Civile.</div>
+          <div class="meteoalarm-source">Fonte: MeteoAlarm / EUMETNET · feed CAP e servizio cartografico ufficiale dei paesi mediterranei coperti. Gli avvisi italiani non sostituiscono i bollettini della Protezione Civile.</div>
         </div>
       </div></div>
     </div>
@@ -1299,6 +1299,13 @@ boundariesBtn.onclick=()=>{
 syncBoundaries();
 
 const METEOALARM_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/meteoalarm.json';
+const METEOALARM_MAP_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/meteoalarm-map.geojson';
+const METEOALARM_COUNTRY_CODES={
+  'Spagna':'ES','Francia':'FR','Italia':'IT','Slovenia':'SI','Croazia':'HR',
+  'Bosnia ed Erzegovina':'BA','Montenegro':'ME','Grecia':'GR','Malta':'MT','Cipro':'CY','Israele':'IL'
+};
+const METEOALARM_CODE_NAMES=Object.fromEntries(Object.entries(METEOALARM_COUNTRY_CODES).map(([name,code])=>[code,name]));
+let meteoalarmMapData=null,meteoalarmMapLoading=false,meteoalarmMapFetchedAt=0;
 let meteoalarmSardiniaGeometry=null,meteoalarmSardiniaGeometryPromise=null;
 const meteoalarmBtn=document.getElementById('meteoalarmBtn');
 const meteoalarmSummary=document.getElementById('meteoalarmSummary');
@@ -1365,14 +1372,8 @@ function meteoalarmPopup(w){
     '<b>'+state+'</b> · '+escAlert(valid)+(desc?'<br><br>'+escAlert(desc):'')+
     '<br><span style="color:#8299ad">Fonte: MeteoAlarm / EUMETNET</span></div>'
 }
-function meteoalarmRegionRecord(w){
-  const code=String(w?.emma_id||'').toUpperCase();
-  return code?(meteoalarmData?.regions?.[code]||null):null
-}
 async function loadMeteoalarmAreaGeometry(w){
   if(w?.geometry)return w.geometry;
-  const region=meteoalarmRegionRecord(w);
-  if(region?.geometry)return region.geometry;
   if(String(w?.emma_id||'').toUpperCase()!=='IT019')return null;
   if(meteoalarmSardiniaGeometry)return meteoalarmSardiniaGeometry;
   if(!meteoalarmSardiniaGeometryPromise){
@@ -1387,10 +1388,66 @@ async function loadMeteoalarmAreaGeometry(w){
   }
   return meteoalarmSardiniaGeometryPromise
 }
+function selectedMeteoalarmMapFeatures(){
+  const country=meteoalarmCountry.value;
+  const code=country?METEOALARM_COUNTRY_CODES[country]:'';
+  return (meteoalarmMapData?.features||[]).filter(f=>{
+    const p=f.properties||{};
+    return Number(p.level)>=2&&(!code||String(p.region_code||'')===code)
+  })
+}
+function meteoalarmMapPopup(feature){
+  const p=feature?.properties||{},types=(p.type_ids||[]).map(id=>({
+    1:'Vento',2:'Neve / ghiaccio',3:'Temporali',4:'Nebbia',5:'Temperature elevate',
+    6:'Temperature basse',7:'Evento costiero',8:'Incendi boschivi',9:'Valanghe',
+    10:'Pioggia',12:'Allagamenti / piena',13:'Pioggia e allagamenti',14:'Pericolo marino',15:'Siccità'
+  }[Number(id)]||'').filter(Boolean);
+  return '<div class="popup"><b>MeteoAlarm · '+meteoalarmLevelLabel(p.level)+'</b><br>'+
+    '<span style="color:#9fb4c6">'+escAlert(METEOALARM_CODE_NAMES[p.region_code]||p.region_code||'Area mediterranea')+'</span>'+
+    (types.length?'<br>'+escAlert([...new Set(types)].join(' · ')):'')+
+    '<br><span style="color:#8299ad">Fonte: MeteoAlarm / EUMETNET · situazione in vigore</span></div>'
+}
+async function loadMeteoalarmMap(force=false){
+  if(meteoalarmMapLoading)return;
+  if(!force&&meteoalarmMapData&&Date.now()-meteoalarmMapFetchedAt<4*60000)return;
+  meteoalarmMapLoading=true;
+  try{
+    const r=await fetch(METEOALARM_MAP_DATA+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});
+    if(!r.ok)throw new Error('MeteoAlarm map '+r.status);
+    const g=await r.json();
+    if(g?.type!=='FeatureCollection'||!Array.isArray(g.features))throw new Error('GeoJSON MeteoAlarm non valido');
+    meteoalarmMapData=g;meteoalarmMapFetchedAt=Date.now()
+  }catch(e){
+    console.warn('MeteoAlarm map',e)
+  }finally{
+    meteoalarmMapLoading=false
+  }
+}
 async function renderMeteoalarmLayer(){
   const version=++meteoalarmRenderVersion;
   meteoalarmLayer.clearLayers();meteoalarmFeatureLayers.clear();
-  if(!meteoalarmOn||!meteoalarmData?.warnings)return;
+  if(!meteoalarmOn)return;
+
+  if(meteoalarmPeriod.value==='active'&&meteoalarmMapData?.features?.length){
+    const features=selectedMeteoalarmMapFeatures();
+    if(features.length){
+      try{
+        const layer=L.geoJSON({type:'FeatureCollection',features},{
+          pane:'alerts',
+          style:f=>{
+            const color=meteoalarmColor(f?.properties?.level);
+            return {color,weight:2.1,opacity:.95,fillColor:color,fillOpacity:.24}
+          },
+          onEachFeature:(feature,leafletLayer)=>leafletLayer.bindPopup(meteoalarmMapPopup(feature))
+        });
+        layer.addTo(meteoalarmLayer)
+      }catch(e){console.warn('MeteoAlarm GeoJSON',e)}
+    }
+    if(meteoalarmOn&&!map.hasLayer(meteoalarmLayer))meteoalarmLayer.addTo(map);
+    return
+  }
+
+  if(!meteoalarmData?.warnings)return;
   const groups=new Map();
   selectedMeteoalarmWarnings().forEach((w,i)=>{
     const key=[w.country,w.emma_id||w.area_desc,JSON.stringify(w.geometry)].join('|');
@@ -1437,12 +1494,12 @@ function renderMeteoalarmList(){
   meteoalarmSummary.textContent=(meteoalarmFresh()?'':'AGGIORNAMENTO IN RITARDO: ultimi avvisi ricevuti, possibili variazioni non acquisite. ')+(warnings.length
     ? warnings.length+' allerte '+period+' · massimo '+meteoalarmLevelLabel(level)
     : 'Nessun avviso '+period+' nei dati ricevuti')+' · ultimo controllo '+stamp+' (ora italiana)';
-  document.getElementById('meteoalarmCoverage').textContent=(d.countries||[]).map(c=>c.country+': '+(c.status==='ok'?'verificato':c.status==='partial'?'dati incompleti':'non disponibile')).join(' · ')+'. Aree cartografate: '+Number(d.region_count||Object.keys(d.regions||{}).length)+'. Senza copertura in questa integrazione: '+(d.uncovered||[]).join(', ');
+  document.getElementById('meteoalarmCoverage').textContent=(d.countries||[]).map(c=>c.country+': '+(c.status==='ok'?'verificato':c.status==='partial'?'dati incompleti':'non disponibile')).join(' · ')+'. Aree attive cartografate: '+Number(d.map_feature_count||meteoalarmMapData?.features?.length||0)+(d.map_status&&d.map_status!=='ok'?' · mappa temporaneamente non aggiornata':'')+'. Senza copertura MeteoAlarm in questa integrazione: '+(d.uncovered||[]).join(', ');
   const frag=document.createDocumentFragment();
   warnings.forEach((w,i)=>{
     const b=document.createElement('button');
     b.type='button';
-    const hasMap=!!w.geometry||!!meteoalarmRegionRecord(w)?.geometry||String(w.emma_id||'').toUpperCase()==='IT019';
+    const hasMap=!!w.geometry||String(w.emma_id||'').toUpperCase()==='IT019';
     b.className='meteoalarm-card level-'+(Number(w.level)||0)+(hasMap?'':' no-map');
     b.dataset.alertKey=meteoalarmKey(w,i);
     const t=document.createElement('span');t.className='meteoalarm-card-title';
@@ -1475,6 +1532,7 @@ async function loadMeteoalarm(forceRender=true){
     meteoalarmCountry.replaceChildren(new Option('Tutti i paesi',''),...(meteoalarmData.countries||[]).map(c=>new Option(c.country,c.country)));
     meteoalarmCountry.value=previousCountry;
 
+    await loadMeteoalarmMap(!meteoalarmMapData||meteoalarmMapData?.metadata?.reference_date!==meteoalarmData?.map_reference_date);
     renderMeteoalarmList();
     renderMeteoalarmLayer()
   }catch(e){
@@ -1492,7 +1550,7 @@ function setMeteoalarmState(on){
     if(mode3d)setBaseMode('sat');
     map.fitBounds(MED_BOUNDS,{animate:false,padding:[12,12]});
     renderMeteoalarmLayer();
-    if(!meteoalarmFresh())loadMeteoalarm(true)
+    if(!meteoalarmFresh()||!meteoalarmMapData)loadMeteoalarm(true)
   }else if(map.hasLayer(meteoalarmLayer)){
     map.removeLayer(meteoalarmLayer)
   }
@@ -1505,7 +1563,7 @@ function meteoalarmLegendHtml(){
   const count=selectedMeteoalarmWarnings().length;
   return '<div class="map-legend-row"><div class="map-legend-title">MeteoAlarm · Mediterraneo · '+(meteoalarmPeriod.value==='active'?'in vigore':'prossime')+(count?' · '+count:'')+'</div>'+
     '<div class="alert-legend-scale"><span><i class="alert-legend-swatch yellow"></i>Giallo</span><span><i class="alert-legend-swatch orange"></i>Arancione</span><span><i class="alert-legend-swatch red"></i>Rosso</span></div>'+
-    '<div class="map-legend-note">'+(meteoalarmFresh()?'':'⚠ Aggiornamento in ritardo · ultimi avvisi ricevuti al '+meteoalarmTime(meteoalarmData?.generated_at)+'. ')+'Riempimento = in vigore · bordo tratteggiato = prossima · geometrie delle aree da MeteoAlarm; IT019 resta come fallback locale solo se la geometria ufficiale non è disponibile</div></div>'
+    '<div class="map-legend-note">'+(meteoalarmFresh()?'':'⚠ Aggiornamento in ritardo · ultimi avvisi ricevuti al '+meteoalarmTime(meteoalarmData?.generated_at)+'. ')+'Riempimento = allerte in vigore ricostruite dalle tile vettoriali ufficiali MeteoAlarm · bordo tratteggiato = eventuale avviso prossimo con geometria CAP</div></div>'
 }
 meteoalarmPeriod.onchange=meteoalarmCountry.onchange=()=>{renderMeteoalarmList();renderMeteoalarmLayer();legend()};
 setInterval(()=>{renderMeteoalarmList();renderMeteoalarmLayer();legend()},60000);
