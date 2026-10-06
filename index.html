@@ -266,6 +266,8 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 .sidebar-head{flex:0 0 auto;padding:12px;border-bottom:1px solid #dbe5ea;background:#fff;color:#203947}
 .sidebar-tabs{display:flex;gap:5px;margin-bottom:10px}.sidebar-tab{flex:1;min-height:38px;border:0;border-radius:7px;background:#edf3f6;color:#496272;font:700 12px Inter,system-ui,Arial;cursor:pointer}.sidebar-tab[aria-selected="true"]{background:#087ca6;color:#fff}.sidebar-tab:focus-visible,.station-row:focus-visible{outline:2px solid #087ca6;outline-offset:-2px}
 .sidebar-head .search{margin:0;padding:9px 10px;min-width:0;background:#f5f8fa;border:1px solid #dbe5ea;border-radius:8px}.sidebar-head .search input{color:#203947;font-size:13px}.sidebar-head .network-switch{margin-top:10px}.sidebar-head .netbtn{color:#456273;background:#f2f6f8;border-color:#dbe5ea}.sidebar-head .netbtn.active{background:#e0f3fa;color:#086283;border-color:#087ca6}
+.panel.left:not(.directory-open) .sidebar-head .search,.panel.left:not(.directory-open) .sidebar-head>.network-switch{display:none}
+.panel.left:not(.directory-open) .sidebar-tabs{margin-bottom:0}
 .directory-view{display:flex;flex-direction:column;min-height:0;flex:1}.directory-summary{padding:10px 14px;font-size:11px;color:#617986;border-bottom:1px solid #edf1f3}.station-directory{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}.station-row{width:100%;display:flex;gap:10px;align-items:center;padding:12px 14px;text-align:left;background:#fff;border:0;border-bottom:1px solid #e7eef2;color:#213c4c;cursor:pointer}.station-row:hover,.station-row[aria-pressed="true"]{background:#eaf6fb}.station-details{flex:1;min-width:0}.station-name{display:block;font-size:12px;font-weight:750;line-height:1.4}.station-meta{display:block;margin-top:4px;color:#637b89;font-size:10px;line-height:1.4}.station-value{flex:0 0 auto;min-width:46px;padding:9px 6px;border-radius:9px;color:#112b39;text-align:center;font-size:12px;font-weight:800;border:1px solid #00000012}.directory-empty{padding:20px 14px;color:#637b89;font-size:12px}.directory-view[hidden],.control-list[hidden]{display:none}.panel .control-list{overflow-y:auto;min-height:0;flex:1}
 /* Il pannello dei controlli segue la grafica chiara dell'elenco stazioni. */
 .panel.left:not(.directory-open),.panel.left:not(.directory-open) .control-list{background:#fff;color:#203947}
@@ -301,6 +303,28 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
   .sidebar-head .netbtn{min-height:36px;padding:7px}.station-row{min-height:70px}.station-name{font-size:13px}.station-meta{font-size:11px}
 }
 
+/* Navigazione layer semplificata e notifica operativa Sardegna. */
+.control-guide{margin:0 0 8px;padding:9px 10px;border:1px solid #dbe5ea;border-radius:9px;background:#f5f8fa;color:#587080;font-size:9px;line-height:1.4}
+.control-section-label{padding:8px 4px 4px;color:#6f8797;font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
+.sardinia-alert-banner{margin-left:auto;min-width:0;max-width:min(560px,48vw);display:flex;align-items:center;gap:7px;border:1px solid transparent;border-radius:999px;padding:8px 12px;font:900 10px Inter,system-ui,Arial;letter-spacing:.035em;cursor:pointer;box-shadow:0 2px 8px #0002;white-space:nowrap;overflow:hidden}
+.sardinia-alert-banner[hidden]{display:none!important}
+.sardinia-alert-banner .sardinia-alert-main{flex:0 0 auto}
+.sardinia-alert-banner .sardinia-alert-hazards{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:750;opacity:.9}
+.sardinia-alert-banner.level-2{background:#fff6bf;border-color:#d8b900;color:#6b5600}
+.sardinia-alert-banner.level-3{background:#ffe2bf;border-color:#e17800;color:#7a3900}
+.sardinia-alert-banner.level-4{background:#ffd2d2;border-color:#d52d2d;color:#8d1111}
+.sardinia-alert-banner.stale{box-shadow:inset 0 0 0 2px #fff7}
+header .live{margin-left:0}
+@media(max-width:800px){
+  .sardinia-alert-banner{margin-left:auto;max-width:44vw;padding:7px 9px;font-size:9px;gap:4px}
+  .sardinia-alert-banner .sardinia-alert-hazards{display:none}
+  .control-guide{font-size:10px;padding:10px 11px}
+  .control-section-label{font-size:9px;padding-top:10px}
+}
+@media(max-width:480px){
+  .sardinia-alert-banner{max-width:50vw;font-size:8px;padding:7px 8px}
+}
+
 /* MeteoAlarm: pannello operativo e simbologia delle allerte. */
 .meteoalarm-summary{padding:7px 8px;border:1px solid #dbe5ea;border-radius:8px;background:#f7fafb;color:#405b6a;font-size:9px;line-height:1.45}
 .meteoalarm-list{display:grid;gap:6px;margin-top:7px;max-height:320px;overflow:auto} #meteoalarmPeriod{width:100%;margin:5px 0;padding:7px;background:#fff;color:#294454;border:1px solid #dbe5ea;border-radius:6px}
@@ -327,18 +351,18 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 </head>
 <body>
 <div class="app">
-<header><div class="brand">SARDEGNA METEO MONITOR<small>OSSERVAZIONI & NOWCASTING</small></div><div class="live"><span class="dot"></span>DPCN + WU + AM</div></header>
+<header><div class="brand">SARDEGNA METEO MONITOR<small>OSSERVAZIONI & NOWCASTING</small></div><button class="sardinia-alert-banner" id="sardiniaAlertBanner" type="button" hidden aria-live="polite" title="Apri le allerte attive sulla Sardegna"><span class="sardinia-alert-main" id="sardiniaAlertMain">ALLERTA SARDEGNA</span><span class="sardinia-alert-hazards" id="sardiniaAlertHazards"></span></button><div class="live"><span class="dot"></span>DPCN + WU + AM</div></header>
 <div id="params" class="parameter-bar" role="group" aria-label="Parametro delle stazioni sulla mappa"></div>
 <main>
 <div id="map"></div>
 <div id="map3d" aria-hidden="true"></div>
-<div class="mobile-tools"><button class="mobile-tool" id="mobileMenu" aria-expanded="false">Stazioni e layer</button></div>
+<div class="mobile-tools"><button class="mobile-tool" id="mobileMenu" aria-expanded="false">Menu meteo</button></div>
 <div class="mobile-backdrop" id="mobileBackdrop" aria-hidden="true"></div>
 <aside class="panel left directory-open" aria-label="Stazioni e controlli mappa">
   <div class="sidebar-head">
     <div class="sidebar-tabs" role="tablist" aria-label="Pannello mappa">
-      <button class="sidebar-tab" id="directoryTab" role="tab" aria-selected="true" aria-controls="directoryView">Elenco stazioni</button>
-      <button class="sidebar-tab" id="controlsTab" role="tab" aria-selected="false" aria-controls="controlsView" tabindex="-1">Layer e mappe</button>
+      <button class="sidebar-tab" id="directoryTab" role="tab" aria-selected="true" aria-controls="directoryView">Stazioni</button>
+      <button class="sidebar-tab" id="controlsTab" role="tab" aria-selected="false" aria-controls="controlsView" tabindex="-1">Layer meteo</button>
     </div>
     <button class="panel-close" data-close="left" aria-label="Chiudi">×</button>
     <div class="search"><input id="q" placeholder="Cerca stazione…" aria-label="Cerca stazione" type="search"></div>
@@ -354,47 +378,14 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
     <div class="station-directory" id="stationDirectory"></div>
   </div>
   <div class="list control-list" id="controlsView" role="tabpanel" aria-labelledby="controlsTab" hidden>
-    <div class="accordion-item" data-acc-item="stations">
-      <button class="accordion-head" type="button" data-acc="stations" aria-expanded="false">
-        <span class="acc-title">Stazioni</span><span class="acc-state on" id="accStationsState">ON</span><span class="acc-chevron">⌄</span>
-      </button>
-      <div class="accordion-body" id="stationsSub"><div class="accordion-inner station-controls">
-        <button class="btn active" id="stationsBtn">Rete stazioni <span>ON</span></button>
-        <div>
-          <div class="compact-label">RETI DISPONIBILI</div>
-          <div class="net">
-            <div id="counter" class="counter">Caricamento dati…</div>
-            <div class="network-switch">
-              <button class="netbtn active" data-net="all">Tutte</button>
-              <button class="netbtn" data-net="dpcn-sardegna">DPCN</button>
-              <button class="netbtn" data-net="aeronautica-militare">AM</button>
-              <button class="netbtn" data-net="wunderground">WU</button>
-            </div>
-          </div>
-        </div>
-      </div></div>
-    </div>
-
-    <div class="accordion-item" data-acc-item="base">
-      <button class="accordion-head" type="button" data-acc="base" aria-expanded="false">
-        <span class="acc-title">Mappa base</span><span class="acc-state on" id="accBaseState">Satellite</span><span class="acc-chevron">⌄</span>
-      </button>
-      <div class="accordion-body"><div class="accordion-inner">
-        <div class="basemap-grid">
-          <button class="baseopt" data-base="operational">Operativa</button>
-          <button class="baseopt" data-base="light">Chiara</button>
-          <button class="baseopt active" data-base="sat">Satellite</button>
-          <button class="baseopt" data-base="relief">Rilievo</button>
-          <button class="baseopt" data-base="3d">3D</button>
-        </div>
-      </div></div>
-    </div>
+    <div class="control-guide">Apri una sezione e attiva solo i layer che ti servono. Le informazioni di dettaglio compaiono direttamente sulla mappa.</div>
 
     <div class="accordion-item" data-acc-item="precip">
       <button class="accordion-head" type="button" data-acc="precip" aria-expanded="false">
-        <span class="acc-title">Radar</span><span class="acc-state" id="accPrecipState">OFF</span><span class="acc-chevron">⌄</span>
+        <span class="acc-title">Precipitazioni e temporali</span><span class="acc-state" id="accPrecipState">OFF</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
+        <div class="control-section-label">Radar e pioggia</div>
         <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
         <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
@@ -411,6 +402,9 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
           </div>
           <div id="cumStamp" style="margin-top:7px"></div>
         </div>
+        <div class="control-section-label">Attività elettrica</div>
+        <button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button>
+        <div class="layer-note" id="lightningInfo">Blitzortung / LightningMaps · LIVE + storico 2 h<div id="lightningMeta" style="margin-top:5px">LIVE realtime · storico MTG LI a passi di 5 min</div></div>
       </div></div>
     </div>
 
@@ -426,40 +420,41 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
       </div></div>
     </div>
 
-    <div class="accordion-item" data-acc-item="lightning">
-      <button class="accordion-head" type="button" data-acc="lightning" aria-expanded="false">
-        <span class="acc-title">Fulmini</span><span class="acc-state" id="accLightningState">OFF</span><span class="acc-chevron">⌄</span>
-      </button>
-      <div class="accordion-body"><div class="accordion-inner">
-        <button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button>
-        <div class="layer-note" id="lightningInfo">Blitzortung / LightningMaps · LIVE + storico 2 h<div id="lightningMeta" style="margin-top:5px">LIVE realtime · storico MTG LI a passi di 5 min</div></div>
-      </div></div>
-    </div>
-
     <div class="accordion-item" data-acc-item="alerts">
       <button class="accordion-head" type="button" data-acc="alerts" aria-expanded="false">
-        <span class="acc-title">Allerte Mediterraneo</span><span class="acc-state" id="accAlertsState">…</span><span class="acc-chevron">⌄</span>
+        <span class="acc-title">Allerte meteo</span><span class="acc-state" id="accAlertsState">…</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
-        <button class="btn" id="meteoalarmBtn">Aree di allerta <span>OFF</span></button>
+        <button class="btn" id="meteoalarmBtn">Aree di allerta nel Mediterraneo <span>OFF</span></button>
         <div class="layer-note on" id="meteoalarmInfo">
           <div class="meteoalarm-summary" id="meteoalarmSummary">Caricamento allerte MeteoAlarm…</div>
           <label>Periodo <select id="meteoalarmPeriod"><option value="active">In vigore adesso</option><option value="upcoming">Prossime allerte</option></select></label>
           <details class="meteoalarm-source"><summary>Copertura e disponibilità dei paesi</summary><div id="meteoalarmCoverage"></div></details>
-          <div class="meteoalarm-source">Fonte: MeteoAlarm / EUMETNET · feed CAP dei paesi mediterranei coperti. Gli avvisi italiani non sostituiscono i bollettini della Protezione Civile. Per IT019 (Sardegna) il contorno regionale viene usato come fallback quando il CAP non include il poligono.</div>
+          <div class="meteoalarm-source">Fonte: MeteoAlarm / EUMETNET · feed CAP dei paesi mediterranei coperti. Gli avvisi italiani non sostituiscono i bollettini della Protezione Civile.</div>
         </div>
       </div></div>
     </div>
 
-    <div class="accordion-item" data-acc-item="other">
-      <button class="accordion-head" type="button" data-acc="other" aria-expanded="false">
-        <span class="acc-title">Altri layer</span><span class="acc-state on" id="accOtherState">1 ON</span><span class="acc-chevron">⌄</span>
+    <div class="accordion-item" data-acc-item="base">
+      <button class="accordion-head" type="button" data-acc="base" aria-expanded="false">
+        <span class="acc-title">Mappa e visualizzazione</span><span class="acc-state on" id="accBaseState">Satellite</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
-        <button class="btn disabled">Vento <span>—</span></button>
+        <div class="control-section-label">Sfondo mappa</div>
+        <div class="basemap-grid">
+          <button class="baseopt" data-base="operational">Operativa</button>
+          <button class="baseopt" data-base="light">Chiara</button>
+          <button class="baseopt active" data-base="sat">Satellite</button>
+          <button class="baseopt" data-base="relief">Rilievo</button>
+          <button class="baseopt" data-base="3d">3D</button>
+        </div>
+        <div class="control-section-label">Elementi sulla mappa</div>
+        <button class="btn active" id="stationsBtn">Rete stazioni <span>ON</span></button>
+        <div id="counter" class="counter">Caricamento dati…</div>
         <button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button>
       </div></div>
     </div>
+  </div>
   </div>
 </aside>
 <div class="map-legends" id="mapLegends" aria-live="polite"></div>
@@ -922,7 +917,6 @@ function showSidebarTab(showDirectory){
   leftPanel.classList.toggle('directory-open',showDirectory);
   document.getElementById('directoryView').hidden=!showDirectory;
   document.getElementById('controlsView').hidden=showDirectory;
-  if(!showDirectory)setAccordion('stations',false);
   [directoryTab,controlsTab].forEach((b,i)=>{const selected=i===0?showDirectory:!showDirectory;b.setAttribute('aria-selected',String(selected));b.tabIndex=selected?0:-1})
 }
 directoryTab.onclick=()=>showSidebarTab(true);
@@ -1008,18 +1002,12 @@ function setAccState(id,text,on=false){
   el.textContent=text;el.classList.toggle('on',!!on)
 }
 function syncAccordionStates(){
-  setAccState('accStationsState',stationsOn?'ON':'OFF',stationsOn);
   const baseNames={operational:'Operativa',light:'Chiara',sat:'Satellite',relief:'Rilievo','3d':'3D'};
   setAccState('accBaseState',baseNames[currentBaseMode]||'Operativa',true);
-  const precip=[];
-  if(radarOn)precip.push('DPC');
-  if(operaOn)precip.push('EU');
-  if(cumActive)precip.push(cumActive.toUpperCase());
-  setAccState('accPrecipState',precip.length?precip.join(' · '):'OFF',precip.length>0);
+  const nowcastOn=radarOn||operaOn||!!cumActive||lightningOn;
+  setAccState('accPrecipState',nowcastOn?'ATTIVO':'OFF',nowcastOn);
   setAccState('accSatelliteState',(satMetOn||satHrfiOn)?'ON':'OFF',satMetOn||satHrfiOn);
-  setAccState('accLightningState',lightningOn?(lightningMode==='live'?'LIVE':'STORICO'):'OFF',lightningOn);
-  syncMeteoalarmBadge();
-  setAccState('accOtherState',boundariesPreference?'1 ON':'OFF',boundariesPreference)
+  syncMeteoalarmBadge()
 }
 
 /* Doppio tap su smartphone/tablet: zoom centrato sul punto toccato.
@@ -1300,8 +1288,18 @@ const METEOALARM_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-m
 let meteoalarmSardiniaGeometry=null,meteoalarmSardiniaGeometryPromise=null;
 const meteoalarmBtn=document.getElementById('meteoalarmBtn');
 const meteoalarmSummary=document.getElementById('meteoalarmSummary');
+const sardiniaAlertBanner=document.getElementById('sardiniaAlertBanner');
+const sardiniaAlertMain=document.getElementById('sardiniaAlertMain');
+const sardiniaAlertHazards=document.getElementById('sardiniaAlertHazards');
 const meteoalarmPeriod=document.getElementById('meteoalarmPeriod');
 let meteoalarmRenderVersion=0;
+sardiniaAlertBanner.onclick=()=>{
+  showSidebarTab(false);
+  meteoalarmPeriod.value=sardiniaAlertBanner.dataset.period||'active';
+  setAccordion('alerts',true);
+  renderMeteoalarmList();renderMeteoalarmLayer();legend();
+  if(window.innerWidth<=800){leftPanel.classList.add('open');syncMobileButtons()}
+};
 function meteoalarmFresh(){
   const t=Date.parse(meteoalarmData?.generated_at);
   return Number.isFinite(t)&&Date.now()-t<20*60000
@@ -1336,11 +1334,42 @@ function meteoalarmKey(w,i){
 function escAlert(value){
   return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))
 }
+function isSardiniaWarning(w){
+  const code=String(w?.emma_id||'').toUpperCase();
+  const area=String(w?.area_desc||'').toLowerCase();
+  return code==='IT019'||/\bsardegna\b|\bsardinia\b/.test(area)
+}
+function sardiniaWarningsByPeriod(){
+  const now=Date.now(),active=[],upcoming=[];
+  (meteoalarmData?.warnings||[]).forEach(w=>{
+    const from=Date.parse(w.onset||w.effective),to=Date.parse(w.expires);
+    if(!isSardiniaWarning(w)||Number(w.level)<2||!Number.isFinite(from)||!Number.isFinite(to)||to<=now)return;
+    (from<=now?active:upcoming).push(w)
+  });
+  return {active,upcoming}
+}
+function syncSardiniaAlertBanner(){
+  if(!sardiniaAlertBanner)return;
+  const periods=sardiniaWarningsByPeriod();
+  const period=periods.active.length?'active':periods.upcoming.length?'upcoming':'';
+  const warnings=period?periods[period]:[];
+  sardiniaAlertBanner.classList.remove('level-2','level-3','level-4','stale');
+  if(!warnings.length){sardiniaAlertBanner.hidden=true;sardiniaAlertBanner.dataset.period='';return}
+  const level=Math.max(...warnings.map(w=>Number(w.level)||0));
+  const hazards=[...new Set(warnings.map(w=>w.type_name||w.event).filter(Boolean))].slice(0,3);
+  sardiniaAlertBanner.hidden=false;
+  sardiniaAlertBanner.dataset.period=period;
+  sardiniaAlertBanner.classList.add('level-'+Math.max(2,Math.min(4,level)));
+  if(!meteoalarmFresh())sardiniaAlertBanner.classList.add('stale');
+  sardiniaAlertMain.textContent='⚠ SARDEGNA · '+(period==='upcoming'?'PROSSIMA · ':'')+meteoalarmLevelLabel(level);
+  sardiniaAlertHazards.textContent=meteoalarmFresh()?(hazards.length?'· '+hazards.join(' · '):''):'· DATI DA VERIFICARE';
+  sardiniaAlertBanner.title=period==='active'?'Apri le allerte attive sulla Sardegna':'Apri le prossime allerte sulla Sardegna'
+}
 function syncMeteoalarmBadge(){
   const el=document.getElementById('accAlertsState');if(!el)return;
   el.classList.remove('alert-yellow','alert-orange','alert-red','on');
-  if(meteoalarmLoading&&!meteoalarmData){el.textContent='…';return}
-  if(!meteoalarmData){el.textContent='N/D';return}
+  if(meteoalarmLoading&&!meteoalarmData){el.textContent='…';syncSardiniaAlertBanner();return}
+  if(!meteoalarmData){el.textContent='N/D';syncSardiniaAlertBanner();return}
   const active=selectedMeteoalarmWarnings('active');
   const upcoming=selectedMeteoalarmWarnings('upcoming');
   const level=Math.max(0,...active.map(w=>Number(w.level)));
@@ -1348,7 +1377,8 @@ function syncMeteoalarmBadge(){
   if(!meteoalarmFresh())el.textContent='DA VERIFICARE';
   if(level>=4)el.classList.add('alert-red');
   else if(level>=3)el.classList.add('alert-orange');
-  else if(level>=2)el.classList.add('alert-yellow')
+  else if(level>=2)el.classList.add('alert-yellow');
+  syncSardiniaAlertBanner()
 }
 function meteoalarmPopup(w){
   const title=w.type_name||w.event||'Allerta meteo';
