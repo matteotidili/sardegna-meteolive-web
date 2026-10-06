@@ -446,7 +446,6 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
           <div class="meteoalarm-summary" id="meteoalarmSummary">Caricamento allerte MeteoAlarm…</div>
           <label>Periodo <select id="meteoalarmPeriod"><option value="active">In vigore adesso</option><option value="upcoming">Prossime allerte</option></select></label>
           <label>Paese <select id="meteoalarmCountry"><option value="">Tutti i paesi</option></select></label>
-          <div class="meteoalarm-list" id="meteoalarmList"></div>
           <details class="meteoalarm-source"><summary>Copertura e disponibilità dei paesi</summary><div id="meteoalarmCoverage"></div></details>
           <div class="meteoalarm-source">Fonte: MeteoAlarm / EUMETNET · feed CAP dei paesi mediterranei coperti. Gli avvisi italiani non sostituiscono i bollettini della Protezione Civile. Per IT019 (Sardegna) il contorno regionale viene usato come fallback quando il CAP non include il poligono.</div>
         </div>
@@ -1302,8 +1301,6 @@ const METEOALARM_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-m
 let meteoalarmSardiniaGeometry=null,meteoalarmSardiniaGeometryPromise=null;
 const meteoalarmBtn=document.getElementById('meteoalarmBtn');
 const meteoalarmSummary=document.getElementById('meteoalarmSummary');
-const meteoalarmList=document.getElementById('meteoalarmList');
-
 const meteoalarmPeriod=document.getElementById('meteoalarmPeriod'),meteoalarmCountry=document.getElementById('meteoalarmCountry');
 let meteoalarmRenderVersion=0;
 function meteoalarmFresh(){
@@ -1425,7 +1422,7 @@ function renderMeteoalarmList(){
   const d=meteoalarmData;
   if(!d){
     meteoalarmSummary.textContent=meteoalarmLoading?'Caricamento allerte MeteoAlarm…':'Dati MeteoAlarm non disponibili';
-    meteoalarmList.replaceChildren();syncMeteoalarmBadge();return
+    syncMeteoalarmBadge();return
   }
   const stamp=meteoalarmTime(d.generated_at);
   const warnings=selectedMeteoalarmWarnings();
@@ -1435,33 +1432,8 @@ function renderMeteoalarmList(){
     ? warnings.length+' allerte '+period+' · massimo '+meteoalarmLevelLabel(level)
     : 'Nessun avviso '+period+' nei dati ricevuti')+' · ultimo controllo '+stamp+' (ora italiana)';
   document.getElementById('meteoalarmCoverage').textContent=(d.countries||[]).map(c=>c.country+': '+(c.status==='ok'?'verificato':c.status==='partial'?'dati incompleti':'non disponibile')).join(' · ')+'. Senza copertura in questa integrazione: '+(d.uncovered||[]).join(', ');
-  const frag=document.createDocumentFragment();
-  warnings.forEach((w,i)=>{
-    const b=document.createElement('button');
-    b.type='button';
-    const emmaId=String(w.emma_id||'').toUpperCase();
-    const hasMap=!!w.geometry||!!meteoalarmData?.regions?.[emmaId]?.geometry||emmaId==='IT019';
-    b.className='meteoalarm-card level-'+(Number(w.level)||0)+(hasMap?'':' no-map');
-    b.dataset.alertKey=meteoalarmKey(w,i);
-    const t=document.createElement('span');t.className='meteoalarm-card-title';
-    t.textContent=(w.type_name||w.event||'Allerta meteo')+' · '+meteoalarmLevelLabel(w.level);
-    const a=document.createElement('span');a.className='meteoalarm-card-area';a.textContent=(w.country||'Italia')+' · '+(w.area_desc||'Area non indicata');
-    const tm=document.createElement('span');tm.className='meteoalarm-card-time';
-    tm.textContent=(w.status==='upcoming'?'Prossima · ':'In vigore · ')+'validità: '+meteoalarmTime(w.onset||w.effective)+' → '+meteoalarmTime(w.expires)+(hasMap?' · clic per localizzare':' · area non cartografata');
-    b.append(t,a,tm);frag.append(b)
-  });
-  meteoalarmList.replaceChildren(frag);syncMeteoalarmBadge()
+  syncMeteoalarmBadge()
 }
-meteoalarmList.onclick=async e=>{
-  const b=e.target.closest('[data-alert-key]');if(!b)return;
-  if(!meteoalarmOn){setMeteoalarmState(true);await renderMeteoalarmLayer()}
-  const feature=meteoalarmFeatureLayers.get(b.dataset.alertKey);if(!feature)return;
-  try{
-    const bounds=feature.getBounds?.();
-    if(bounds?.isValid?.())map.fitBounds(bounds.pad(.18),{maxZoom:10,animate:false});
-    feature.openPopup?.()
-  }catch(e){}
-};
 async function loadMeteoalarm(forceRender=true){
   if(meteoalarmLoading)return;
   meteoalarmLoading=true;syncMeteoalarmBadge();
@@ -1477,8 +1449,7 @@ async function loadMeteoalarm(forceRender=true){
     renderMeteoalarmLayer()
   }catch(e){
     if(!meteoalarmData){
-      meteoalarmSummary.textContent='Aggiornamento MeteoAlarm temporaneamente non disponibile';
-      meteoalarmList.replaceChildren()
+      meteoalarmSummary.textContent='Aggiornamento MeteoAlarm temporaneamente non disponibile'
     }
   }finally{
     meteoalarmLoading=false;syncMeteoalarmBadge();syncAccordionStates();legend()
