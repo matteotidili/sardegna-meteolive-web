@@ -484,10 +484,10 @@ const P={
  rh:{n:'Umidità relativa',u:'%',fmt:v=>v.toFixed(0)+'%',labs:['0','25','50','75','100'],st:[[0,[180,150,90]],[30,[215,200,110]],[50,[115,190,170]],[70,[65,150,205]],[90,[65,90,185]],[100,[80,55,155]]]}
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
 let stations=[],cur='temp',marks=[],netFilter='all',query='',operaMapWide=false,focusedStationKey='';
-let meteoalarmOn=false,meteoalarmData=null,meteoalarmLoading=false;
+let meteoalarmOn=false,meteoalarmData=null,meteoalarmMapData=null,meteoalarmLoading=false;
 const MOBILE_MAP=()=>window.innerWidth<=800;
 const SARDINIA_BOUNDS=L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25);
-const MED_BOUNDS=L.latLngBounds([29.0,-11.0],[48.5,37.5]);
+const MED_BOUNDS=L.latLngBounds([29.0,-10.5],[48.5,38.0]);
 const OPERA_BOUNDS=L.latLngBounds([30,-15],[55,28]);
 const map=L.map('map',{minZoom:MOBILE_MAP()?6:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true,zoomAnimation:false,markerZoomAnimation:false,fadeAnimation:false}).setView([40.02,9.02],8);
 function syncMapExtent(){
@@ -1299,7 +1299,7 @@ boundariesBtn.onclick=()=>{
 syncBoundaries();
 
 const METEOALARM_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/meteoalarm.json';
-let meteoalarmSardiniaGeometry=null,meteoalarmSardiniaGeometryPromise=null;
+const METEOALARM_MAP_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/meteoalarm_map.geojson';
 const meteoalarmBtn=document.getElementById('meteoalarmBtn');
 const meteoalarmSummary=document.getElementById('meteoalarmSummary');
 const sardiniaAlertBanner=document.getElementById('sardiniaAlertBanner');
@@ -1405,63 +1405,74 @@ function meteoalarmPopup(w){
     '<b>'+state+'</b> · '+escAlert(valid)+(desc?'<br><br>'+escAlert(desc):'')+
     '<br><span style="color:#8299ad">Fonte: MeteoAlarm / EUMETNET</span></div>'
 }
-async function loadMeteoalarmAreaGeometry(w){
-  if(w?.geometry)return w.geometry;
-  const emmaId=String(w?.emma_id||'').toUpperCase();
-  const resolved=meteoalarmData?.regions?.[emmaId]?.geometry;
-  if(resolved)return resolved;
-  if(emmaId!=='IT019')return null;
-  if(meteoalarmSardiniaGeometry)return meteoalarmSardiniaGeometry;
-  if(!meteoalarmSardiniaGeometryPromise){
-    meteoalarmSardiniaGeometryPromise=fetch('data/sardegna.geojson',{cache:'force-cache'})
-      .then(r=>{if(!r.ok)throw new Error('Sardegna GeoJSON '+r.status);return r.json()})
-      .then(g=>{
-        meteoalarmSardiniaGeometry=g?.features?.[0]?.geometry||g?.geometry||null;
-        return meteoalarmSardiniaGeometry
-      })
-      .catch(e=>{console.warn('MeteoAlarm fallback geometry',e);return null})
-      .finally(()=>{meteoalarmSardiniaGeometryPromise=null})
-  }
-  return meteoalarmSardiniaGeometryPromise
+function meteoalarmMapFresh(){
+  const t=Date.parse(meteoalarmMapData?.generated_at);
+  return Number.isFinite(t)&&Date.now()-t<20*60000
 }
-async function renderMeteoalarmLayer(){
-  const version=++meteoalarmRenderVersion;
+function meteoalarmVisualColor(level){
+  if(Number(level)===1)return '#d7191c';
+  if(Number(level)===2)return '#f28e2b';
+  return '#ffd54f'
+}
+function meteoalarmVisualLevelLabel(level){
+  if(Number(level)===1)return 'ROSSO';
+  if(Number(level)===2)return 'ARANCIONE';
+  if(Number(level)===3)return 'GIALLO';
+  return 'INFO'
+}
+const METEOALARM_VIS_TYPES={
+  1:'Vento',2:'Neve / ghiaccio',3:'Temporali',4:'Nebbia',5:'Temperature elevate',
+  6:'Temperature basse',7:'Evento costiero',8:'Incendi boschivi',9:'Valanghe',
+  10:'Pioggia',12:'Allagamenti / piena',13:'Pioggia e allagamenti',
+  14:'Pericolo marino',15:'Siccità'
+};
+const METEOALARM_COUNTRY_NAMES={
+  IT:'Italia',ES:'Spagna',FR:'Francia',SI:'Slovenia',HR:'Croazia',
+  BA:'Bosnia ed Erzegovina',ME:'Montenegro',AL:'Albania',GR:'Grecia',
+  TR:'Turchia',MC:'Monaco',MT:'Malta',CY:'Cipro',IL:'Israele'
+};
+function meteoalarmVisualPopup(feature){
+  const p=feature?.properties||{};
+  const level=Number(p.level);
+  const hazards=(Array.isArray(p.type_ids)?p.type_ids:[])
+    .map(id=>METEOALARM_VIS_TYPES[Number(id)]).filter(Boolean);
+  const country=METEOALARM_COUNTRY_NAMES[String(p.country_code||'').toUpperCase()]||p.country_code||'Mediterraneo';
+  const freshness=meteoalarmMapFresh()?'':'<b>Aggiornamento cartografico in ritardo: dati da verificare.</b><br>';
+  return '<div class="popup"><b>MeteoAlarm · '+meteoalarmVisualLevelLabel(level)+'</b><br>'+
+    freshness+
+    '<span style="color:#9fb4c6">'+escAlert(country)+'</span>'+
+    (hazards.length?'<br>'+escAlert(hazards.join(' · ')):'')+
+    '<br><span style="color:#8299ad">Area e livello dal servizio visuale ufficiale MeteoAlarm / EUMETNET</span></div>'
+}
+function renderMeteoalarmLayer(){
+  ++meteoalarmRenderVersion;
   meteoalarmLayer.clearLayers();meteoalarmFeatureLayers.clear();
-  if(!meteoalarmOn||!meteoalarmData?.warnings)return;
-  const groups=new Map();
-  selectedMeteoalarmWarnings().forEach((w,i)=>{
-    const key=[w.country,w.emma_id||w.area_desc,JSON.stringify(w.geometry)].join('|');
-    if(!groups.has(key))groups.set(key,{w,i,members:[]});
-    groups.get(key).members.push({w,i})
-  });
-  const ordered=[...groups.values()].sort((a,b)=>Number(a.w.level)-Number(b.w.level));
-  for(const item of ordered){
-    const w=item.w,i=item.i;
-    const g=await loadMeteoalarmAreaGeometry(w);
-    if(!meteoalarmOn||version!==meteoalarmRenderVersion)return;
-    if(!g)continue;
-    const color=meteoalarmColor(w.level),upcoming=w.status==='upcoming';
-    let feature=null;
-    try{
-      if(g.type==='Point'&&Number.isFinite(Number(w.radius_km))){
-        feature=L.circle([Number(g.coordinates[1]),Number(g.coordinates[0])],{
-          pane:'alerts',radius:Number(w.radius_km)*1000,color,weight:upcoming?3:2.5,
-          opacity:.95,fillColor:color,fillOpacity:upcoming?.04:.22,dashArray:upcoming?'7 6':null
-        })
-      }else{
-        feature=L.geoJSON(g,{
-          pane:'alerts',
-          style:{color,weight:upcoming?3:2.5,opacity:.95,fillColor:color,fillOpacity:upcoming?.04:.22,dashArray:upcoming?'7 6':null}
-        })
-      }
-      feature.bindPopup(item.members.map(({w})=>meteoalarmPopup(w)).join('<hr>'));
-      feature.on('mouseover',e=>{if(!MOBILE_MAP())feature.openPopup(e.latlng)});
-      feature.on('mouseout',()=>{if(!MOBILE_MAP())feature.closePopup()});
-      feature.addTo(meteoalarmLayer);
-      item.members.forEach(({w,i})=>meteoalarmFeatureLayers.set(meteoalarmKey(w,i),feature))
-    }catch(e){console.warn('MeteoAlarm geometry',e)}
+  if(!meteoalarmOn)return;
+  if(meteoalarmPeriod.value!=='active'||!Array.isArray(meteoalarmMapData?.features)||!meteoalarmMapData.features.length){
+    if(map.hasLayer(meteoalarmLayer))map.removeLayer(meteoalarmLayer);
+    return
   }
-  if(meteoalarmOn&&!map.hasLayer(meteoalarmLayer))meteoalarmLayer.addTo(map)
+  try{
+    const ordered={
+      ...meteoalarmMapData,
+      features:[...meteoalarmMapData.features].sort((a,b)=>
+        Number(b?.properties?.level||99)-Number(a?.properties?.level||99)
+      )
+    };
+    L.geoJSON(ordered,{
+      pane:'alerts',
+      style:feature=>{
+        const color=meteoalarmVisualColor(feature?.properties?.level);
+        return {color,weight:2.4,opacity:.98,fillColor:color,fillOpacity:.24}
+      },
+      onEachFeature:(feature,layer)=>{
+        layer.bindPopup(meteoalarmVisualPopup(feature));
+        layer.on('mouseover',e=>{if(!MOBILE_MAP())layer.openPopup(e.latlng)});
+        layer.on('mouseout',()=>{if(!MOBILE_MAP())layer.closePopup()})
+      }
+    }).addTo(meteoalarmLayer);
+    if(!map.hasLayer(meteoalarmLayer))meteoalarmLayer.addTo(map)
+  }catch(e){console.warn('MeteoAlarm official map',e)}
 }
 function renderMeteoalarmList(){
   const d=meteoalarmData;
@@ -1482,16 +1493,26 @@ function renderMeteoalarmList(){
 async function loadMeteoalarm(forceRender=true){
   if(meteoalarmLoading)return;
   meteoalarmLoading=true;syncMeteoalarmBadge();
+  const stamp=Date.now();
+  const fetchJson=async(url,label)=>{
+    const r=await fetch(url+'?t='+stamp,{cache:'no-store',signal:AbortSignal.timeout(15000)});
+    if(!r.ok)throw new Error(label+' '+r.status);
+    return r.json()
+  };
   try{
-    const r=await fetch(METEOALARM_DATA+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});
-    if(!r.ok)throw new Error('MeteoAlarm '+r.status);
-    meteoalarmData=await r.json();
+    const [warningsResult,mapResult]=await Promise.allSettled([
+      fetchJson(METEOALARM_DATA,'MeteoAlarm'),
+      fetchJson(METEOALARM_MAP_DATA,'MeteoAlarm map')
+    ]);
+    if(warningsResult.status==='fulfilled')meteoalarmData=warningsResult.value;
+    else console.warn('MeteoAlarm warnings',warningsResult.reason);
+    if(mapResult.status==='fulfilled')meteoalarmMapData=mapResult.value;
+    else console.warn('MeteoAlarm map',mapResult.reason);
+    if(!meteoalarmData&&!meteoalarmMapData)throw new Error('MeteoAlarm non disponibile');
     renderMeteoalarmList();
     renderMeteoalarmLayer()
   }catch(e){
-    if(!meteoalarmData){
-      meteoalarmSummary.textContent='Aggiornamento MeteoAlarm temporaneamente non disponibile'
-    }
+    if(!meteoalarmData)meteoalarmSummary.textContent='Aggiornamento MeteoAlarm temporaneamente non disponibile'
   }finally{
     meteoalarmLoading=false;syncMeteoalarmBadge();syncAccordionStates();legend()
   }
@@ -1502,7 +1523,7 @@ function setMeteoalarmState(on){
     if(mode3d)setBaseMode('sat');
     map.fitBounds(MED_BOUNDS,{animate:false,padding:[18,18]});
     renderMeteoalarmLayer();
-    if(!meteoalarmFresh())loadMeteoalarm(true)
+    if(!meteoalarmFresh()||!meteoalarmMapFresh())loadMeteoalarm(true)
   }else if(map.hasLayer(meteoalarmLayer)){
     map.removeLayer(meteoalarmLayer)
   }
@@ -1512,10 +1533,18 @@ function setMeteoalarmState(on){
 }
 function meteoalarmLegendHtml(){
   if(!meteoalarmOn)return '';
-  const count=selectedMeteoalarmWarnings().length;
-  return '<div class="map-legend-row"><div class="map-legend-title">MeteoAlarm · Mediterraneo · '+(meteoalarmPeriod.value==='active'?'in vigore':'prossime')+(count?' · '+count:'')+'</div>'+
+  const active=meteoalarmPeriod.value==='active';
+  const count=active
+    ? Number(meteoalarmMapData?.feature_count||meteoalarmMapData?.features?.length||0)
+    : selectedMeteoalarmWarnings('upcoming').length;
+  const stale=active?!meteoalarmMapFresh():!meteoalarmFresh();
+  const stamp=active?meteoalarmMapData?.generated_at:meteoalarmData?.generated_at;
+  const note=active
+    ? 'Aree e livelli in vigore dal servizio visuale ufficiale MeteoAlarm / EUMETNET.'
+    : 'Le allerte prossime sono elencate nel pannello; la mappa mostra solo geometrie ufficiali attualmente in vigore.';
+  return '<div class="map-legend-row"><div class="map-legend-title">MeteoAlarm · Mediterraneo · '+(active?'in vigore':'prossime')+(count?' · '+count+(active?' aree':' avvisi'):'')+'</div>'+
     '<div class="alert-legend-scale"><span><i class="alert-legend-swatch yellow"></i>Giallo</span><span><i class="alert-legend-swatch orange"></i>Arancione</span><span><i class="alert-legend-swatch red"></i>Rosso</span></div>'+
-    '<div class="map-legend-note">'+(meteoalarmFresh()?'':'⚠ Aggiornamento in ritardo · ultimi avvisi ricevuti al '+meteoalarmTime(meteoalarmData?.generated_at)+'. ')+'Riempimento = in vigore · bordo tratteggiato = prossima · geometrie EMMA per le aree mediterranee; contorno locale IT019 solo come fallback finale</div></div>'
+    '<div class="map-legend-note">'+(stale?'⚠ Aggiornamento in ritardo · ultimo dato '+meteoalarmTime(stamp)+'. ':'')+note+'</div></div>'
 }
 meteoalarmPeriod.onchange=()=>{renderMeteoalarmList();renderMeteoalarmLayer();legend()};
 setInterval(()=>{renderMeteoalarmList();renderMeteoalarmLayer();legend()},60000);
