@@ -1437,25 +1437,29 @@ function meteoalarmVisualPopup(feature){
   const hazards=(Array.isArray(p.type_ids)?p.type_ids:[])
     .map(id=>METEOALARM_VIS_TYPES[Number(id)]).filter(Boolean);
   const country=METEOALARM_COUNTRY_NAMES[String(p.country_code||'').toUpperCase()]||p.country_code||'Mediterraneo';
+  const period=p.period==='upcoming'?'Prossima':'In vigore';
   const freshness=meteoalarmMapFresh()?'':'<b>Aggiornamento cartografico in ritardo: dati da verificare.</b><br>';
   return '<div class="popup"><b>MeteoAlarm · '+meteoalarmVisualLevelLabel(level)+'</b><br>'+
     freshness+
-    '<span style="color:#9fb4c6">'+escAlert(country)+'</span>'+
+    '<b>'+period+'</b> · <span style="color:#9fb4c6">'+escAlert(country)+'</span>'+
     (hazards.length?'<br>'+escAlert(hazards.join(' · ')):'')+
     '<br><span style="color:#8299ad">Area e livello dal servizio visuale ufficiale MeteoAlarm / EUMETNET</span></div>'
 }
+
 function renderMeteoalarmLayer(){
   ++meteoalarmRenderVersion;
   meteoalarmLayer.clearLayers();meteoalarmFeatureLayers.clear();
   if(!meteoalarmOn)return;
-  if(meteoalarmPeriod.value!=='active'||!Array.isArray(meteoalarmMapData?.features)||!meteoalarmMapData.features.length){
+  const period=meteoalarmPeriod.value;
+  const features=(meteoalarmMapData?.features||[]).filter(f=>(f?.properties?.period||'active')===period);
+  if(!features.length){
     if(map.hasLayer(meteoalarmLayer))map.removeLayer(meteoalarmLayer);
     return
   }
   try{
     const ordered={
       ...meteoalarmMapData,
-      features:[...meteoalarmMapData.features].sort((a,b)=>
+      features:[...features].sort((a,b)=>
         Number(b?.properties?.level||99)-Number(a?.properties?.level||99)
       )
     };
@@ -1463,7 +1467,15 @@ function renderMeteoalarmLayer(){
       pane:'alerts',
       style:feature=>{
         const color=meteoalarmVisualColor(feature?.properties?.level);
-        return {color,weight:2.4,opacity:.98,fillColor:color,fillOpacity:.24}
+        const upcoming=feature?.properties?.period==='upcoming';
+        return {
+          color,
+          weight:upcoming?3:2.4,
+          opacity:.98,
+          fillColor:color,
+          fillOpacity:upcoming?.16:.24,
+          dashArray:upcoming?'8 6':null
+        }
       },
       onEachFeature:(feature,layer)=>{
         layer.bindPopup(meteoalarmVisualPopup(feature));
@@ -1474,6 +1486,7 @@ function renderMeteoalarmLayer(){
     if(!map.hasLayer(meteoalarmLayer))meteoalarmLayer.addTo(map)
   }catch(e){console.warn('MeteoAlarm official map',e)}
 }
+
 function renderMeteoalarmList(){
   const d=meteoalarmData;
   if(!d){
@@ -1535,14 +1548,14 @@ function meteoalarmLegendHtml(){
   if(!meteoalarmOn)return '';
   const active=meteoalarmPeriod.value==='active';
   const count=active
-    ? Number(meteoalarmMapData?.feature_count||meteoalarmMapData?.features?.length||0)
-    : selectedMeteoalarmWarnings('upcoming').length;
-  const stale=active?!meteoalarmMapFresh():!meteoalarmFresh();
-  const stamp=active?meteoalarmMapData?.generated_at:meteoalarmData?.generated_at;
+    ? Number(meteoalarmMapData?.active_feature_count||0)
+    : Number(meteoalarmMapData?.upcoming_feature_count||0);
+  const stale=!meteoalarmMapFresh();
+  const stamp=meteoalarmMapData?.generated_at;
   const note=active
-    ? 'Aree e livelli in vigore dal servizio visuale ufficiale MeteoAlarm / EUMETNET.'
-    : 'Le allerte prossime sono elencate nel pannello; la mappa mostra solo geometrie ufficiali attualmente in vigore.';
-  return '<div class="map-legend-row"><div class="map-legend-title">MeteoAlarm · Mediterraneo · '+(active?'in vigore':'prossime')+(count?' · '+count+(active?' aree':' avvisi'):'')+'</div>'+
+    ? 'Riempimento pieno = allerta in vigore.'
+    : 'Riempimento colorato e bordo tratteggiato = allerta prossima, ricavata da frame ufficiali MeteoAlarm riferiti agli orari di inizio degli avvisi.';
+  return '<div class="map-legend-row"><div class="map-legend-title">MeteoAlarm · Mediterraneo · '+(active?'in vigore':'prossime')+(count?' · '+count+' aree':'')+'</div>'+
     '<div class="alert-legend-scale"><span><i class="alert-legend-swatch yellow"></i>Giallo</span><span><i class="alert-legend-swatch orange"></i>Arancione</span><span><i class="alert-legend-swatch red"></i>Rosso</span></div>'+
     '<div class="map-legend-note">'+(stale?'⚠ Aggiornamento in ritardo · ultimo dato '+meteoalarmTime(stamp)+'. ':'')+note+'</div></div>'
 }
