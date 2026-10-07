@@ -128,7 +128,7 @@ for required in (
   "3D data layers init",
   "map3d.once('idle'",
   "setTimeout(()=>{if(mode3d&&map3d?.isStyleLoaded())ensure3dDataLayers()},250)",
-  "features.length+' stazioni'"
+  "features.length+' stazioni ·"
 ):
     if required not in s:
         raise SystemExit(f"manca {required}")
