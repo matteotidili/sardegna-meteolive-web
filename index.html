@@ -1891,32 +1891,20 @@ function buildSatFrames(latest){
   for(let i=18;i>=0;i--)frames.push(new Date(end.getTime()-i*10*60000));
   satFrames=frames;satRange.max=String(frames.length-1);satIndex=frames.length-1;satRange.value=String(satIndex);satLatestTime=end
 }
-function showSatFrame(i,quality='preview'){
+function showSatFrame(i){
   if(!satFrames.length)return;
   satIndex=Math.max(0,Math.min(satFrames.length-1,i));satRange.value=String(satIndex);
-  if(satHdLayer&&map.hasLayer(satHdLayer))map.removeLayer(satHdLayer);
-  satHdFrameIndex=-1;
-  if(satMetLayer)satMetLayer.setOpacity(.82);
-  const d=satFrames[satIndex],width=640;
-  const cached=quality!=='high'&&satPreloadedImages[satIndex]&&satPreloadedImages[satIndex].naturalWidth?satPreloadedImages[satIndex].src:null;
-  const url=cached||satImageUrl(d,width);
-  const bounds=satViewBounds||currentSatBounds();
-  if(!satMetLayer){
-    satMetLayer=L.imageOverlay(url,bounds,{pane:'satmet',opacity:.82,interactive:false,attribution:'© EUMETSAT'}).addTo(map)
-  }else{
-    satMetLayer.setBounds(bounds);
-    satMetLayer.setUrl(url);
-    if(satMetOn&&!map.hasLayer(satMetLayer))satMetLayer.addTo(map)
-  }
+  const d=satFrames[satIndex];
   satTime.textContent=satLabel(d);
-  satMetInfo.innerHTML='MTG True Colour RGB · '+satLabel(d)+' · anteprima<br>© EUMETSAT'
+  if(satHrfiOn){updateSatHrfiFrame(d);return}
+  upgradeSatFrame(satIndex)
 }
 function scheduleSatHd(i,delay=450){
   if(satHdTimer)clearTimeout(satHdTimer);
   satHdTimer=setTimeout(()=>{satHdTimer=null;upgradeSatFrame(i)},delay)
 }
 async function upgradeSatFrame(i){
-  if(!satFrames.length||!satMetOn||satTimer)return;
+  if(!satFrames.length||!satMetOn)return;
   const idx=Math.max(0,Math.min(satFrames.length-1,i)),d=satFrames[idx];
   if(satHrfiOn){updateSatHrfiFrame(satLatestTime||d);return}
   satHdFrameIndex=idx;
@@ -1931,18 +1919,18 @@ async function upgradeSatFrame(i){
       time:d.toISOString(),
       opacity:.88,
       maxZoom:18,
-      tileSize:256,
+      tileSize:512,
       detectRetina:true,
       updateWhenZooming:false,
-      updateWhenIdle:true,
-      keepBuffer:3,
+      updateWhenIdle:false,
+      keepBuffer:4,
       crossOrigin:true,
       attribution:'© EUMETSAT'
     });
     satHdLayer.on('load',()=>{
       if(satMetOn&&!satTimer&&satHdFrameIndex===satIndex){
         if(satMetLayer) satMetLayer.setOpacity(0);
-        satMetInfo.innerHTML='MTG True Colour RGB · '+satLabel(satFrames[satIndex])+' · alta risoluzione<br>© EUMETSAT'
+        satMetInfo.innerHTML='MTG True Colour RGB · '+satLabel(satFrames[satIndex])+' · WMS nativo<br>© EUMETSAT'
       }
     })
   }else{
@@ -1951,7 +1939,7 @@ async function upgradeSatFrame(i){
     satHdLayer.redraw()
   }
   if(!map.hasLayer(satHdLayer))satHdLayer.addTo(map);
-  satMetInfo.innerHTML='MTG True Colour RGB · '+satLabel(d)+' · caricamento alta risoluzione…<br>© EUMETSAT'
+  satMetInfo.innerHTML='MTG True Colour RGB · '+satLabel(d)+' · caricamento WMS nativo…<br>© EUMETSAT'
 }
 async function preloadSatFrames(){
   if(!satFrames.length)return;
@@ -1986,15 +1974,9 @@ function stopSatAnimation(){
 }
 async function startSatAnimation(){
   if(!satFrames.length)return;
-  if(satHdLayer&&map.hasLayer(satHdLayer))map.removeLayer(satHdLayer);
-  satHdFrameIndex=-1;
-  if(satMetLayer)satMetLayer.setOpacity(.82);
-  satPlay.textContent='…';satPlay.classList.add('active');satPlay.title='Avvio animazione';
-  await preloadSatFrames();
-  if(!satMetOn)return;
-  if(satIndex>=satFrames.length-1)showSatFrame(0,'preview');
-  satTimer=setInterval(()=>showSatFrame(satIndex>=satFrames.length-1?0:satIndex+1,'preview'),700);
-  satPlay.textContent='Ⅱ';satPlay.title='Pausa'
+  if(satIndex>=satFrames.length-1)showSatFrame(0);
+  satTimer=setInterval(()=>showSatFrame(satIndex>=satFrames.length-1?0:satIndex+1),1200);
+  satPlay.textContent='Ⅱ';satPlay.classList.add('active');satPlay.title='Pausa'
 }
 async function loadSatTimeline(forceLatest=true){
   satMetInfo.innerHTML='MTG True Colour RGB · ricerca ultimo frame EUMETSAT…<br>© EUMETSAT';
@@ -2005,37 +1987,19 @@ async function loadSatTimeline(forceLatest=true){
       stopSatAnimation();
       buildSatFrames(newLatest);
       satPreloadedImages=[];satPreloadPromise=null;
-      if(forceLatest||wasLatest){showSatFrame(satFrames.length-1,'preview');upgradeSatFrame(satFrames.length-1)}
+      if(forceLatest||wasLatest)showSatFrame(satFrames.length-1)
       if(satHrfiOn)updateSatHrfiFrame(newLatest);
-      preloadSatFrames()
-    }else if(forceLatest&&satFrames.length){showSatFrame(satFrames.length-1,'preview');upgradeSatFrame(satFrames.length-1);if(satHrfiOn)updateSatHrfiFrame(satLatestTime)}
+    }else if(forceLatest&&satFrames.length){showSatFrame(satFrames.length-1);if(satHrfiOn)updateSatHrfiFrame(satLatestTime)}
   }catch(e){
     satMetInfo.innerHTML='MTG True Colour RGB · aggiornamento non disponibile<br>© EUMETSAT'
   }
 }
 function refreshSatViewport(){
-  if(!satMetOn||!satFrames.length)return;
-  if(satHdLayer&&map.hasLayer(satHdLayer)&&!satTimer)return;
-  const visible=map.getBounds().pad(.12);
-  if(satViewBounds&&satViewBounds.contains(visible))return;
-  satViewGeneration++;
-  satViewBounds=currentSatBounds();
-  satPreloadedImages=[];
-  satPreloadPromise=null;
-  if(satHdTimer){clearTimeout(satHdTimer);satHdTimer=null}
-  showSatFrame(satIndex,'preview');
-  preloadSatFrames();
-  if(!satTimer)scheduleSatHd(satIndex,300)
+  // Il WMS tiled richiede automaticamente le tile alla risoluzione della viewport.
 }
-map.on('moveend',refreshSatViewport);
-window.addEventListener('resize',()=>{if(satMetOn)setTimeout(refreshSatViewport,120)});
 function setSatMet(on){
   satMetOn=on;
   if(on){
-    satViewGeneration++;
-    satViewBounds=currentSatBounds();
-    satPreloadedImages=[];
-    satPreloadPromise=null;
     satTimeline.classList.add('on');loadSatTimeline(true)
   }else{
     stopSatAnimation();
@@ -2070,11 +2034,11 @@ satHrfiBtn.onclick=()=>{
   satHrfiInfo.classList.toggle('on',satHrfiOn);
   syncAccordionStates()
 };
-document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1,'preview');scheduleSatHd(satIndex,250)};
-document.getElementById('satNext').onclick=()=>{stopSatAnimation();showSatFrame(satIndex+1,'preview');scheduleSatHd(satIndex,250)};
+document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1)};
+document.getElementById('satNext').onclick=()=>{stopSatAnimation();showSatFrame(satIndex+1)};
 satPlay.onclick=()=>satTimer?stopSatAnimation():startSatAnimation();
-satRange.oninput=()=>{stopSatAnimation();showSatFrame(Number(satRange.value),'preview');scheduleSatHd(satIndex,550)};
-satRange.onchange=()=>scheduleSatHd(satIndex,120);
+satRange.oninput=()=>{stopSatAnimation();showSatFrame(Number(satRange.value))};
+satRange.onchange=()=>showSatFrame(Number(satRange.value));
 setInterval(()=>{if(satMetOn&&!satTimer&&satIndex===satFrames.length-1)loadSatTimeline(false)},5*60*1000);
 const stationsBtn=document.getElementById('stationsBtn');
 stationsBtn.onclick=()=>{
