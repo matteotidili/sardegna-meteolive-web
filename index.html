@@ -220,35 +220,70 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
   .legend-title{font-size:10px}
   .legend-labs{font-size:9px}
 
-  .status{
-    left:auto;
-    right:8px;
-    bottom:8px;
-    transform:none;
-    max-width:52vw;
-    padding:7px 9px;
-    font-size:9px;
-    line-height:1.3;
-    text-align:right
+  /* Mobile: una sola fascia operativa in basso.
+     Attribution in fondo, timeline subito sopra, legenda del layer sopra la timeline. */
+  .status{display:none!important}
+  .leaflet-bottom.leaflet-right{
+    bottom:max(2px,env(safe-area-inset-bottom));
+    right:4px
+  }
+  .leaflet-control-attribution{
+    max-width:calc(100vw - 12px);
+    margin:0!important;
+    padding:2px 5px!important;
+    font-size:8px!important;
+    line-height:1.15!important;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    opacity:.88
   }
   .timeline{
+    z-index:1005;
     left:8px;
     right:8px;
-    bottom:54px;
+    bottom:calc(var(--mobile-stack-bottom,34px) + env(safe-area-inset-bottom));
     width:auto;
     transform:none;
-    padding:8px 9px;
-    gap:6px
+    padding:7px 8px;
+    gap:5px;
+    min-height:44px
   }
-  .timeline.stacked{bottom:99px}
-  .map-legends{left:auto;right:8px;width:min(290px,calc(100% - 16px));transform:none;bottom:54px;max-height:min(55dvh,360px);padding:9px 10px}.station-map-legend{left:8px;right:auto;bottom:54px;width:min(245px,62vw);padding:8px 9px}
-  .map-legends.one-timeline{bottom:103px}
-  .map-legends.two-timelines{bottom:148px}
-  .map-legend-title{font-size:9px}.map-legend-labels{font-size:8px}.lightning-scale{grid-template-columns:1fr;gap:5px}.lightning-scale span{justify-content:flex-start;padding:6px}.lightning-dot{width:13px;height:13px;flex-basis:13px}
-  .time-kind{font-size:8px}
-  .timebtn{width:34px;height:34px;flex:0 0 34px}
-  .time-label{min-width:72px;font-size:9px}
-  .timeline input[type=range]{width:100%}
+  .timeline.stacked{bottom:calc(var(--mobile-stack-bottom,34px) + env(safe-area-inset-bottom))}
+  .map-legends{
+    z-index:995;
+    left:8px;
+    right:8px;
+    width:auto;
+    transform:none;
+    bottom:calc(var(--mobile-stack-bottom,92px) + env(safe-area-inset-bottom));
+    max-height:min(25dvh,180px);
+    overflow-y:auto;
+    padding:7px 9px
+  }
+  .station-map-legend{
+    z-index:990;
+    left:8px;
+    right:auto;
+    bottom:calc(var(--mobile-stack-bottom,34px) + env(safe-area-inset-bottom));
+    width:min(245px,72vw);
+    padding:7px 8px
+  }
+  .station-map-legend.mobile-suppressed{display:none!important}
+  .map-legends.one-timeline,.map-legends.two-timelines{bottom:calc(var(--mobile-stack-bottom,92px) + env(safe-area-inset-bottom))}
+  .map-legends .map-legend-note,.map-legends .opera-legend-note{display:none}
+  .map-legend-title{font-size:8.5px;line-height:1.2;margin-bottom:4px}
+  .map-legend-labels{font-size:7.5px;margin-top:3px}
+  .map-legend-bar{height:8px}
+  .lightning-scale{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;font-size:7px}
+  .lightning-scale span{flex-direction:column;justify-content:center;gap:2px;padding:4px 2px;text-align:center}
+  .lightning-dot{width:10px;height:10px;flex-basis:10px}
+  .lightning-direction{font-size:6.5px}
+  .li-legend-img{max-height:74px;object-fit:contain}
+  .time-kind{font-size:7.5px;max-width:58px;overflow:hidden;text-overflow:ellipsis}
+  .timebtn{width:32px;height:32px;flex:0 0 32px}
+  .time-label{min-width:64px;font-size:8px}
+  .timeline input[type=range]{width:100%;min-width:48px}
   .leaflet-control-zoom{display:none}
   .badge{width:28px;height:28px;padding:0;font-size:8px;border-width:2px}
   .leaflet-popup-content{margin:12px 14px}
@@ -1104,22 +1139,53 @@ function lightningLegendHtml(){
   }
   return '<div class="map-legend-row"><div class="map-legend-title">Fulmini LIVE · colore = età della scarica</div><div class="lightning-scale"><span><i class="lightning-dot" style="background:#fff34d"></i>0–5 min</span><span><i class="lightning-dot" style="background:#ff9f1a"></i>5–15 min</span><span><i class="lightning-dot" style="background:#ef5b35"></i>15–30 min</span><span><i class="lightning-dot" style="background:#b53b4b"></i>30–45 min</span><span><i class="lightning-dot" style="background:#6f3a44"></i>45–60 min</span></div><div class="lightning-direction"><span>Più recente</span><span>Più vecchio</span></div><div class="map-legend-note">Anello bianco pulsante = scarica appena ricevuta · Blitzortung / LightningMaps</div></div>'
 }
+function activeTimelineElements(){
+  return ['radarTimeline','operaTimeline','satTimeline','lightningTimeline']
+    .map(id=>document.getElementById(id))
+    .filter(x=>x&&x.classList.contains('on'))
+}
 function layoutTimelineStack(){
   const mobile=window.innerWidth<=800;
-  const base=mobile?54:58,step=mobile?45:45;
-  const timelines=['radarTimeline','operaTimeline','satTimeline','lightningTimeline']
-    .map(id=>document.getElementById(id)).filter(x=>x&&x.classList.contains('on'));
-  timelines.forEach((el,i)=>{el.style.bottom=(base+i*step)+'px';el.classList.remove('stacked')});
+  const timelines=activeTimelineElements();
   const legends=document.getElementById('mapLegends');
-  if(legends){
-    // Desktop: le legende operative restano in alto a destra.
-    // Mobile: le spostiamo sopra la pila temporale quando presente.
-    legends.style.top=mobile?'auto':'14px';
-    legends.style.bottom=mobile?(timelines.length?base+timelines.length*step+5:base):'auto'
-  }
   const stationLegend=document.getElementById('stationMapLegend');
+
+  if(mobile){
+    // Riserviamo il fondo all'attribution Leaflet; gli elementi operativi
+    // vengono impilati usando la loro altezza reale, non offset fissi.
+    let cursor=34;
+    timelines.forEach(el=>{
+      el.style.removeProperty('bottom');
+      el.style.setProperty('--mobile-stack-bottom',cursor+'px');
+      el.classList.remove('stacked');
+      cursor+=Math.max(44,el.offsetHeight||44)+7
+    });
+    if(legends){
+      legends.style.top='auto';
+      legends.style.removeProperty('bottom');
+      legends.style.setProperty('--mobile-stack-bottom',(cursor+5)+'px')
+    }
+    if(stationLegend){
+      stationLegend.style.removeProperty('bottom');
+      stationLegend.style.setProperty('--mobile-stack-bottom','34px')
+    }
+    return
+  }
+
+  const base=58,step=45;
+  timelines.forEach((el,i)=>{
+    el.style.removeProperty('--mobile-stack-bottom');
+    el.style.bottom=(base+i*step)+'px';
+    el.classList.remove('stacked')
+  });
+  if(legends){
+    legends.style.removeProperty('--mobile-stack-bottom');
+    legends.style.top='14px';
+    legends.style.bottom='auto'
+  }
   if(stationLegend){
-    stationLegend.style.bottom=mobile?(timelines.length?base+timelines.length*step+5:base):'14px'
+    stationLegend.style.removeProperty('--mobile-stack-bottom');
+    stationLegend.style.bottom='14px'
   }
 }
 function syncLegendPosition(){layoutTimelineStack()}
@@ -1128,9 +1194,15 @@ function legend(){
   const stationEl=document.getElementById('stationMapLegend');
   if(!el||!stationEl)return;
   const stationHtml=stationLegendHtml();
+  const html=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
+  const mobile=window.innerWidth<=800;
+  const hasTimeline=activeTimelineElements().length>0;
+
   stationEl.innerHTML=stationHtml;
   stationEl.classList.toggle('on',!!stationHtml);
-  const html=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
+  // Su smartphone la legenda stazioni lascia spazio al prodotto meteo attivo.
+  stationEl.classList.toggle('mobile-suppressed',mobile&&(!!html||hasTimeline));
+
   el.innerHTML=html;
   el.classList.toggle('on',!!html);
   syncLegendPosition()
