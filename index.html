@@ -470,8 +470,8 @@ header .live{margin-left:0}
         <span class="acc-title">Satellite</span><span class="acc-state" id="accSatelliteState">OFF</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
-        <button class="btn" id="satMetBtn">Satellite meteo <span>OFF</span></button>
-        <div class="layer-note" id="satMetInfo">MTG GeoColour · EUMETSAT</div>
+        <button class="btn" id="satMetBtn">Satellite True Colour <span>OFF</span></button>
+        <div class="layer-note" id="satMetInfo">MTG FCI True Colour RGB · 1 km · EUMETSAT</div>
         <button class="btn" id="satHrfiBtn">FCI HRFI · 0,5 km <span>OFF</span></button>
         <div class="layer-note" id="satHrfiInfo">FCI VIS 0,6 µm · alta risoluzione · ultimo frame</div>
       </div></div>
@@ -693,7 +693,7 @@ function satImageUrl(time,width=1800,bounds=satViewBounds||currentSatBounds()){
   const height=Math.round(width*Math.abs(ne.y-sw.y)/Math.abs(ne.x-sw.x));
   const q=new URLSearchParams({
     service:'WMS',request:'GetMap',version:'1.1.1',
-    layers:'mtg_fd:rgb_geocolour',styles:'',format:'image/png',
+    layers:'mtg_fd:rgb_truecolour',styles:'',format:'image/png',
     transparent:'true',srs:'EPSG:3857',
     bbox:[sw.x,sw.y,ne.x,ne.y].join(','),
     width:String(width),height:String(height),time:new Date(time).toISOString()
@@ -1902,14 +1902,14 @@ function showSatFrame(i,quality='preview'){
   const url=cached||satImageUrl(d,width);
   const bounds=satViewBounds||currentSatBounds();
   if(!satMetLayer){
-    satMetLayer=L.imageOverlay(url,bounds,{pane:'satmet',opacity:.82,interactive:false,attribution:'© EUMETSAT / NASA'}).addTo(map)
+    satMetLayer=L.imageOverlay(url,bounds,{pane:'satmet',opacity:.82,interactive:false,attribution:'© EUMETSAT'}).addTo(map)
   }else{
     satMetLayer.setBounds(bounds);
     satMetLayer.setUrl(url);
     if(satMetOn&&!map.hasLayer(satMetLayer))satMetLayer.addTo(map)
   }
   satTime.textContent=satLabel(d);
-  satMetInfo.innerHTML='MTG GeoColour · '+satLabel(d)+' · anteprima<br>© EUMETSAT / NASA'
+  satMetInfo.innerHTML='MTG True Colour RGB · '+satLabel(d)+' · anteprima<br>© EUMETSAT'
 }
 function scheduleSatHd(i,delay=450){
   if(satHdTimer)clearTimeout(satHdTimer);
@@ -1923,7 +1923,7 @@ async function upgradeSatFrame(i){
   if(!satHdLayer){
     satHdLayer=L.tileLayer.wms(SAT_WMS,{
       pane:'satmet',
-      layers:'mtg_fd:rgb_geocolour',
+      layers:'mtg_fd:rgb_truecolour',
       styles:'',
       format:'image/png',
       transparent:true,
@@ -1937,12 +1937,12 @@ async function upgradeSatFrame(i){
       updateWhenIdle:true,
       keepBuffer:3,
       crossOrigin:true,
-      attribution:'© EUMETSAT / NASA'
+      attribution:'© EUMETSAT'
     });
     satHdLayer.on('load',()=>{
       if(satMetOn&&!satTimer&&satHdFrameIndex===satIndex){
         if(satMetLayer) satMetLayer.setOpacity(0);
-        satMetInfo.innerHTML='MTG GeoColour · '+satLabel(satFrames[satIndex])+' · alta risoluzione<br>© EUMETSAT / NASA'
+        satMetInfo.innerHTML='MTG True Colour RGB · '+satLabel(satFrames[satIndex])+' · alta risoluzione<br>© EUMETSAT'
       }
     })
   }else{
@@ -1951,7 +1951,7 @@ async function upgradeSatFrame(i){
     satHdLayer.redraw()
   }
   if(!map.hasLayer(satHdLayer))satHdLayer.addTo(map);
-  satMetInfo.innerHTML='MTG GeoColour · '+satLabel(d)+' · caricamento alta risoluzione…<br>© EUMETSAT / NASA'
+  satMetInfo.innerHTML='MTG True Colour RGB · '+satLabel(d)+' · caricamento alta risoluzione…<br>© EUMETSAT'
 }
 async function preloadSatFrames(){
   if(!satFrames.length)return;
@@ -1997,7 +1997,7 @@ async function startSatAnimation(){
   satPlay.textContent='Ⅱ';satPlay.title='Pausa'
 }
 async function loadSatTimeline(forceLatest=true){
-  satMetInfo.innerHTML='MTG GeoColour · ricerca ultimo frame EUMETSAT…<br>© EUMETSAT / NASA';
+  satMetInfo.innerHTML='MTG True Colour RGB · ricerca ultimo frame EUMETSAT…<br>© EUMETSAT';
   try{
     const wasLatest=!satFrames.length||satIndex===satFrames.length-1;
     const newLatest=await findLatestSatTime();
@@ -2010,7 +2010,7 @@ async function loadSatTimeline(forceLatest=true){
       preloadSatFrames()
     }else if(forceLatest&&satFrames.length){showSatFrame(satFrames.length-1,'preview');upgradeSatFrame(satFrames.length-1);if(satHrfiOn)updateSatHrfiFrame(satLatestTime)}
   }catch(e){
-    satMetInfo.innerHTML='MTG GeoColour · aggiornamento non disponibile<br>© EUMETSAT / NASA'
+    satMetInfo.innerHTML='MTG True Colour RGB · aggiornamento non disponibile<br>© EUMETSAT'
   }
 }
 function refreshSatViewport(){
