@@ -10,38 +10,46 @@ on:
 jobs:
   discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
-      - name: Scarica configurazione dashboard
+      - name: Analizza dashboard e item collegati
         run: |
           set -e
-          ITEM='0a1dc031c476445493f758af2e2f848a'
-          curl -L --fail --silent --show-error "https://www.arcgis.com/sharing/rest/content/items/$ITEM?f=pjson" -o /tmp/item.json
-          curl -L --fail --silent --show-error "https://www.arcgis.com/sharing/rest/content/items/$ITEM/data?f=pjson" -o /tmp/data.json
-          echo '=== ITEM ==='
-          python - <<'PY'
-          import json
-          d=json.load(open('/tmp/item.json'))
-          for k in ['id','title','type','url','owner','access','modified']:
+          ROOT='0a1dc031c476445493f758af2e2f848a'
+          curl -L --fail --silent --show-error "https://www.arcgis.com/sharing/rest/content/items/$ROOT/data?f=pjson" -o /tmp/root.json
+          python - <<'PY' >/tmp/ids.txt
+          import json,re
+          d=json.load(open('/tmp/root.json'))
+          text=json.dumps(d)
+          for x in sorted(set(re.findall(r'(?i)\b[a-f0-9]{32}\b',text))):
+              print(x)
+          PY
+          while read ID; do
+            echo "=== $ID ==="
+            curl -L --fail --silent --show-error "https://www.arcgis.com/sharing/rest/content/items/$ID?f=pjson" -o "/tmp/$ID-item.json" || true
+            python - "$ID" <<'PY'
+          import json,sys,os
+          i=sys.argv[1]
+          p=f'/tmp/{i}-item.json'
+          if not os.path.exists(p): raise SystemExit
+          d=json.load(open(p))
+          for k in ['id','title','type','url','owner','access']:
               print(k,':',d.get(k))
           PY
-          echo '=== URLS NEL DASHBOARD ==='
-          python - <<'PY'
-          import json,re
-          d=json.load(open('/tmp/data.json'))
+            curl -L --fail --silent --show-error "https://www.arcgis.com/sharing/rest/content/items/$ID/data?f=pjson" -o "/tmp/$ID-data.json" || true
+            python - "$ID" <<'PY'
+          import json,re,sys,os
+          i=sys.argv[1]
+          p=f'/tmp/{i}-data.json'
+          if not os.path.exists(p): raise SystemExit
+          try:d=json.load(open(p))
+          except:raise SystemExit
           text=json.dumps(d,ensure_ascii=False)
           urls=sorted(set(re.findall(r'https?://[^"\\ ]+',text)))
           for u in urls:
-              if any(x in u.lower() for x in ['featureserver','mapserver','sharing/rest','arcgis.com']):
-                  print(u)
-          print('TOTAL_URLS',len(urls))
+              if any(x in u.lower() for x in ['featureserver','mapserver','imageserver','sharing/rest']):
+                  print('DATA_URL:',u)
+          for x in sorted(set(re.findall(r'(?i)\b[a-f0-9]{32}\b',text))):
+              print('DATA_ID:',x)
           PY
-          echo '=== ITEM IDS NEL DASHBOARD ==='
-          python - <<'PY'
-          import json,re
-          d=json.load(open('/tmp/data.json'))
-          text=json.dumps(d)
-          ids=sorted(set(re.findall(r'(?i)\b[a-f0-9]{32}\b',text)))
-          for x in ids:
-              print(x)
-          PY
+          done </tmp/ids.txt
