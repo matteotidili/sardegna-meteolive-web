@@ -345,6 +345,12 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 
 /* Navigazione layer semplificata e notifica operativa Sardegna. */
 .control-guide{margin:0 0 8px;padding:9px 10px;border:1px solid #dbe5ea;border-radius:9px;background:#f5f8fa;color:#587080;font-size:9px;line-height:1.4}
+.direct-layer-toggle{margin:0 0 4px!important;min-height:42px!important;border:1px solid #22394d!important;border-radius:12px!important;background:#0d1b29!important;color:#d8e6f2!important;padding:9px 10px!important;font-size:9px!important;font-weight:950!important;letter-spacing:.09em!important;text-transform:uppercase!important}
+.direct-layer-toggle:hover{background:#112536!important}
+.direct-layer-toggle.active{background:#102b39!important;border-color:#2a5367!important;color:#fff!important}
+.direct-layer-toggle>span{font-size:8px;font-weight:900;letter-spacing:.04em}
+.direct-layer-counter{margin:0 7px 8px!important;padding:0 2px;color:#7890a4}
+
 .control-section-label{padding:8px 4px 4px;color:#6f8797;font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
 .sardinia-alert-banner{margin-left:auto;min-width:0;max-width:min(640px,55vw);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;border:1px solid transparent;border-radius:11px;padding:6px 12px;font:900 10px Inter,system-ui,Arial;line-height:1.18;letter-spacing:.035em;cursor:pointer;box-shadow:0 2px 8px #0002;overflow:hidden;text-align:left}
 .sardinia-alert-banner[hidden]{display:none!important}
@@ -436,6 +442,9 @@ header .live{margin-left:0}
   </div>
   <div class="list control-list" id="controlsView" role="tabpanel" aria-labelledby="controlsTab" hidden>
     <div class="control-guide">Apri una sezione e attiva solo i layer che ti servono. Le informazioni di dettaglio compaiono direttamente sulla mappa.</div>
+
+    <button class="btn direct-layer-toggle active" id="stationsBtn">Rete stazioni <span>ON</span></button>
+    <div id="counter" class="counter direct-layer-counter">Caricamento dati…</div>
 
     <div class="accordion-item" data-acc-item="precip">
       <button class="accordion-head" type="button" data-acc="precip" aria-expanded="false">
@@ -534,8 +543,6 @@ header .live{margin-left:0}
           <button class="baseopt" data-base="3d">3D</button>
         </div>
         <div class="control-section-label">Elementi sulla mappa</div>
-        <button class="btn active" id="stationsBtn">Rete stazioni <span>ON</span></button>
-        <div id="counter" class="counter">Caricamento dati…</div>
         <button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button>
       </div></div>
     </div>
