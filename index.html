@@ -771,8 +771,8 @@ const cumLayer=new DpcV2Layer({pane:'weather',opacity:.88,tileSize:256,updateWhe
 const lightningRenderer=L.canvas({pane:'lightning',padding:.7});
 const lightningLayer=L.layerGroup();
 const lightningPulseLayer=L.layerGroup();
-let lightningOn=false,lightningSocket=null,lightningReconnectTimer=null,lightningRenderTimer=null,lightningReconnectDelay=2500;
-let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null;
+let lightningOn=false,lightningSocket=null,lightningReconnectTimer=null,lightningRenderTimer=null,lightningReconnectDelay=2500,lightningSubscriptionTimer=null;
+let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lightningLastIdBySrc={},lightningFeedLoops=0;
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
@@ -2124,27 +2124,45 @@ const LIGHTNING_LIVE_AGE=60*60*1000;
 const LIGHTNING_MAX_AGE=2*60*60*1000;
 const LIGHTNING_MAX_BUFFER=30000;
 const LIGHTNING_CACHE_MAX=12000;
-const LIGHTNING_CACHE_KEY='smm-lightning-history-v2';
-const LIGHTNING_MED_BOX=[48,45,28,-12];
+const LIGHTNING_CACHE_KEY='smm-lightning-history-v3';
 const LIGHTNING_ATTR='Fulmini © Blitzortung.org contributors / LightningMaps.org';
 const LI_LAYER='mtg_fd:li_afa';
 
 function lightningKey(s){
-  return String(s.srv??'')+':'+String(s.id??'')+':'+String(s.time??'')
+  const src=s?.src;
+  const id=s?.id;
+  if(src!==undefined&&src!==null&&id!==undefined&&id!==null)return String(src)+':'+String(id);
+  if(s?.srv!==undefined&&s?.srv!==null&&id!==undefined&&id!==null)return 'srv:'+String(s.srv)+':'+String(id);
+  return 'fallback:'+String(s?.time??'')+':'+String(s?.lat??'')+':'+String(s?.lon??'')
+}
+function updateLightningLastId(s){
+  const src=Number(s?.src),id=Number(s?.id);
+  if(!Number.isFinite(src)||!Number.isFinite(id))return;
+  const key=String(src);
+  if(!Number.isFinite(Number(lightningLastIdBySrc[key]))||id>Number(lightningLastIdBySrc[key]))lightningLastIdBySrc[key]=id
 }
 function loadLightningCache(){
   try{
+    // La v2 usava un'identità diversa e può contenere localizzazioni ormai superate.
+    localStorage.removeItem('smm-lightning-history-v2');
     const raw=JSON.parse(localStorage.getItem(LIGHTNING_CACHE_KEY)||'[]');
     const cut=Date.now()-LIGHTNING_MAX_AGE;
     if(!Array.isArray(raw))return;
     for(const a of raw){
-      if(!Array.isArray(a)||a.length<3)continue;
-      const time=Number(a[0]),lat=Number(a[1]),lon=Number(a[2]),id=a[3],srv=a[4];
+      if(!Array.isArray(a)||a.length<6)continue;
+      const time=Number(a[0]),lat=Number(a[1]),lon=Number(a[2]),id=a[3],src=a[4],srv=a[5];
+      const dev=Number(a[6]),del=Number(a[7]);
       if(!Number.isFinite(time)||time<cut||!Number.isFinite(lat)||!Number.isFinite(lon))continue;
-      const s={time,lat,lon,id,srv};
-      const k=lightningKey(s);
-      if(lightningSeen.has(k))continue;
-      lightningSeen.set(k,time);lightningStrikes.push(s);
+      const stroke={time,lat,lon,id,src,srv,dev:Number.isFinite(dev)?dev:null,del:Number.isFinite(del)?del:null};
+      const k=lightningKey(stroke);
+      const prev=lightningSeen.get(k);
+      if(prev){
+        if(time>=prev.time)Object.assign(prev,stroke);
+        continue
+      }
+      lightningSeen.set(k,stroke);
+      lightningStrikes.push(stroke);
+      updateLightningLastId(stroke);
       if(!lightningLastStrikeTime||time>lightningLastStrikeTime)lightningLastStrikeTime=time
     }
     lightningStrikes.sort((a,b)=>a.time-b.time)
@@ -2153,7 +2171,10 @@ function loadLightningCache(){
 function saveLightningCache(){
   try{
     pruneLightning();
-    const compact=lightningStrikes.slice(-LIGHTNING_CACHE_MAX).map(s=>[s.time,s.lat,s.lon,s.id??null,s.srv??null]);
+    const compact=lightningStrikes.slice(-LIGHTNING_CACHE_MAX).map(s=>[
+      s.time,s.lat,s.lon,s.id??null,s.src??null,s.srv??null,
+      Number.isFinite(s.dev)?s.dev:null,Number.isFinite(s.del)?s.del:null
+    ]);
     localStorage.setItem(LIGHTNING_CACHE_KEY,JSON.stringify(compact))
   }catch(e){}
 }
@@ -2163,11 +2184,19 @@ function scheduleLightningCacheSave(){
 }
 function pruneLightning(){
   const cut=Date.now()-LIGHTNING_MAX_AGE;
-  if(lightningStrikes.length){
-    lightningStrikes=lightningStrikes.filter(s=>s.time>=cut);
-    if(lightningStrikes.length>LIGHTNING_MAX_BUFFER)lightningStrikes=lightningStrikes.slice(-LIGHTNING_MAX_BUFFER)
+  const kept=[];
+  for(const stroke of lightningStrikes){
+    if(stroke.time>=cut)kept.push(stroke);
+    else if(lightningSeen.get(lightningKey(stroke))===stroke)lightningSeen.delete(lightningKey(stroke))
   }
-  for(const [k,t] of lightningSeen)if(t<cut)lightningSeen.delete(k)
+  if(kept.length>LIGHTNING_MAX_BUFFER){
+    const drop=kept.length-LIGHTNING_MAX_BUFFER;
+    for(let i=0;i<drop;i++){
+      const stroke=kept[i];
+      if(lightningSeen.get(lightningKey(stroke))===stroke)lightningSeen.delete(lightningKey(stroke))
+    }
+    lightningStrikes=kept.slice(drop)
+  }else lightningStrikes=kept
 }
 function lightningStyle(ageMs){
   const age=ageMs/60000;
@@ -2216,19 +2245,37 @@ function renderLightning(){
 }
 function addLightningStrokes(strokes){
   if(!Array.isArray(strokes)||!strokes.length)return;
-  let added=0;
-  for(const s of strokes){
-    const time=Number(s.time),lat=Number(s.lat),lon=Number(s.lon);
+  let changed=0;
+  const now=Date.now();
+  for(const raw of strokes){
+    const time=Number(raw.time),lat=Number(raw.lat),lon=Number(raw.lon);
     if(!Number.isFinite(time)||!Number.isFinite(lat)||!Number.isFinite(lon))continue;
-    if(lat<26||lat>50||lon<-15||lon>48)continue;
-    const k=lightningKey(s);
-    if(lightningSeen.has(k))continue;
-    lightningSeen.set(k,time);
-    lightningStrikes.push({time,lat,lon,id:s.id,dev:Number(s.dev)||null,srv:s.srv});
+    if(time<now-LIGHTNING_MAX_AGE||time>now+60000)continue;
+    if(lat<-90||lat>90||lon<-180||lon>180)continue;
+    const stroke={
+      time,lat,lon,id:raw.id,src:raw.src,srv:raw.srv,
+      dev:Number.isFinite(Number(raw.dev))?Number(raw.dev):null,
+      del:Number.isFinite(Number(raw.del))?Number(raw.del):null
+    };
+    updateLightningLastId(stroke);
+    const k=lightningKey(stroke);
+    const existing=lightningSeen.get(k);
+    if(existing){
+      // LightningMaps tratta src+id come la stessa scarica: se il server
+      // la ritrasmette, aggiorniamo posizione/qualità invece di conservarne
+      // una versione preliminare.
+      const moved=existing.lat!==lat||existing.lon!==lon||existing.time!==time||
+        existing.dev!==stroke.dev||existing.del!==stroke.del||existing.srv!==stroke.srv;
+      if(moved){Object.assign(existing,stroke);changed++}
+      continue
+    }
+    lightningSeen.set(k,stroke);
+    lightningStrikes.push(stroke);
     if(!lightningLastStrikeTime||time>lightningLastStrikeTime)lightningLastStrikeTime=time;
-    added++
+    changed++
   }
-  if(added){
+  if(changed){
+    lightningStrikes.sort((a,b)=>a.time-b.time);
     pruneLightning();
     scheduleLightningCacheSave();
     if(lightningMode==='live')renderLightning();
@@ -2251,6 +2298,29 @@ function scheduleLightningReconnect(){
   },delay);
   lightningReconnectDelay=Math.min(30000,Math.round(lightningReconnectDelay*1.6))
 }
+function lightningViewport(){
+  const b=map.getBounds(),round=v=>Math.round(v*10)/10;
+  return [round(b.getNorth()),round(b.getEast()),round(b.getSouth()),round(b.getWest())]
+}
+function sendLightningSubscription(reason='u'){
+  const ws=lightningSocket;
+  if(!ws||ws.readyState!==WebSocket.OPEN)return false;
+  lightningFeedLoops++;
+  const sub={
+    v:24,i:{...lightningLastIdBySrc},s:false,x:0,w:0,tx:0,tw:1,a:4,
+    z:map.getZoom(),b:!document.hidden,h:window.location.hash||'',
+    l:lightningFeedLoops,t:Math.floor(Date.now()/1000),
+    from_lightningmaps_org:true,p:lightningViewport(),r:reason
+  };
+  try{ws.send(JSON.stringify(sub));return true}catch(e){return false}
+}
+function scheduleLightningSubscription(reason='u'){
+  if(lightningSubscriptionTimer)clearTimeout(lightningSubscriptionTimer);
+  lightningSubscriptionTimer=setTimeout(()=>{
+    lightningSubscriptionTimer=null;
+    if(lightningOn&&lightningMode==='live')sendLightningSubscription(reason)
+  },180)
+}
 function connectLightningLive(){
   if(!lightningOn||document.hidden)return;
   closeLightningSocket();
@@ -2260,13 +2330,17 @@ function connectLightningLive(){
   lightningSocket=ws;
   ws.onopen=()=>{
     lightningReconnectDelay=2500;
-    const sub={v:24,i:{},s:false,x:0,w:0,tx:0,tw:1,a:4,z:5,b:true,h:'',l:1,t:1,p:LIGHTNING_MED_BOX,r:'A'};
-    try{ws.send(JSON.stringify(sub))}catch(e){}
+    sendLightningSubscription('open');
     if(lightningMode==='live')lightningMeta.textContent='LIVE · connesso · ricezione scariche…'
   };
   ws.onmessage=e=>{
     let d;
     try{d=JSON.parse(e.data)}catch(_){return}
+    // Keepalive coerente con il client pubblico LightningMaps.
+    if(Number.isFinite(Number(d?.k))){
+      const reply=((Number(d.k)*3604)%7081*Date.now()/100);
+      try{ws.send(JSON.stringify({k:reply}))}catch(_){}
+    }
     if(Array.isArray(d?.strokes))addLightningStrokes(d.strokes)
   };
   ws.onerror=()=>{};
@@ -2413,7 +2487,7 @@ document.getElementById('lightningPrev').onclick=()=>{stopLightningAnimation();s
 document.getElementById('lightningNext').onclick=()=>{stopLightningAnimation();setLightningFrame(lightningIndex+1)};
 lightningPlay.onclick=()=>lightningAnimTimer?stopLightningAnimation():startLightningAnimation();
 lightningRange.oninput=()=>{stopLightningAnimation();setLightningFrame(Number(lightningRange.value))};
-map.on('moveend',()=>{if(lightningOn&&lightningMode==='live')renderLightning()});
+map.on('moveend',()=>{if(lightningOn&&lightningMode==='live'){scheduleLightningSubscription('u');renderLightning()}});
 document.addEventListener('visibilitychange',()=>{
   if(!lightningOn)return;
   if(document.hidden){
