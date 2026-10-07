@@ -491,6 +491,10 @@ header .live{margin-left:0}
         <div class="layer-note" id="satIr105Info">FCI HRFI IR10.5 µm · 1 km · giorno/notte · EUMETSAT</div>
         <button class="btn" id="satCloudPhaseBtn">Satellite Cloud Phase RGB <span>OFF</span></button>
         <div class="layer-note" id="satCloudPhaseInfo">MTG FCI Cloud Phase RGB · microfisica delle nubi · diurno · EUMETSAT</div>
+        <button class="btn" id="satSnowFogBtn">Satellite Day Snow Fog RGB <span>OFF</span></button>
+        <div class="layer-note" id="satSnowFogInfo">MTG Day Snow Fog RGB · neve, nebbia e nubi basse · diurno · EUMETSAT</div>
+        <button class="btn" id="satPrecipRateBtn">Satellite Precipitation Rate <span>OFF</span></button>
+        <div class="layer-note" id="satPrecipRateInfo">H40B · rain rate al suolo · blended FCI IR / LEO MW · EUMETSAT H SAF</div>
       </div></div>
     </div>
 
@@ -715,6 +719,16 @@ const SAT_PRODUCTS={
     layer:'mtg_fd:rgb_cloudphase',
     label:'MTG Cloud Phase RGB',
     attribution:'© EUMETSAT · MTG FCI Cloud Phase RGB'
+  },
+  snowfog:{
+    layer:'mtg_fd:rgb_snow',
+    label:'MTG Day Snow Fog RGB',
+    attribution:'© EUMETSAT · MTG Day Snow Fog RGB'
+  },
+  preciprate:{
+    layer:'mtg_fd:h40b',
+    label:'MTG Precipitation Rate H40B',
+    attribution:'© EUMETSAT / H SAF · H40B Precipitation Rate'
   }
 };
 let satProduct='truecolour';
@@ -1930,19 +1944,35 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadMeteoa
 const satMetBtn=document.getElementById('satMetBtn'),satMetInfo=document.getElementById('satMetInfo');
 const satIr105Btn=document.getElementById('satIr105Btn'),satIr105Info=document.getElementById('satIr105Info');
 const satCloudPhaseBtn=document.getElementById('satCloudPhaseBtn'),satCloudPhaseInfo=document.getElementById('satCloudPhaseInfo');
+const satSnowFogBtn=document.getElementById('satSnowFogBtn'),satSnowFogInfo=document.getElementById('satSnowFogInfo');
+const satPrecipRateBtn=document.getElementById('satPrecipRateBtn'),satPrecipRateInfo=document.getElementById('satPrecipRateInfo');
 const satTimeline=document.getElementById('satTimeline'),satRange=document.getElementById('satRange'),satTime=document.getElementById('satTime'),satPlay=document.getElementById('satPlay');
 function syncTimelineStack(){layoutTimelineStack();legend()}
 function satLabel(d){return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' ·')}
-function satInfoEl(){return satProduct==='ir105'?satIr105Info:(satProduct==='cloudphase'?satCloudPhaseInfo:satMetInfo)}
+function satInfoEl(){
+  if(satProduct==='ir105')return satIr105Info;
+  if(satProduct==='cloudphase')return satCloudPhaseInfo;
+  if(satProduct==='snowfog')return satSnowFogInfo;
+  if(satProduct==='preciprate')return satPrecipRateInfo;
+  return satMetInfo
+}
 function satProductLabel(){return activeSatProduct().label}
 function updateSatProductUi(){
-  const tc=satMetOn&&satProduct==='truecolour',ir=satMetOn&&satProduct==='ir105',cp=satMetOn&&satProduct==='cloudphase';
+  const tc=satMetOn&&satProduct==='truecolour',
+        ir=satMetOn&&satProduct==='ir105',
+        cp=satMetOn&&satProduct==='cloudphase',
+        sf=satMetOn&&satProduct==='snowfog',
+        pr=satMetOn&&satProduct==='preciprate';
   satMetBtn.classList.toggle('active',tc);satMetBtn.lastElementChild.textContent=tc?'ON':'OFF';
   satIr105Btn.classList.toggle('active',ir);satIr105Btn.lastElementChild.textContent=ir?'ON':'OFF';
   satCloudPhaseBtn.classList.toggle('active',cp);satCloudPhaseBtn.lastElementChild.textContent=cp?'ON':'OFF';
+  satSnowFogBtn.classList.toggle('active',sf);satSnowFogBtn.lastElementChild.textContent=sf?'ON':'OFF';
+  satPrecipRateBtn.classList.toggle('active',pr);satPrecipRateBtn.lastElementChild.textContent=pr?'ON':'OFF';
   satMetInfo.classList.toggle('on',tc);
   satIr105Info.classList.toggle('on',ir);
-  satCloudPhaseInfo.classList.toggle('on',cp)
+  satCloudPhaseInfo.classList.toggle('on',cp);
+  satSnowFogInfo.classList.toggle('on',sf);
+  satPrecipRateInfo.classList.toggle('on',pr)
 }
 function buildSatFrames(latest){
   const end=new Date(latest),frames=[];
@@ -2178,6 +2208,8 @@ async function activateSatProduct(name){
 satMetBtn.onclick=()=>activateSatProduct('truecolour');
 satIr105Btn.onclick=()=>activateSatProduct('ir105');
 satCloudPhaseBtn.onclick=()=>activateSatProduct('cloudphase');
+satSnowFogBtn.onclick=()=>activateSatProduct('snowfog');
+satPrecipRateBtn.onclick=()=>activateSatProduct('preciprate');
 document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1)};
 document.getElementById('satNext').onclick=()=>{stopSatAnimation();showSatFrame(satIndex+1)};
 satPlay.onclick=()=>satAnimationRunning?stopSatAnimation():startSatAnimation();
