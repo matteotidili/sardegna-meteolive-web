@@ -687,7 +687,7 @@ const relief=(CAN_USE_WEBGL&&typeof L.maplibreGL==='function')
 const SAT_WMS='https://view.eumetsat.int/geoserver/wms';
 const SAT_LAYER='mtg_fd:rgb_truecolour';
 let satMetLayer=null,satPendingLayer=null,satHrfiLayer=null,satViewBounds=null,satActiveUrl='';
-let satMetOn=false,satHrfiOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null;
+let satMetOn=false,satHrfiOn=false,satFrames=[],satIndex=18,satTimer=null,satLatestTime=null,satAnimationRunning=false;
 let satPreloadPromise=null,satPreloadedImages=[],satViewGeneration=0,satSwapGeneration=0,satSliderTimer=null,satViewportTimer=null;
 
 function currentSatBounds(){return map.getBounds().pad(.08)}
@@ -1972,16 +1972,23 @@ function showSatFrame(i){
   swapSatImage(url,satViewBounds,d)
 }
 async function loadSatImageEntry(i,generation,bounds){
+  const existing=satPreloadedImages[i];
+  if(existing?.ready)return existing;
+  if(existing?.promise)return existing.promise;
   const d=satFrames[i],url=satImageUrl(d,0,bounds),img=new Image();
   img.crossOrigin='anonymous';
-  const ok=await new Promise(resolve=>{
-    img.onload=()=>resolve(true);img.onerror=()=>resolve(false);img.src=url
+  const entry={url,img,ready:false,promise:null};
+  entry.promise=new Promise(resolve=>{
+    img.onload=async()=>{
+      try{await img.decode()}catch(e){}
+      if(generation===satViewGeneration)entry.ready=true;
+      entry.promise=null;resolve(entry)
+    };
+    img.onerror=()=>{entry.promise=null;resolve(entry)};
+    img.src=url
   });
-  if(ok){try{await img.decode()}catch(e){}}
-  if(generation!==satViewGeneration)return null;
-  const entry={url,img,ready:ok};
   satPreloadedImages[i]=entry;
-  return entry
+  return entry.promise
 }
 async function preloadSatFrames(force=false){
   if(!satFrames.length||!satMetOn||satHrfiOn)return;
@@ -2006,22 +2013,40 @@ async function preloadSatFrames(force=false){
   return satPreloadPromise
 }
 function stopSatAnimation(){
+  satAnimationRunning=false;
   if(satTimer){clearTimeout(satTimer);satTimer=null}
   satPlay.textContent='▶';satPlay.classList.remove('active');satPlay.title='Riproduci'
 }
 async function startSatAnimation(){
-  if(!satFrames.length||satHrfiOn)return;
+  if(!satFrames.length||satHrfiOn||satAnimationRunning)return;
   stopSatAnimation();
-  satPlay.textContent='…';satPlay.classList.add('active');satPlay.title='Precaricamento animazione';
-  await preloadSatFrames();
-  if(!satMetOn||satHrfiOn)return stopSatAnimation();
+  satAnimationRunning=true;
+  satPlay.textContent='…';satPlay.classList.add('active');satPlay.title='Preparazione animazione';
+
+  const generation=satViewGeneration,bounds=satViewBounds||currentSatBounds();
+  satViewBounds=bounds;
+  const first=satIndex>=satFrames.length-1?0:satIndex+1;
+  const warm=[first,(first+1)%satFrames.length,(first+2)%satFrames.length];
+  await Promise.all(warm.map(i=>loadSatImageEntry(i,generation,bounds)));
+
+  if(!satAnimationRunning||!satMetOn||satHrfiOn||generation!==satViewGeneration){
+    stopSatAnimation();return
+  }
+
+  preloadSatFrames();
   satPlay.textContent='Ⅱ';satPlay.title='Pausa';
-  if(satIndex>=satFrames.length-1)satIndex=-1;
-  const advance=()=>{
-    if(!satMetOn||satHrfiOn){stopSatAnimation();return}
+
+  const advance=async()=>{
+    if(!satAnimationRunning||!satMetOn||satHrfiOn){stopSatAnimation();return}
     const next=satIndex>=satFrames.length-1?0:satIndex+1;
-    showSatFrame(next);
-    satTimer=setTimeout(advance,620)
+    const entry=await loadSatImageEntry(next,generation,bounds);
+    if(!satAnimationRunning||generation!==satViewGeneration){stopSatAnimation();return}
+    if(entry?.ready){
+      showSatFrame(next);
+      satTimer=setTimeout(advance,560)
+    }else{
+      satTimer=setTimeout(advance,220)
+    }
   };
   advance()
 }
@@ -2112,7 +2137,7 @@ satHrfiBtn.onclick=()=>{
 };
 document.getElementById('satPrev').onclick=()=>{stopSatAnimation();showSatFrame(satIndex-1)};
 document.getElementById('satNext').onclick=()=>{stopSatAnimation();showSatFrame(satIndex+1)};
-satPlay.onclick=()=>satTimer?stopSatAnimation():startSatAnimation();
+satPlay.onclick=()=>satAnimationRunning?stopSatAnimation():startSatAnimation();
 satRange.oninput=()=>{
   stopSatAnimation();
   const idx=Math.max(0,Math.min(satFrames.length-1,Number(satRange.value)));
