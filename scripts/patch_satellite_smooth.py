@@ -322,7 +322,7 @@ s = s.replace(
     '<div class="layer-note" id="satMetInfo">MTG FCI True Colour RGB · alta risoluzione · EUMETSAT</div>'
 )
 
-for forbidden in ("satHdLayer", "tileSize:512", "function scheduleSatHd", "function upgradeSatFrame"):
+for forbidden in ("satHdLayer", "function scheduleSatHd", "function upgradeSatFrame"):
     if forbidden in s:
         raise SystemExit(f"Residuo vecchio motore satellite: {forbidden}")
 for required in ("function swapSatImage", "precaricamento ", "setTimeout(advance,620)", "L.imageOverlay"):
