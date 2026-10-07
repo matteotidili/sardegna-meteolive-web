@@ -1,0 +1,41 @@
+name: Validate lightning live consistency
+
+on:
+  push:
+    branches: [fix/lightning-live-consistency]
+    paths:
+      - 'index.html'
+      - '.github/workflows/validate-lightning-live.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verifica sintassi e semantica feed
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('index.html').read_text(encoding='utf-8')
+          required=[
+            "LIGHTNING_CACHE_KEY='smm-lightning-history-v3'",
+            "return String(src)+':'+String(id)",
+            "function lightningViewport()",
+            "from_lightningmaps_org:true",
+            "i:{...lightningLastIdBySrc}",
+            "sendLightningSubscription('open')",
+            "scheduleLightningSubscription('u')",
+            "Object.assign(existing,stroke)"
+          ]
+          for item in required:
+              assert item in html, item
+          assert "LIGHTNING_MED_BOX" not in html
+          scripts=re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>',html,flags=re.I|re.S)
+          Path('/tmp/app.js').write_text(chr(10).join(scripts),encoding='utf-8')
+          PY
+          node --check /tmp/app.js
