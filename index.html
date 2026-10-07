@@ -386,9 +386,14 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 .hydro-chart-title{font-size:9px;font-weight:900;letter-spacing:.04em;color:#526775;margin-bottom:4px}
 .hydro-chart svg{display:block;width:100%;height:auto}
 .hydro-popup-note{margin-top:5px;font-size:8px;line-height:1.3;color:#6f808b}
-.hydro-scale{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;font-size:8px}
-.hydro-scale span{display:inline-flex;align-items:center;gap:4px}
+.hydro-scale{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:6px;font-size:8px}
+.hydro-scale span{display:grid;grid-template-columns:12px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;column-gap:5px;row-gap:1px;padding:5px 6px;border:1px solid #dbe5ea;border-radius:7px;background:#f7fafb}
+.hydro-scale span:last-child{grid-column:1/-1}
+.hydro-scale span .hydro-swatch{grid-row:1/3}
+.hydro-scale span b{font-size:8.5px;line-height:1.15;color:#263d49}
+.hydro-scale span small{font-size:7.5px;line-height:1.15;color:#6f808b}
 .hydro-swatch{width:10px;height:10px;border-radius:50%;border:1px solid #fff;box-shadow:0 0 0 1px #0002}
+@media(max-width:800px){.hydro-scale{grid-template-columns:1fr}}
 .hydro-swatch.normal{background:#31a8d8}.hydro-swatch.s1{background:#f1d54b}.hydro-swatch.s2{background:#f28c35}.hydro-swatch.s3{background:#dc3d3d}.hydro-swatch.stale{background:#7e8b94}
 
 
@@ -1728,10 +1733,10 @@ function hydroStageLabel(p){
   const st=hydroStage(p);
   if(st===-2)return 'DATO RITARDATO';
   if(st===-1)return 'DATO N/D';
-  if(st===3)return '≥ S3';
-  if(st===2)return 'S2–S3';
-  if(st===1)return 'S1–S2';
-  return '&lt; S1'
+  if(st===3)return 'SOGLIA 3 SUPERATA · S3';
+  if(st===2)return 'SOGLIA 2 SUPERATA · S2';
+  if(st===1)return 'SOGLIA 1 SUPERATA · S1';
+  return 'NESSUNA SOGLIA SUPERATA'
 }
 function hydroRadius(p){
   const st=hydroStage(p);
@@ -1838,9 +1843,15 @@ function showHydroPopup3d(p,lnglat){
 }
 function hydroLegendHtml(){
   if(!hydroOn)return '';
-  return '<div class="map-legend-row"><div class="map-legend-title">IDROMETRI ARPAS · LIVELLO / SOGLIE</div>'+
-    '<div class="hydro-scale"><span><i class="hydro-swatch normal"></i>&lt; S1</span><span><i class="hydro-swatch s1"></i>S1–S2</span><span><i class="hydro-swatch s2"></i>S2–S3</span><span><i class="hydro-swatch s3"></i>≥ S3</span><span><i class="hydro-swatch stale"></i>dato ritardato</span></div>'+
-    '<div class="map-legend-note">Click sull’idrometro: livello, trend, soglie e idrogramma.</div></div>'
+  return '<div class="map-legend-row"><div class="map-legend-title">IDROMETRI ARPAS · STATO DEL LIVELLO</div>'+
+    '<div class="hydro-scale">'+
+      '<span><i class="hydro-swatch normal"></i><b>Nessuna soglia superata</b><small>livello inferiore a S1</small></span>'+
+      '<span><i class="hydro-swatch s1"></i><b>Superata soglia 1</b><small>livello tra S1 e S2</small></span>'+
+      '<span><i class="hydro-swatch s2"></i><b>Superata soglia 2</b><small>livello tra S2 e S3</small></span>'+
+      '<span><i class="hydro-swatch s3"></i><b>Superata soglia 3</b><small>livello uguale o superiore a S3</small></span>'+
+      '<span><i class="hydro-swatch stale"></i><b>Dato ritardato</b><small>misura non sufficientemente aggiornata</small></span>'+
+    '</div>'+
+    '<div class="map-legend-note"><b>S1, S2 e S3</b> sono soglie specifiche della singola sezione idrometrica e non corrispondono ai livelli di allerta territoriale. Tocca/clicca un idrometro per livello, trend, soglie e idrogramma.</div></div>'
 }
 function updateHydroCounter(){
   const el=document.getElementById('hydroCounter');if(!el)return;
