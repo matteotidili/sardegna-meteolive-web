@@ -1,0 +1,31 @@
+name: Validate MeteoAlarm upcoming frontend
+
+on:
+  push:
+    branches: [fix/meteoalarm-upcoming-map]
+    paths:
+      - 'index.html'
+      - '.github/workflows/validate-meteoalarm-upcoming.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verifica sintassi e integrazione
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>',html,flags=re.I|re.S)
+          Path('/tmp/app.js').write_text('\n;\n'.join(scripts),encoding='utf-8')
+          assert "period||'active'" in html
+          assert "dashArray:upcoming?'8 6':null" in html
+          assert "upcoming_feature_count" in html
+          PY
+          node --check /tmp/app.js
