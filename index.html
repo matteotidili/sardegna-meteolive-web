@@ -2013,6 +2013,18 @@ async function loadSatImageEntry(i,generation,bounds){
   satPreloadedImages[i]=entry;
   return entry.promise
 }
+async function preloadSatNeighbors(center=satIndex){
+  if(!satFrames.length||!satMetOn)return;
+  const generation=satViewGeneration,bounds=satViewBounds||currentSatBounds();
+  satViewBounds=bounds;
+  const offsets=MOBILE_MAP()?[-1]:[-1,-2,1];
+  const targets=[...new Set(offsets.map(o=>center+o).filter(i=>i>=0&&i<satFrames.length))];
+  for(const i of targets){
+    if(!satPreloadedImages[i]?.ready&&!satPreloadedImages[i]?.promise){
+      loadSatImageEntry(i,generation,bounds)
+    }
+  }
+}
 async function preloadSatFrames(force=false){
   if(!satFrames.length||!satMetOn)return;
   if(satPreloadPromise&&!force)return satPreloadPromise;
@@ -2083,11 +2095,13 @@ async function loadSatTimeline(forceLatest=true){
       buildSatFrames(newLatest);
       satViewBounds=currentSatBounds();
       clearSatFrameCache();
-      if(forceLatest||wasLatest)showSatFrame(satFrames.length-1);
-      preloadSatFrames()
+      if(forceLatest||wasLatest){
+        showSatFrame(satFrames.length-1);
+        setTimeout(()=>preloadSatNeighbors(satFrames.length-1),450)
+      }
     }else if(forceLatest&&satFrames.length){
       showSatFrame(satFrames.length-1);
-      preloadSatFrames()
+      setTimeout(()=>preloadSatNeighbors(satFrames.length-1),450)
     }
   }catch(e){
     satInfoEl().innerHTML=satProductLabel()+' · aggiornamento non disponibile<br>© EUMETSAT'
@@ -2103,7 +2117,7 @@ function refreshSatViewport(){
     clearSatFrameCache();
     satActiveUrl='';
     showSatFrame(satIndex);
-    preloadSatFrames()
+    setTimeout(()=>preloadSatNeighbors(satIndex),450)
   },160)
 }
 map.on('moveend zoomend',refreshSatViewport);
@@ -2159,11 +2173,17 @@ satRange.oninput=()=>{
   satIndex=idx;
   if(satFrames[idx])satTime.textContent=satLabel(satFrames[idx]);
   if(satSliderTimer)clearTimeout(satSliderTimer);
-  satSliderTimer=setTimeout(()=>{satSliderTimer=null;showSatFrame(idx)},90)
+  satSliderTimer=setTimeout(()=>{
+    satSliderTimer=null;
+    showSatFrame(idx);
+    setTimeout(()=>preloadSatNeighbors(idx),320)
+  },90)
 };
 satRange.onchange=()=>{
   if(satSliderTimer){clearTimeout(satSliderTimer);satSliderTimer=null}
-  showSatFrame(Number(satRange.value))
+  const idx=Number(satRange.value);
+  showSatFrame(idx);
+  setTimeout(()=>preloadSatNeighbors(idx),320)
 };
 setInterval(()=>{if(satMetOn&&!satAnimationRunning&&satIndex===satFrames.length-1)loadSatTimeline(false)},5*60*1000);
 const stationsBtn=document.getElementById('stationsBtn');
