@@ -1,0 +1,39 @@
+name: Migliora legenda idrometri
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/patch_hydro_legend.py'
+      - '.github/workflows/patch-hydro-legend.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - run: python scripts/patch_hydro_legend.py
+      - name: Verifica JavaScript
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          s=Path('index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)</script>',s,re.I)
+          Path('/tmp/inline.js').write_text('\n'.join(scripts),encoding='utf-8')
+          PY
+          node --check /tmp/inline.js
+      - name: Pubblica
+        run: |
+          git config user.name "sardegna-meteolive-web-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Rende più chiara la legenda degli idrometri" || exit 0
+          git push
