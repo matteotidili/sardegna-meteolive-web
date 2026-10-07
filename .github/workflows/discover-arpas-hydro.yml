@@ -1,0 +1,47 @@
+name: Scopri endpoint ARPAS idrometri
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/discover-arpas-hydro.yml'
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Scarica configurazione dashboard
+        run: |
+          set -e
+          ITEM='0a1dc031c476445493f758af2e2f848a'
+          curl -L --fail --silent --show-error "https://www.arcgis.com/sharing/rest/content/items/$ITEM?f=pjson" -o /tmp/item.json
+          curl -L --fail --silent --show-error "https://www.arcgis.com/sharing/rest/content/items/$ITEM/data?f=pjson" -o /tmp/data.json
+          echo '=== ITEM ==='
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/item.json'))
+          for k in ['id','title','type','url','owner','access','modified']:
+              print(k,':',d.get(k))
+          PY
+          echo '=== URLS NEL DASHBOARD ==='
+          python - <<'PY'
+          import json,re
+          d=json.load(open('/tmp/data.json'))
+          text=json.dumps(d,ensure_ascii=False)
+          urls=sorted(set(re.findall(r'https?://[^"\\ ]+',text)))
+          for u in urls:
+              if any(x in u.lower() for x in ['featureserver','mapserver','sharing/rest','arcgis.com']):
+                  print(u)
+          print('TOTAL_URLS',len(urls))
+          PY
+          echo '=== ITEM IDS NEL DASHBOARD ==='
+          python - <<'PY'
+          import json,re
+          d=json.load(open('/tmp/data.json'))
+          text=json.dumps(d)
+          ids=sorted(set(re.findall(r'(?i)\b[a-f0-9]{32}\b',text)))
+          for x in ids:
+              print(x)
+          PY
