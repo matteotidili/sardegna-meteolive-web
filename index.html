@@ -1001,6 +1001,14 @@ function first3dSymbolLayer(){
 function hide3dPrecipLayer(id){
   if(map3d?.getLayer(id))map3d.setLayoutProperty(id,'visibility','none')
 }
+function raise3dOperationalLayers(){
+  if(!map3d||!map3d.isStyleLoaded())return;
+  for(const id of ['stations-3d-points','stations-3d-labels','lightning-3d-points']){
+    if(map3d.getLayer(id)){
+      try{map3d.moveLayer(id)}catch(e){}
+    }
+  }
+}
 function ensure3dDpcLayer(){
   if(!map3d||!map3d.isStyleLoaded())return false;
   if(!map3d.getSource('dpc-precip-3d')){
@@ -1071,15 +1079,18 @@ function sync3dPrecipLayers(){
     if(ensure3dOperaLayer(operaFrames[operaIndex])){
       map3d.setLayoutProperty('opera-radar-3d-layer','visibility','visible')
     }
+    raise3dOperationalLayers();
     return
   }
   if(radarOn&&radarFrames[radarIndex]){
     update3dDpcLayer('SRI',radarFrames[radarIndex],.92);
+    raise3dOperationalLayers();
     return
   }
   if(cumActive&&cumLayer?._productKey&&cumLayer?._frame){
     update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.88)
   }
+  raise3dOperationalLayers()
 }
 function schedule3dPrecipSync(delay=70){
   if(!mode3d)return;
@@ -1093,18 +1104,31 @@ function ensure3dDataLayers(){
     map3d.addLayer({
       id:'stations-3d-points',type:'circle',source:'stations-3d',
       paint:{
-        'circle-radius':['interpolate',['linear'],['zoom'],6,5.5,10,7,14,9],
+        'circle-radius':['interpolate',['linear'],['zoom'],6,6.5,10,8.5,14,11],
         'circle-color':['get','color'],
-        'circle-stroke-color':'#07111d','circle-stroke-width':1.4,'circle-opacity':.96
+        'circle-stroke-color':'#ffffff',
+        'circle-stroke-width':['interpolate',['linear'],['zoom'],6,1.6,10,2.1,14,2.6],
+        'circle-opacity':.98,
+        'circle-stroke-opacity':.96
       }
     });
     map3d.addLayer({
-      id:'stations-3d-labels',type:'symbol',source:'stations-3d',minzoom:7,
+      id:'stations-3d-labels',type:'symbol',source:'stations-3d',minzoom:6.3,
       layout:{
-        'text-field':['get','label'],'text-size':10,'text-offset':[0,-1.25],
-        'text-anchor':'bottom','text-allow-overlap':false,'text-ignore-placement':false
+        'text-field':['get','label3d'],
+        'text-size':['interpolate',['linear'],['zoom'],6.3,9,9,10.5,13,12],
+        'text-offset':[0,-1.45],
+        'text-anchor':'bottom',
+        'text-line-height':1.05,
+        'text-allow-overlap':false,
+        'text-ignore-placement':false
       },
-      paint:{'text-color':'#061018','text-halo-color':'rgba(255,255,255,.9)','text-halo-width':1.2}
+      paint:{
+        'text-color':'#07111d',
+        'text-halo-color':'rgba(255,255,255,.96)',
+        'text-halo-width':1.8,
+        'text-halo-blur':.2
+      }
     });
     map3d.on('click','stations-3d-points',e=>{
       const f=e.features&&e.features[0];if(!f)return;
@@ -1141,10 +1165,14 @@ function update3dStations(){
     properties:{
       name:s.name||'Stazione',
       net:s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna',
-      param:P[cur].n,label:fmt(s[cur],cur,s),color:col(s[cur],P[cur].st)
+      param:P[cur].n,
+      label:fmt(s[cur],cur,s),
+      label3d:(s.name||'Stazione')+'\n'+fmt(s[cur],cur,s),
+      color:col(s[cur],P[cur].st)
     }
   })):[];
-  map3d.getSource('stations-3d').setData(fc(features))
+  map3d.getSource('stations-3d').setData(fc(features));
+  raise3dOperationalLayers()
 }
 function lightningColor(ageMin){
   if(ageMin<5)return '#fff34d';
