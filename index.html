@@ -1172,7 +1172,11 @@ function update3dStations(){
     }
   })):[];
   map3d.getSource('stations-3d').setData(fc(features));
-  raise3dOperationalLayers()
+  raise3dOperationalLayers();
+  if(mode3d){
+    const status=document.getElementById('status');
+    if(status)status.textContent='Vista 3D · '+features.length+' stazioni · '+P[cur].n+' · precipitazioni e fulmini compatibili'
+  }
 }
 function lightningColor(ageMin){
   if(ageMin<5)return '#fff34d';
@@ -1249,8 +1253,15 @@ function ensureMap3d(){
           }
         },firstSymbol)
       }
-      ensure3dDataLayers()
-    }catch(e){console.warn('3D init',e)}
+    }catch(e){console.warn('3D terrain/buildings init',e)}
+
+    // Gli overlay operativi non devono dipendere dal successo di terreno/edifici.
+    try{ensure3dDataLayers()}catch(e){console.warn('3D data layers init',e)}
+
+    // Secondo tentativo a stile completamente assestato.
+    map3d.once('idle',()=>{
+      try{ensure3dDataLayers()}catch(e){console.warn('3D data layers idle',e)}
+    })
   });
   return map3d
 }
@@ -1264,6 +1275,8 @@ function enter3d(){
   m.resize();
   m.jumpTo({center:[c.lng,c.lat],zoom:map.getZoom(),pitch:48,bearing:m.getBearing()||-12});
   if(m.isStyleLoaded())ensure3dDataLayers();
+  setTimeout(()=>{if(mode3d&&map3d?.isStyleLoaded())ensure3dDataLayers()},250);
+  setTimeout(()=>{if(mode3d&&map3d?.isStyleLoaded())ensure3dDataLayers()},900);
   schedule3dPrecipSync(80);
   const status=document.getElementById('status');
   statusBefore3d=status.textContent;
