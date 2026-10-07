@@ -311,23 +311,24 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 /* Navigazione layer semplificata e notifica operativa Sardegna. */
 .control-guide{margin:0 0 8px;padding:9px 10px;border:1px solid #dbe5ea;border-radius:9px;background:#f5f8fa;color:#587080;font-size:9px;line-height:1.4}
 .control-section-label{padding:8px 4px 4px;color:#6f8797;font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
-.sardinia-alert-banner{margin-left:auto;min-width:0;max-width:min(560px,48vw);display:flex;align-items:center;gap:7px;border:1px solid transparent;border-radius:999px;padding:8px 12px;font:900 10px Inter,system-ui,Arial;letter-spacing:.035em;cursor:pointer;box-shadow:0 2px 8px #0002;white-space:nowrap;overflow:hidden}
+.sardinia-alert-banner{margin-left:auto;min-width:0;max-width:min(640px,55vw);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;border:1px solid transparent;border-radius:11px;padding:6px 12px;font:900 10px Inter,system-ui,Arial;line-height:1.18;letter-spacing:.035em;cursor:pointer;box-shadow:0 2px 8px #0002;overflow:hidden;text-align:left}
 .sardinia-alert-banner[hidden]{display:none!important}
-.sardinia-alert-banner .sardinia-alert-main{flex:0 0 auto}
-.sardinia-alert-banner .sardinia-alert-hazards{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:750;opacity:.9}
+.sardinia-alert-banner .sardinia-alert-main{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sardinia-alert-banner .sardinia-alert-hazards{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px;font-weight:800;letter-spacing:.015em;opacity:.92}
 .sardinia-alert-banner.level-2{background:#fff6bf;border-color:#d8b900;color:#6b5600}
 .sardinia-alert-banner.level-3{background:#ffe2bf;border-color:#e17800;color:#7a3900}
 .sardinia-alert-banner.level-4{background:#ffd2d2;border-color:#d52d2d;color:#8d1111}
 .sardinia-alert-banner.stale{box-shadow:inset 0 0 0 2px #fff7}
 header .live{margin-left:0}
 @media(max-width:800px){
-  .sardinia-alert-banner{margin-left:auto;max-width:44vw;padding:7px 9px;font-size:9px;gap:4px}
-  .sardinia-alert-banner .sardinia-alert-hazards{display:none}
+  .sardinia-alert-banner{margin-left:auto;max-width:55vw;padding:6px 8px;font-size:8.5px;gap:2px}
+  .sardinia-alert-banner .sardinia-alert-hazards{font-size:7.5px}
   .control-guide{font-size:10px;padding:10px 11px}
   .control-section-label{font-size:9px;padding-top:10px}
 }
 @media(max-width:480px){
-  .sardinia-alert-banner{max-width:50vw;font-size:8px;padding:7px 8px}
+  .sardinia-alert-banner{max-width:58vw;font-size:7.8px;padding:6px 7px}
+  .sardinia-alert-banner .sardinia-alert-hazards{font-size:7px}
 }
 
 /* MeteoAlarm: pannello operativo e simbologia delle allerte. */
@@ -434,8 +435,7 @@ header .live{margin-left:0}
         <div class="layer-note on" id="meteoalarmInfo">
           <div class="meteoalarm-summary" id="meteoalarmSummary">Caricamento allerte MeteoAlarm…</div>
           <label>Periodo <select id="meteoalarmPeriod"><option value="active">In vigore adesso</option><option value="upcoming">Prossime allerte</option></select></label>
-          <details class="meteoalarm-source"><summary>Copertura e disponibilità dei paesi</summary><div id="meteoalarmCoverage"></div></details>
-          <div class="meteoalarm-source">Fonte: MeteoAlarm / EUMETNET · feed CAP dei paesi mediterranei coperti. Gli avvisi italiani non sostituiscono i bollettini della Protezione Civile.</div>
+          <div class="meteoalarm-source">Fonte MeteoAlarm / EUMETNET</div>
         </div>
       </div></div>
     </div>
@@ -1342,6 +1342,16 @@ function meteoalarmTime(value){
   const d=new Date(value);if(!Number.isFinite(d.getTime()))return '—';
   return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
 }
+function meteoalarmValidity(startValue,endValue){
+  const start=new Date(startValue),end=new Date(endValue);
+  if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime()))return 'VALIDITÀ N/D';
+  const day=d=>d.toLocaleDateString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit'});
+  const time=d=>d.toLocaleTimeString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit'});
+  const startDay=day(start),endDay=day(end);
+  return startDay===endDay
+    ? 'VALIDITÀ '+startDay+' · '+time(start)+'–'+time(end)
+    : 'VALIDITÀ '+startDay+' '+time(start)+' → '+endDay+' '+time(end)
+}
 function meteoalarmKey(w,i){
   return [w.id||'',w.area_desc||'',w.onset||'',w.expires||'',i].join('|')
 }
@@ -1370,14 +1380,19 @@ function syncSardiniaAlertBanner(){
   sardiniaAlertBanner.classList.remove('level-2','level-3','level-4','stale');
   if(!warnings.length){sardiniaAlertBanner.hidden=true;sardiniaAlertBanner.dataset.period='';return}
   const level=Math.max(...warnings.map(w=>Number(w.level)||0));
-  const hazards=[...new Set(warnings.map(w=>w.type_name||w.event).filter(Boolean))].slice(0,3);
+  const primary=warnings.filter(w=>Number(w.level)===level);
+  const hazards=[...new Set(primary.map(w=>w.type_name||w.event).filter(Boolean))].slice(0,3);
+  const starts=primary.map(w=>Date.parse(w.onset||w.effective)).filter(Number.isFinite);
+  const ends=primary.map(w=>Date.parse(w.expires)).filter(Number.isFinite);
+  const validity=starts.length&&ends.length?meteoalarmValidity(Math.min(...starts),Math.max(...ends)):'VALIDITÀ N/D';
+  const phenomena=hazards.length?'FENOMENI '+hazards.join(' · '):'FENOMENI N/D';
   sardiniaAlertBanner.hidden=false;
   sardiniaAlertBanner.dataset.period=period;
   sardiniaAlertBanner.classList.add('level-'+Math.max(2,Math.min(4,level)));
   if(!meteoalarmFresh())sardiniaAlertBanner.classList.add('stale');
-  sardiniaAlertMain.textContent='⚠ SARDEGNA · '+(period==='upcoming'?'PROSSIMA · ':'')+meteoalarmLevelLabel(level);
-  sardiniaAlertHazards.textContent=meteoalarmFresh()?(hazards.length?'· '+hazards.join(' · '):''):'· DATI DA VERIFICARE';
-  sardiniaAlertBanner.title=period==='active'?'Apri le allerte attive sulla Sardegna':'Apri le prossime allerte sulla Sardegna'
+  sardiniaAlertMain.textContent='⚠ SARDEGNA · '+(period==='upcoming'?'PROSSIMA':'IN VIGORE')+' · '+meteoalarmLevelLabel(level);
+  sardiniaAlertHazards.textContent=meteoalarmFresh()?phenomena+' · '+validity:'DATI DA VERIFICARE · '+phenomena+' · '+validity;
+  sardiniaAlertBanner.title=(period==='active'?'Allerta in vigore':'Prossima allerta')+' sulla Sardegna · '+phenomena+' · '+validity
 }
 function syncMeteoalarmBadge(){
   const el=document.getElementById('accAlertsState');if(!el)return;
@@ -1500,7 +1515,6 @@ function renderMeteoalarmList(){
   meteoalarmSummary.textContent=(meteoalarmFresh()?'':'AGGIORNAMENTO IN RITARDO: ultimi avvisi ricevuti, possibili variazioni non acquisite. ')+(warnings.length
     ? 'Allerte '+period+' · massimo '+meteoalarmLevelLabel(level)
     : 'Nessun avviso '+period+' nei dati ricevuti')+' · ultimo controllo '+stamp+' (ora italiana)';
-  document.getElementById('meteoalarmCoverage').textContent=(d.countries||[]).map(c=>c.country+': '+(c.status==='ok'?'verificato':c.status==='partial'?'dati incompleti':'non disponibile')).join(' · ')+'. Senza copertura in questa integrazione: '+(d.uncovered||[]).join(', ');
   syncMeteoalarmBadge()
 }
 async function loadMeteoalarm(forceRender=true){
