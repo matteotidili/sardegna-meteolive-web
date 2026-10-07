@@ -1,0 +1,28 @@
+name: Benchmark WMS satellite
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/benchmark-satellite-wms.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Benchmark True Colour
+        run: |
+          BASE='https://view.eumetsat.int/geoserver/ows?service=WMS&request=GetMap&version=1.1.1&layers=mtg_fd:rgb_truecolour&styles=&srs=EPSG:4326&bbox=7.2,38.2,10.8,41.8'
+          for spec in '800 800 image/jpeg jpg800' '1200 1200 image/jpeg jpg1200' '1600 1600 image/jpeg jpg1600' '1200 1200 image/png png1200'; do
+            set -- $spec
+            curl -L --fail --silent --show-error -o "/tmp/$4" -w "$4 time=%{time_total} size=%{size_download}\n" "$BASE&format=$3&width=$1&height=$2"
+          done
+      - name: Benchmark IR10.5
+        run: |
+          BASE='https://view.eumetsat.int/geoserver/ows?service=WMS&request=GetMap&version=1.1.1&layers=mtg_fd:ir105_hrfi&styles=&srs=EPSG:4326&bbox=7.2,38.2,10.8,41.8'
+          for spec in '800 800 image/jpeg jpg800' '1200 1200 image/jpeg jpg1200' '1600 1600 image/jpeg jpg1600' '1200 1200 image/png png1200'; do
+            set -- $spec
+            curl -L --fail --silent --show-error -o "/tmp/$4" -w "$4 time=%{time_total} size=%{size_download}\n" "$BASE&format=$3&width=$1&height=$2"
+          done
