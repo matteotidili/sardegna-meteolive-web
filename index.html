@@ -394,7 +394,7 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 .hydro-scale span small{font-size:7.5px;line-height:1.15;color:#6f808b}
 .hydro-swatch{width:10px;height:10px;border-radius:50%;border:1px solid #fff;box-shadow:0 0 0 1px #0002}
 @media(max-width:800px){.hydro-scale{grid-template-columns:1fr}}
-.hydro-swatch.normal{background:#31a8d8}.hydro-swatch.s1{background:#f1d54b}.hydro-swatch.s2{background:#f28c35}.hydro-swatch.s3{background:#dc3d3d}.hydro-swatch.stale{background:#7e8b94}
+.hydro-swatch.normal{background:#31a8d8}.hydro-swatch.s1{background:#f1d54b}.hydro-swatch.s2{background:#f28c35}.hydro-swatch.s3{background:#dc3d3d}.hydro-swatch.nosoglia{background:#8aa0ad}.hydro-swatch.stale{background:#7e8b94}
 
 
 .control-section-label{padding:8px 4px 4px;color:#6f8797;font-size:8px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}
@@ -1712,7 +1712,14 @@ function layoutTimelineStack(){
   }
 }
 function syncLegendPosition(){layoutTimelineStack()}
-function hydroNum(v){const n=Number(v);return Number.isFinite(n)?n:null}
+function hydroNum(v){
+  if(v===null||v===undefined||v==='')return null;
+  const n=Number(v);
+  return Number.isFinite(n)?n:null
+}
+function hydroHasThresholds(p){
+  return hydroNum(p?.s1)!==null||hydroNum(p?.s2)!==null||hydroNum(p?.s3)!==null
+}
 function hydroStale(p){
   const t=hydroNum(p?.time);
   return !t||Date.now()-t>2*60*60*1000
@@ -1721,16 +1728,18 @@ function hydroStage(p){
   const v=hydroNum(p?.value),s1=hydroNum(p?.s1),s2=hydroNum(p?.s2),s3=hydroNum(p?.s3);
   if(v===null)return -1;
   if(hydroStale(p))return -2;
+  if(!hydroHasThresholds(p))return -3;
   if(s3!==null&&v>=s3)return 3;
   if(s2!==null&&v>=s2)return 2;
   if(s1!==null&&v>=s1)return 1;
   return 0
 }
 function hydroColor(p){
-  return ({'-2':'#7e8b94','-1':'#7e8b94','0':'#31a8d8','1':'#f1d54b','2':'#f28c35','3':'#dc3d3d'})[String(hydroStage(p))]||'#7e8b94'
+  return ({'-3':'#8aa0ad','-2':'#7e8b94','-1':'#7e8b94','0':'#31a8d8','1':'#f1d54b','2':'#f28c35','3':'#dc3d3d'})[String(hydroStage(p))]||'#7e8b94'
 }
 function hydroStageLabel(p){
   const st=hydroStage(p);
+  if(st===-3)return 'SOGLIE NON DISPONIBILI';
   if(st===-2)return 'DATO RITARDATO';
   if(st===-1)return 'DATO N/D';
   if(st===3)return 'SOGLIA 3 SUPERATA · S3';
@@ -1845,10 +1854,11 @@ function hydroLegendHtml(){
   if(!hydroOn)return '';
   return '<div class="map-legend-row"><div class="map-legend-title">IDROMETRI ARPAS · STATO DEL LIVELLO</div>'+
     '<div class="hydro-scale">'+
-      '<span><i class="hydro-swatch normal"></i><b>Nessuna soglia superata</b><small>livello inferiore a S1</small></span>'+
-      '<span><i class="hydro-swatch s1"></i><b>Superata soglia 1</b><small>livello tra S1 e S2</small></span>'+
-      '<span><i class="hydro-swatch s2"></i><b>Superata soglia 2</b><small>livello tra S2 e S3</small></span>'+
-      '<span><i class="hydro-swatch s3"></i><b>Superata soglia 3</b><small>livello uguale o superiore a S3</small></span>'+
+      '<span><i class="hydro-swatch normal"></i><b>Regime ordinario</b><small>livello sotto la prima soglia S1</small></span>'+
+      '<span><i class="hydro-swatch s1"></i><b>Prima soglia superata</b><small>livello tra S1 e S2</small></span>'+
+      '<span><i class="hydro-swatch s2"></i><b>Seconda soglia superata</b><small>livello tra S2 e S3</small></span>'+
+      '<span><i class="hydro-swatch s3"></i><b>Terza soglia superata</b><small>livello uguale o superiore a S3</small></span>'+
+      '<span><i class="hydro-swatch nosoglia"></i><b>Soglie non disponibili</b><small>livello misurato, ma S1–S2–S3 non definite nella sorgente</small></span>'+
       '<span><i class="hydro-swatch stale"></i><b>Dato ritardato</b><small>misura non sufficientemente aggiornata</small></span>'+
     '</div>'+
     '<div class="map-legend-note"><b>S1, S2 e S3</b> sono soglie specifiche della singola sezione idrometrica e non corrispondono ai livelli di allerta territoriale. Tocca/clicca un idrometro per livello, trend, soglie e idrogramma.</div></div>'
@@ -1860,7 +1870,8 @@ function updateHydroCounter(){
   const times=hydroFeatures.map(f=>hydroNum(f.properties?.time)).filter(v=>v!==null);
   const latest=times.length?Math.max(...times):null;
   const high=hydroFeatures.filter(f=>hydroStage(f.properties)>=1).length;
-  el.textContent=hydroFeatures.length+' sezioni · '+(latest?hydroTimeLabel(latest):'—')+(high?' · '+high+' ≥ S1':'')
+  const withThresholds=hydroFeatures.filter(f=>hydroHasThresholds(f.properties)).length;
+  el.textContent=hydroFeatures.length+' sezioni · '+withThresholds+' con soglie · '+(latest?hydroTimeLabel(latest):'—')+(high?' · '+high+' ≥ S1':'')
 }
 function renderHydroLayer(){
   hydroLayer.clearLayers();
