@@ -32,7 +32,7 @@ jobs:
           ]
           for item in required:
               assert item in html, item
-          scripts=re.findall(r'<script(?![^>]*\\bsrc=)[^>]*>(.*?)</script>',html,flags=re.I|re.S)
-          Path('/tmp/app.js').write_text('\\n;\\n'.join(scripts),encoding='utf-8')
+          scripts=re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>',html,flags=re.I|re.S)
+          Path('/tmp/app.js').write_text(chr(10).join(scripts),encoding='utf-8')
           PY
           node --check /tmp/app.js
