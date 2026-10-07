@@ -1,4 +1,4 @@
-name: Debug LightningMaps frontend filters
+name: Debug LightningMaps websocket behavior
 
 on:
   push:
@@ -12,32 +12,18 @@ permissions:
 jobs:
   debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
-      - name: Ispeziona script pubblici LightningMaps
+      - name: Estrai logica websocket pubblica
         run: |
           python - <<'PY'
-          import re, urllib.request, urllib.parse
-          base='https://www.lightningmaps.org/'
-          req=urllib.request.Request(base,headers={'User-Agent':'Mozilla/5.0'})
-          html=urllib.request.urlopen(req,timeout=30).read().decode('utf-8','replace')
-          scripts=re.findall(r'<script[^>]+src=["\']([^"\']+)',html,re.I)
-          print('SCRIPTS',scripts)
-          for src in scripts:
-              url=urllib.parse.urljoin(base,src)
-              try:
-                  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
-                  txt=urllib.request.urlopen(req,timeout=30).read().decode('utf-8','replace')
-              except Exception as e:
-                  print('ERR',url,type(e).__name__,e)
-                  continue
-              if any(k in txt for k in ['live2.lightningmaps.org','strokes','dev','deviation']):
-                  print('FILE',url,'LEN',len(txt))
-                  for pat in ['live2.lightningmaps.org','\.dev','dev[^a-zA-Z0-9_]','deviation','strokes','5000','10000','15000']:
-                      m=list(re.finditer(pat,txt,re.I))
-                      if m:
-                          print('PATTERN',pat,'COUNT',len(m))
-                          for x in m[:20]:
-                              a=max(0,x.start()-240);b=min(len(txt),x.end()+420)
-                              print('CTX',re.sub(r'\s+',' ',txt[a:b]))
+          import urllib.request,re
+          u='https://www.lightningmaps.org/min/index.php?f=js/realtime.js'
+          req=urllib.request.Request(u,headers={'User-Agent':'Mozilla/5.0'})
+          s=urllib.request.urlopen(req,timeout=30).read().decode('utf-8','replace')
+          for token in ['live.data.ws_send=function','live.data.insert=function']:
+              i=s.find(token)
+              print('TOKEN',token,'AT',i)
+              if i>=0:
+                  print(s[i:i+6500])
           PY
