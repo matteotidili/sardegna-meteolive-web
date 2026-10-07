@@ -439,10 +439,9 @@ header .live{margin-left:0}
 
     <div class="accordion-item" data-acc-item="precip">
       <button class="accordion-head" type="button" data-acc="precip" aria-expanded="false">
-        <span class="acc-title">Precipitazioni e temporali</span><span class="acc-state" id="accPrecipState">OFF</span><span class="acc-chevron">⌄</span>
+        <span class="acc-title">Precipitazioni</span><span class="acc-state" id="accPrecipState">OFF</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
-        <div class="control-section-label">Radar e pioggia</div>
         <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
         <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
@@ -459,7 +458,14 @@ header .live{margin-left:0}
           </div>
           <div id="cumStamp" style="margin-top:7px"></div>
         </div>
-        <div class="control-section-label">Attività elettrica</div>
+      </div></div>
+    </div>
+
+    <div class="accordion-item" data-acc-item="lightning">
+      <button class="accordion-head" type="button" data-acc="lightning" aria-expanded="false">
+        <span class="acc-title">Fulmini</span><span class="acc-state" id="accLightningState">OFF</span><span class="acc-chevron">⌄</span>
+      </button>
+      <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="lightningBtn">Fulmini <span>OFF</span></button>
         <div class="layer-note" id="lightningInfo">Blitzortung / LightningMaps · LIVE + storico 2 h<div id="lightningMeta" style="margin-top:5px">LIVE realtime · storico MTG LI a passi di 5 min</div></div>
       </div></div>
@@ -1125,8 +1131,9 @@ function setAccState(id,text,on=false){
 function syncAccordionStates(){
   const baseNames={operational:'Operativa',light:'Chiara',sat:'Satellite',relief:'Rilievo','3d':'3D'};
   setAccState('accBaseState',baseNames[currentBaseMode]||'Operativa',true);
-  const nowcastOn=radarOn||operaOn||!!cumActive||lightningOn;
-  setAccState('accPrecipState',nowcastOn?'ATTIVO':'OFF',nowcastOn);
+  const precipOn=radarOn||operaOn||!!cumActive;
+  setAccState('accPrecipState',precipOn?'ATTIVO':'OFF',precipOn);
+  setAccState('accLightningState',lightningOn?'ATTIVO':'OFF',lightningOn);
   setAccState('accSatelliteState',satMetOn?'ON':'OFF',satMetOn);
   setAccState('accFiresState',frpOn?'ON':'OFF',frpOn);
   syncMeteoalarmBadge()
