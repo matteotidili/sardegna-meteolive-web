@@ -60,7 +60,7 @@ new_props="""      name:s.name||'Stazione',
       net:s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna',
       param:P[cur].n,
       label:fmt(s[cur],cur,s),
-      label3d:(s.name||'Stazione')+'\n'+fmt(s[cur],cur,s),
+      label3d:(s.name||'Stazione')+'\\n'+fmt(s[cur],cur,s),
       color:col(s[cur],P[cur].st)"""
 if old_props not in s:
     raise SystemExit("properties stazioni 3D non trovate")
