@@ -388,6 +388,22 @@ header .live{margin-left:0}
   .meteoalarm-summary{font-size:10px}.meteoalarm-card{padding:10px}.meteoalarm-card-title{font-size:11px}.meteoalarm-card-area{font-size:10px}.meteoalarm-card-time{font-size:9px}
 }
 
+/* MTG FCI Fire Radiative Power */
+.frp-controls{margin-top:7px;padding-top:7px;border-top:1px solid #1d3447}
+.frp-controls label{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#8fa5b8;font-size:8px;font-weight:800}
+.frp-controls select{min-width:132px;border:1px solid #2a4358;border-radius:7px;background:#0d1b29;color:#d8e6f2;padding:5px 7px;font:800 8px Inter,system-ui,Arial}
+.frp-status{margin-top:6px;color:#9fb5c8;font-size:8px;line-height:1.35}
+.frp-scale{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:6px;font-size:7px;color:#34495a}
+.frp-scale span{display:flex;align-items:center;justify-content:center;gap:4px;min-width:0}
+.frp-swatch{width:11px;height:11px;flex:0 0 11px;border-radius:50%;border:1px solid #5b6570}
+.frp-swatch.low{background:#ffd54a}.frp-swatch.mid{background:#ff9f1a}.frp-swatch.high{background:#ef5b35}.frp-swatch.very-high{background:#9f2438}
+@media(max-width:800px){
+  .frp-controls select{min-width:118px}
+  .frp-scale{gap:3px;font-size:6.5px}
+  .frp-scale span{flex-direction:column;gap:2px;text-align:center}
+  .frp-swatch{width:10px;height:10px;flex-basis:10px}
+}
+
 </style>
 </head>
 <body>
@@ -461,6 +477,27 @@ header .live{margin-left:0}
       </div></div>
     </div>
 
+    <div class="accordion-item" data-acc-item="fires">
+      <button class="accordion-head" type="button" data-acc="fires" aria-expanded="false">
+        <span class="acc-title">Incendi</span><span class="acc-state" id="accFiresState">OFF</span><span class="acc-chevron">⌄</span>
+      </button>
+      <div class="accordion-body"><div class="accordion-inner">
+        <button class="btn" id="frpBtn">Incendi · MTG FCI FRP <span>OFF</span></button>
+        <div class="layer-note" id="frpInfo">
+          <div>Rilevazioni termiche satellitari · Fire Radiative Power · EUMETSAT</div>
+          <div class="frp-controls">
+            <label>Visualizzazione
+              <select id="frpPeriod">
+                <option value="latest">Ultimo frame</option>
+                <option value="60">Ultimi 60 min</option>
+              </select>
+            </label>
+            <div class="frp-status" id="frpStatus">Caricamento dati FRP…</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
     <div class="accordion-item" data-acc-item="alerts">
       <button class="accordion-head" type="button" data-acc="alerts" aria-expanded="false">
         <span class="acc-title">Allerte meteo</span><span class="acc-state" id="accAlertsState">…</span><span class="acc-chevron">⌄</span>
@@ -520,6 +557,7 @@ const P={
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
 let stations=[],cur='temp',marks=[],netFilter='all',query='',operaMapWide=false,focusedStationKey='';
 let meteoalarmOn=false,meteoalarmData=null,meteoalarmMapData=null,meteoalarmLoading=false;
+let frpOn=false,frpData=null,frpLoading=false,frpAttributionOn=false;
 const MOBILE_MAP=()=>window.innerWidth<=800;
 const SARDINIA_BOUNDS=L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25);
 const MED_BOUNDS=L.latLngBounds([29.0,-10.5],[48.5,38.0]);
@@ -540,6 +578,7 @@ map.createPane('satmet');map.getPane('satmet').style.zIndex=300;map.getPane('sat
 map.createPane('satbounds');map.getPane('satbounds').style.zIndex=335;map.getPane('satbounds').style.pointerEvents='none';
 map.createPane('weather');map.getPane('weather').style.zIndex=350;map.getPane('weather').style.pointerEvents='none';
 map.createPane('alerts');map.getPane('alerts').style.zIndex=390;
+map.createPane('fires');map.getPane('fires').style.zIndex=425;
 map.createPane('lightning');map.getPane('lightning').style.zIndex=445;map.getPane('lightning').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
 // Mantiene attiva la mappa Leaflet anche sui dispositivi senza WebGL2.
@@ -1048,6 +1087,7 @@ function syncAccordionStates(){
   const nowcastOn=radarOn||operaOn||!!cumActive||lightningOn;
   setAccState('accPrecipState',nowcastOn?'ATTIVO':'OFF',nowcastOn);
   setAccState('accSatelliteState',(satMetOn||satHrfiOn)?'ON':'OFF',satMetOn||satHrfiOn);
+  setAccState('accFiresState',frpOn?'ON':'OFF',frpOn);
   syncMeteoalarmBadge()
 }
 
@@ -1194,7 +1234,7 @@ function legend(){
   const stationEl=document.getElementById('stationMapLegend');
   if(!el||!stationEl)return;
   const stationHtml=stationLegendHtml();
-  const html=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
+  const html=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+frpLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
   const mobile=window.innerWidth<=800;
   const hasTimeline=activeTimelineElements().length>0;
 
@@ -1369,6 +1409,175 @@ boundariesBtn.onclick=()=>{
   syncBoundaries();
 };
 syncBoundaries();
+
+const FRP_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/frp.json';
+const FRP_ATTR='FRP © EUMETSAT · MTG FCI';
+const frpBtn=document.getElementById('frpBtn');
+const frpInfo=document.getElementById('frpInfo');
+const frpStatus=document.getElementById('frpStatus');
+const frpPeriod=document.getElementById('frpPeriod');
+const frpLayer=L.layerGroup();
+
+function frpNumber(v){
+  if(v===null||v===undefined||v==='')return null;
+  const n=Number(v);return Number.isFinite(n)?n:null
+}
+function frpFeatureTime(feature){
+  const t=Date.parse(feature?.properties?.time);
+  return Number.isFinite(t)?t:null
+}
+function frpTimeLabel(value){
+  const t=typeof value==='number'?value:Date.parse(value);
+  if(!Number.isFinite(t))return '—';
+  return new Date(t).toLocaleString('it-IT',{
+    timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
+  }).replace(',',' ·')
+}
+function recentFrpFeatures(){
+  const now=Date.now(),cut=now-60*60*1000;
+  return (frpData?.features||[]).filter(feature=>{
+    const t=frpFeatureTime(feature);
+    return t!==null&&t>=cut&&t<=now+5*60*1000
+  })
+}
+function selectedFrpFeatures(){
+  const recent=recentFrpFeatures();
+  if(frpPeriod.value==='60'||!recent.length)return recent;
+  let latest=0;
+  for(const feature of recent){
+    const t=frpFeatureTime(feature)||0;
+    if(t>latest)latest=t
+  }
+  return recent.filter(feature=>Math.abs((frpFeatureTime(feature)||0)-latest)<1000)
+}
+function frpColor(value){
+  const v=frpNumber(value);
+  if(v===null)return '#ff9f1a';
+  if(v<10)return '#ffd54a';
+  if(v<30)return '#ff9f1a';
+  if(v<60)return '#ef5b35';
+  return '#9f2438'
+}
+function frpRadius(value){
+  const v=Math.max(1,frpNumber(value)||1);
+  return Math.max(5,Math.min(14,4+Math.log10(v+1)*5))
+}
+function frpPopup(feature){
+  const p=feature?.properties||{};
+  const frp=frpNumber(p.FRP),err=frpNumber(p.FRPerr),confidence=frpNumber(p.Confidence);
+  const mir=frpNumber(p.BT_mir_k),tir=frpNumber(p.BT_tir_k);
+  return '<div class="popup"><b>Rilevazione termica MTG FCI</b>'+
+    '<br><span style="color:#9fb4c6">Fire Radiative Power · EUMETSAT</span>'+
+    '<br>Osservazione: '+frpTimeLabel(p.time)+
+    '<br>FRP: '+(frp!==null?frp.toFixed(1)+' MW':'—')+
+    (err!==null?' ± '+err.toFixed(1)+' MW':'')+
+    '<br>Confidence: '+(confidence!==null?confidence.toFixed(0)+'%':'—')+
+    '<br>BT MIR: '+(mir!==null?mir.toFixed(1)+' K':'—')+
+    '<br>BT TIR: '+(tir!==null?tir.toFixed(1)+' K':'—')+
+    '<br><span style="color:#8095a5;font-size:10px">Rilevazione satellitare: non equivale da sola a una conferma a terra dell’incendio.</span></div>'
+}
+function frpTooltip(feature){
+  const p=feature?.properties||{},frp=frpNumber(p.FRP),confidence=frpNumber(p.Confidence);
+  return '<div class="tip-name">MTG FCI · FRP '+(frp!==null?frp.toFixed(1)+' MW':'—')+'</div>'+
+    '<div class="tip-net">'+frpTimeLabel(p.time)+(confidence!==null?' · conf. '+confidence.toFixed(0)+'%':'')+'</div>'
+}
+function updateFrpStatus(){
+  if(!frpData?.generated_at){
+    frpStatus.textContent='Dataset predisposto · in attesa del primo aggiornamento EUMETSAT';
+    return
+  }
+  const selected=selectedFrpFeatures(),recent=recentFrpFeatures();
+  const generated=Date.parse(frpData.generated_at);
+  const stale=Number.isFinite(generated)&&Date.now()-generated>35*60*1000;
+  const suffix=(Number.isFinite(generated)?' · dati '+frpTimeLabel(generated):'')+(stale?' ⚠ aggiornamento in ritardo':'');
+  if(!recent.length){
+    frpStatus.textContent='Nessuna rilevazione FRP negli ultimi 60 min'+suffix;
+    return
+  }
+  if(frpPeriod.value==='latest'){
+    const latest=Math.max(...selected.map(f=>frpFeatureTime(f)||0));
+    frpStatus.textContent=selected.length+' pixel FRP · ultimo frame '+frpTimeLabel(latest)+suffix
+  }else{
+    frpStatus.textContent=selected.length+' rilevazioni FRP negli ultimi 60 min'+suffix
+  }
+}
+function renderFrpLayer(){
+  frpLayer.clearLayers();
+  if(!frpOn){updateFrpStatus();legend();return}
+  const features=selectedFrpFeatures().sort((a,b)=>(frpFeatureTime(a)||0)-(frpFeatureTime(b)||0));
+  const now=Date.now();
+  for(const feature of features){
+    const p=feature?.properties||{};
+    const lat=frpNumber(p.Lat),lon=frpNumber(p.Lon),t=frpFeatureTime(feature);
+    if(lat===null||lon===null)continue;
+    const confidence=frpNumber(p.Confidence);
+    const age=t===null?60:Math.max(0,Math.min(60,(now-t)/60000));
+    const ageOpacity=frpPeriod.value==='60'?(0.35+0.6*(1-age/60)):0.92;
+    const confidenceFactor=confidence===null?1:Math.max(.55,Math.min(1,confidence/100));
+    const marker=L.circleMarker([lat,lon],{
+      pane:'fires',
+      radius:frpRadius(p.FRP),
+      color:'#ffffff',
+      weight:1.2,
+      opacity:.9,
+      fillColor:frpColor(p.FRP),
+      fillOpacity:Math.max(.3,ageOpacity*confidenceFactor),
+      interactive:true
+    }).bindPopup(frpPopup(feature)).bindTooltip(frpTooltip(feature),{
+      direction:'top',offset:[0,-7],opacity:1,className:'station-tip',sticky:true
+    });
+    frpLayer.addLayer(marker)
+  }
+  if(!map.hasLayer(frpLayer))frpLayer.addTo(map);
+  updateFrpStatus();legend()
+}
+async function loadFrpData(forceRender=true){
+  if(frpLoading)return;
+  frpLoading=true;
+  try{
+    const r=await fetch(FRP_DATA+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)});
+    if(!r.ok)throw new Error('FRP '+r.status);
+    frpData=await r.json();
+    if(forceRender||frpOn)renderFrpLayer();else updateFrpStatus()
+  }catch(e){
+    console.warn('EUMETSAT FRP',e);
+    if(!frpData)frpStatus.textContent='Dati FRP temporaneamente non disponibili'
+  }finally{
+    frpLoading=false;syncAccordionStates()
+  }
+}
+function setFrpState(on){
+  frpOn=!!on;
+  if(frpOn){
+    if(mode3d)setBaseMode('sat');
+    if(!frpAttributionOn&&map.attributionControl){
+      map.attributionControl.addAttribution(FRP_ATTR);frpAttributionOn=true
+    }
+    renderFrpLayer();
+    if(!frpData)loadFrpData(true)
+  }else{
+    if(map.hasLayer(frpLayer))map.removeLayer(frpLayer);
+    if(frpAttributionOn&&map.attributionControl){
+      map.attributionControl.removeAttribution(FRP_ATTR);frpAttributionOn=false
+    }
+    updateFrpStatus();legend()
+  }
+  frpBtn.classList.toggle('active',frpOn);
+  frpBtn.lastElementChild.textContent=frpOn?'ON':'OFF';
+  frpInfo.classList.toggle('on',frpOn);
+  syncAccordionStates()
+}
+function frpLegendHtml(){
+  if(!frpOn)return '';
+  return '<div class="map-legend-row"><div class="map-legend-title">MTG FCI · Fire Radiative Power (MW)</div>'+
+    '<div class="frp-scale"><span><i class="frp-swatch low"></i>&lt;10</span><span><i class="frp-swatch mid"></i>10–30</span>'+
+    '<span><i class="frp-swatch high"></i>30–60</span><span><i class="frp-swatch very-high"></i>≥60</span></div>'+
+    '<div class="map-legend-note">Dimensione e colore rappresentano la FRP. Non indicano area bruciata o livello di pericolosità.</div></div>'
+}
+frpBtn.onclick=()=>setFrpState(!frpOn);
+frpPeriod.onchange=()=>renderFrpLayer();
+setInterval(()=>{if(frpOn&&!document.hidden)loadFrpData(true)},5*60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&frpOn)loadFrpData(true)});
 
 const METEOALARM_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/meteoalarm.json';
 const METEOALARM_MAP_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/meteoalarm_map.geojson';
@@ -2566,6 +2775,7 @@ async function loadObservations(){
 }
 loadObservations();
 loadMeteoalarm(false);
+loadFrpData(false);
 // Controllo rapido dei JSON; nessuna richiesta duplicata o polling in background.
 setInterval(()=>{if(!document.hidden)loadObservations()},30*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadObservations()});
