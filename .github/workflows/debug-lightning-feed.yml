@@ -1,0 +1,97 @@
+name: Debug Lightning feed quality
+
+on:
+  push:
+    branches: [debug/lightning-feed-quality]
+    paths:
+      - '.github/workflows/debug-lightning-feed.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Campiona feed live LightningMaps
+        run: |
+          pip install -q websocket-client
+          python - <<'PY'
+          import json, time, ssl, math
+          import websocket
+
+          URL='wss://live2.lightningmaps.org/'
+          sub={"v":24,"i":{},"s":False,"x":0,"w":0,"tx":0,"tw":1,"a":4,"z":5,"b":True,
+               "h":"","l":1,"t":1,"from_lightningmaps_org":True,
+               "p":[48,45,28,-12],"r":"A"}
+
+          seen={}
+          repeats=[]
+          sard=[]
+          devs=[]
+          flags={}
+          total=0
+          start=time.time()
+
+          ws=websocket.create_connection(URL,timeout=15,sslopt={"cert_reqs": ssl.CERT_REQUIRED})
+          ws.send(json.dumps(sub,separators=(',',':')))
+          ws.settimeout(5)
+
+          while time.time()-start < 100:
+              try:
+                  raw=ws.recv()
+              except Exception:
+                  continue
+              try:
+                  d=json.loads(raw)
+              except Exception:
+                  continue
+              if isinstance(d,dict) and 'flags' in d:
+                  k=json.dumps(d.get('flags'),sort_keys=True)
+                  flags[k]=flags.get(k,0)+1
+              strokes=d.get('strokes') if isinstance(d,dict) else None
+              if not isinstance(strokes,list):
+                  continue
+              for s in strokes:
+                  try:
+                      t=int(s.get('time')); lat=float(s.get('lat')); lon=float(s.get('lon'))
+                  except Exception:
+                      continue
+                  total+=1
+                  dev=s.get('dev'); delay=s.get('del'); srv=s.get('srv'); sid=s.get('id'); src=s.get('src')
+                  if isinstance(dev,(int,float)): devs.append(float(dev))
+                  key=f"{srv}:{sid}"
+                  prev=seen.get(key)
+                  cur={"time":t,"lat":lat,"lon":lon,"dev":dev,"del":delay,"src":src,"srv":srv,"id":sid}
+                  if prev:
+                      dist=((lat-prev['lat'])**2+(lon-prev['lon'])**2)**0.5
+                      if t!=prev['time'] or dist>1e-7 or dev!=prev.get('dev') or delay!=prev.get('del'):
+                          repeats.append({"key":key,"prev":prev,"cur":cur,"delta_deg":dist})
+                  seen[key]=cur
+                  if 38.5 <= lat <= 41.5 and 7.5 <= lon <= 10.5:
+                      sard.append(cur)
+
+          try: ws.close()
+          except Exception: pass
+
+          devs.sort()
+          def pct(p):
+              if not devs:return None
+              return devs[min(len(devs)-1,round((len(devs)-1)*p))]
+          print("TOTAL",total,"UNIQUE",len(seen),"REPEATS_CHANGED",len(repeats))
+          print("FLAGS",json.dumps(flags,sort_keys=True))
+          print("DEV",json.dumps({
+              "n":len(devs),"min":devs[0] if devs else None,"p50":pct(.5),"p90":pct(.9),
+              "p95":pct(.95),"p99":pct(.99),"max":devs[-1] if devs else None,
+              "gt5km":sum(v>5000 for v in devs),"gt10km":sum(v>10000 for v in devs)
+          }))
+          print("SARDINIA_COUNT",len(sard))
+          for row in sard[-80:]:
+              print("SARD",json.dumps(row,separators=(',',':')))
+          for row in repeats[:80]:
+              print("REPEAT",json.dumps(row,separators=(',',':')))
+          PY
