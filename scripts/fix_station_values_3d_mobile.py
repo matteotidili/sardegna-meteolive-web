@@ -62,3 +62,4 @@ for required in ("station3d-mobile-value","font:950 11px","valueEl.textContent=f
 p.write_text(s,encoding="utf-8")
 print("Valori stazioni 3D mobile resi leggibili")
 # rerun corrected workflow
+# rerun after JS extraction fix
