@@ -514,6 +514,24 @@ header .live{margin-left:0}
   .station-map-legend.has-precip .map-legend-row+.map-legend-row{margin-top:7px;padding-top:7px}
   .station-map-legend.has-precip .map-legend-bar{height:11px}
 }
+/* Modalità desktop: rotazione libera con trascinamento sinistro. */
+.map3d-mouse-tools{
+  position:absolute;right:14px;top:14px;z-index:1050;
+  width:236px;max-width:calc(100% - 28px);
+  padding:8px;border:1px solid #294055;border-radius:12px;
+  background:#091522ed;color:#dbeaf6;box-shadow:0 8px 24px #0006;
+  backdrop-filter:blur(10px)
+}
+.map3d-mouse-tools[hidden]{display:none!important}
+.map3d-mouse-modes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.map3d-mouse-btn{
+  min-height:35px;padding:7px 8px;cursor:pointer;border:1px solid #36516a;
+  background:#102131;color:#dbeaf6;border-radius:8px;
+  font:850 11px Inter,system-ui,Arial
+}
+.map3d-mouse-btn.active{background:#15526b;border-color:#42d7ff;color:#fff}
+.map3d-mouse-hint{display:block;margin-top:7px;font-size:10px;line-height:1.3;color:#b6d0e2}
+@media(max-width:800px){.map3d-mouse-tools{display:none!important}}
 </style>
 </head>
 <body>
@@ -523,6 +541,13 @@ header .live{margin-left:0}
 <main>
 <div id="map"></div>
 <div id="map3d" aria-hidden="true"></div>
+<div class="map3d-mouse-tools" id="map3dMouseTools" aria-label="Navigazione della mappa 3D" hidden>
+  <div class="map3d-mouse-modes" role="group" aria-label="Modalità del mouse in 3D">
+    <button type="button" class="map3d-mouse-btn active" id="map3dMouseRotate" aria-pressed="true" title="Trascina per ruotare e inclinare la mappa">⟳ Ruota</button>
+    <button type="button" class="map3d-mouse-btn" id="map3dMousePan" aria-pressed="false" title="Trascina per spostare la mappa">Sposta</button>
+  </div>
+  <span class="map3d-mouse-hint" id="map3dMouseHint">Trascina per ruotare e inclinare</span>
+</div>
 <div class="mobile-tools"><button class="mobile-tool" id="mobileMenu" aria-expanded="false">Menu meteo</button></div>
 <div class="mobile-backdrop" id="mobileBackdrop" aria-hidden="true"></div>
 <aside class="panel left directory-open" aria-label="Stazioni e controlli mappa">
@@ -1012,6 +1037,7 @@ let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,o
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
 let base=sat,currentBaseMode='sat';sat.addTo(map);
 let map3d=null,mode3d=false,statusBefore3d='',map3dStyleReady=false;
+let map3dMouseMode='rotate',map3dRotatePointer=null;
 let station3dMobileMarkers=[];
 let station3dMobileRefreshTimer=null;
 
@@ -1424,6 +1450,64 @@ function update3dLightning(){
   }):[];
   map3d.getSource('lightning-3d').setData(fc(features))
 }
+const map3dMouseTools=document.getElementById('map3dMouseTools');
+const map3dMouseHint=document.getElementById('map3dMouseHint');
+const map3dMouseRotate=document.getElementById('map3dMouseRotate');
+const map3dMousePan=document.getElementById('map3dMousePan');
+function applyMap3dMouseMode(){
+  const desktop=window.innerWidth>800;
+  const rotate=map3dMouseMode==='rotate';
+  map3dMouseTools.hidden=!(mode3d&&desktop);
+  for(const [button,active] of [[map3dMouseRotate,rotate],[map3dMousePan,!rotate]]){
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-pressed',String(active))
+  }
+  map3dMouseHint.textContent=rotate?
+    'Trascina per ruotare e inclinare · rotellina per zoom':
+    'Trascina per spostare · tasto destro per ruotare';
+  if(!map3d)return;
+  if(!mode3d||!desktop||!rotate){
+    map3d.dragPan.enable();
+    map3d.getCanvas().style.cursor='';
+    map3dRotatePointer=null
+  }else{
+    map3d.dragPan.disable();
+    map3d.getCanvas().style.cursor=map3dRotatePointer?'grabbing':'grab'
+  }
+}
+map3dMouseRotate.onclick=()=>{map3dMouseMode='rotate';applyMap3dMouseMode()};
+map3dMousePan.onclick=()=>{map3dMouseMode='pan';applyMap3dMouseMode()};
+function attachMap3dMouseRotation(m){
+  const canvas=m.getCanvas();
+  canvas.addEventListener('pointerdown',e=>{
+    if(!mode3d||window.innerWidth<=800||map3dMouseMode!=='rotate'||
+       e.pointerType!=='mouse'||e.button!==0||e.ctrlKey)return;
+    map3dRotatePointer={
+      id:e.pointerId,x:e.clientX,y:e.clientY,
+      bearing:m.getBearing(),pitch:m.getPitch()
+    };
+    try{canvas.setPointerCapture(e.pointerId)}catch(err){}
+    canvas.style.cursor='grabbing';
+    e.preventDefault()
+  });
+  canvas.addEventListener('pointermove',e=>{
+    const r=map3dRotatePointer;
+    if(!r||e.pointerId!==r.id)return;
+    const bearing=r.bearing+(e.clientX-r.x)*.42;
+    const pitch=Math.max(0,Math.min(m.getMaxPitch(),r.pitch-(e.clientY-r.y)*.25));
+    m.jumpTo({bearing,pitch});
+    e.preventDefault()
+  });
+  const finish=e=>{
+    if(!map3dRotatePointer||e.pointerId!==map3dRotatePointer.id)return;
+    map3dRotatePointer=null;
+    if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);
+    canvas.style.cursor=mode3d&&map3dMouseMode==='rotate'&&window.innerWidth>800?'grab':''
+  };
+  canvas.addEventListener('pointerup',finish);
+  canvas.addEventListener('pointercancel',finish);
+  canvas.addEventListener('lostpointercapture',finish)
+}
 function ensureMap3d(){
   if(map3d)return map3d;
   const c=map.getCenter();
@@ -1438,6 +1522,7 @@ function ensureMap3d(){
     canvasContextAttributes:{antialias:true}
   });
   map3d.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'bottom-right');
+  attachMap3dMouseRotation(map3d);
   map3d.on('moveend',()=>{if(mode3d)scheduleMobile3dStations(40)});
   map3d.on('zoomend',()=>{if(mode3d)scheduleMobile3dStations(40)});
 
@@ -1500,6 +1585,8 @@ function enter3d(){
   map3dEl.setAttribute('aria-hidden','false');
   const m=ensureMap3d();
   m.resize();
+  map3dMouseMode='rotate';
+  applyMap3dMouseMode();
   m.jumpTo({center:[c.lng,c.lat],zoom:map.getZoom(),pitch:48,bearing:m.getBearing()||-12});
   if(map3dStyleReady)ensure3dDataLayers();
   setTimeout(()=>{if(mode3d&&map3dStyleReady)ensure3dDataLayers()},250);
@@ -1517,6 +1604,7 @@ function leave3d(){
     map.setView([c.lat,c.lng],z,{animate:false})
   }
   mode3d=false;
+  applyMap3dMouseMode();
   clearMobile3dStationMarkers();
   map3dEl.classList.remove('on');
   map3dEl.setAttribute('aria-hidden','true');
@@ -1648,7 +1736,7 @@ map.getContainer().addEventListener('pointerup',e=>{
     lastTouchTap=now;lastTouchPoint=p;
   }
 },{passive:true});
-window.addEventListener('resize',()=>{syncMapExtent();if(map3d){map3d.resize();if(mode3d)scheduleMobile3dStations(120)}if(window.innerWidth>800)leftPanel.classList.remove('open');syncMobileButtons();layoutTimelineStack()});
+window.addEventListener('resize',()=>{syncMapExtent();if(map3d){map3d.resize();applyMap3dMouseMode();if(mode3d)scheduleMobile3dStations(120)}if(window.innerWidth>800)leftPanel.classList.remove('open');syncMobileButtons();layoutTimelineStack()});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
 function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
 function fmtMarker(v,k=cur){
