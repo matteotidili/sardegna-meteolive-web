@@ -2368,8 +2368,10 @@ const historicSubregionsLabels=L.layerGroup();
 let historicSubregionsData=null,historicSubregionsOn=true;
 const HISTORIC_SUBREGIONS_PATH='data/subregioni-storiche.geojson';
 const HISTORIC_SUBREGIONS_REMOTE=[
-  // Copia cartografica originale uMap; la disponibilità e le policy CORS dipendono dal gestore.
-  'https://umap.geonue.com/it/map/6/download/',
+  // La mappa originale GeoNue include lo slug "regioni-storiche-della-sardegna_6".
+  // Le risorse esterne possono essere indisponibili: il dataset va poi salvato in repo.
+  'https://umap.geonue.com/it/map/regioni-storiche-della-sardegna_6/geojson/',
+  'https://umap.geonue.com/it/map/regioni-storiche-della-sardegna_6/download/',
   'https://umap.geonue.com/it/map/6/geojson/'
 ];
 const historicSubregionsDataStatus=document.getElementById('subregionsDataStatus');
