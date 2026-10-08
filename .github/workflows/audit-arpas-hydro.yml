@@ -52,6 +52,12 @@ jobs:
           for p in rows:
             if stage(p)==3:
               print(json.dumps({k:p.get(k) for k in ['cod_srv','cae_nome','altra_denominazione','tipomisura','time','value','zero','s1','s2','s3','trend','note']},ensure_ascii=False))
+          print('GEOJSON:')
+          geo=get(base+'/query',{'where':'1=1','outFields':'cod_srv,cae_nome,altra_denominazione,tipomisura,localita,time,value,trend,zero,s1,s2,s3,nota_m_slm,note','returnGeometry':'true','outSR':'4326','f':'geojson'})
+          print('GEO ERROR:',geo.get('error'),'COUNT',len(geo.get('features',[])))
+          for f in geo.get('features',[])[:5]:
+            p=f.get('properties',{})
+            print('GEO SAMPLE:',json.dumps({k:p.get(k) for k in ['cod_srv','cae_nome','time','value','s1','s2','s3']},ensure_ascii=False),'TIME TYPE',type(p.get('time')).__name__)
           print('FRESH SAMPLE:')
           for p in rows[:8]:
             print(json.dumps({k:p.get(k) for k in ['cod_srv','cae_nome','time','value','s1','s2','s3']},ensure_ascii=False))
