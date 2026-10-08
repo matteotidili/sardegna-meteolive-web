@@ -472,6 +472,36 @@ header .live{margin-left:0}
   .frp-swatch{width:10px;height:10px;flex-basis:10px}
 }
 
+/* Radar e temperatura nello stesso pannello in basso a destra. */
+.station-map-legend.has-precip{width:268px;max-width:calc(100vw - 28px);padding:11px 12px}
+.station-map-legend.has-precip .map-legend-row{padding:0}
+.station-map-legend.has-precip .map-legend-row+.map-legend-row{
+  margin-top:10px;padding-top:9px;border-top:1px solid #dce3e8
+}
+.station-map-legend.has-precip .map-legend-title{
+  font-size:10px;line-height:1.35;letter-spacing:.045em;margin-bottom:7px
+}
+.station-map-legend.has-precip .map-legend-bar{height:13px;border-radius:7px}
+.station-map-legend.has-precip .map-legend-labels{
+  font-size:9px;font-weight:750;line-height:1.25;flex-wrap:nowrap;gap:2px;
+  color:#263746;margin-top:6px
+}
+.station-map-legend.has-precip .opera-legend-bar{height:13px}
+.station-map-legend.has-precip .map-legend-note{font-size:8.5px;line-height:1.3}
+.cum-legend-bar{background:linear-gradient(90deg,
+  rgba(0,220,250,.65) 0%,#00d2e8 10%,#00d246 28%,#f5eb14 48%,
+  #fa8c23 64%,#f5192d 80%,#8200b4 100%)}
+@media(max-width:800px){
+  .station-map-legend.has-precip{
+    left:auto;right:8px;width:min(268px,calc(100vw - 16px));
+    bottom:calc(var(--mobile-stack-bottom,92px) + env(safe-area-inset-bottom));
+    padding:8px 10px;z-index:999
+  }
+  .station-map-legend.has-precip .map-legend-title{font-size:9.5px;margin-bottom:5px}
+  .station-map-legend.has-precip .map-legend-labels{font-size:8.5px;margin-top:4px}
+  .station-map-legend.has-precip .map-legend-row+.map-legend-row{margin-top:7px;padding-top:7px}
+  .station-map-legend.has-precip .map-legend-bar{height:11px}
+}
 </style>
 </head>
 <body>
@@ -1139,7 +1169,7 @@ function ensure3dOperaLayer(time){
   if(!map3d.getLayer('opera-radar-3d-layer')){
     map3d.addLayer({
       id:'opera-radar-3d-layer',type:'raster',source:'opera-radar-3d',
-      paint:{'raster-opacity':.72,'raster-fade-duration':0},
+      paint:{'raster-opacity':.56,'raster-fade-duration':0},
       layout:{visibility:'none'}
     },first3dSymbolLayer())
   }
@@ -1159,12 +1189,12 @@ function sync3dPrecipLayers(){
     return
   }
   if(radarOn&&radarFrames[radarIndex]){
-    update3dDpcLayer('SRI',radarFrames[radarIndex],.92);
+    update3dDpcLayer('SRI',radarFrames[radarIndex],.66);
     raise3dOperationalLayers();
     return
   }
   if(cumActive&&cumLayer?._productKey&&cumLayer?._frame){
-    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.88)
+    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.60)
   }
   raise3dOperationalLayers()
 }
@@ -1671,7 +1701,8 @@ function operaLegendHtml(){
 }
 function cumLegendHtml(){
   if(!cumActive)return '';
-  return '<div class="map-legend-row"><div class="map-legend-title">'+cumActive.toUpperCase()+' · accumulo precipitazione · mm</div><div class="map-legend-bar radar-legend-bar"></div><div class="map-legend-labels"><span>0</span><span>10</span><span>30</span><span>60</span><span>100</span><span>150</span><span>200+</span></div></div>'
+  const product=CUM_PRODUCTS[cumActive];
+  return '<div class="map-legend-row"><div class="map-legend-title">Cumulate DPC · '+(product?.label||cumActive.toUpperCase())+' · mm</div><div class="map-legend-bar cum-legend-bar"></div><div class="map-legend-labels"><span>0</span><span>10</span><span>20</span><span>40</span><span>60</span><span>100</span><span>200+</span></div></div>'
 }
 function lightningLegendHtml(){
   if(!lightningOn)return '';
@@ -1702,14 +1733,17 @@ function layoutTimelineStack(){
       el.classList.remove('stacked');
       cursor+=Math.max(44,el.offsetHeight||44)+7
     });
+    const precipStacked=!!(stationLegend&&stationLegend.classList.contains('on')&&stationLegend.classList.contains('has-precip'));
+    if(stationLegend){
+      stationLegend.style.removeProperty('bottom');
+      stationLegend.style.setProperty('--mobile-stack-bottom',(precipStacked?cursor+6:34)+'px')
+    }
     if(legends){
       legends.style.top='auto';
       legends.style.removeProperty('bottom');
-      legends.style.setProperty('--mobile-stack-bottom',(cursor+5)+'px')
-    }
-    if(stationLegend){
-      stationLegend.style.removeProperty('bottom');
-      stationLegend.style.setProperty('--mobile-stack-bottom','34px')
+      // Le legende degli altri prodotti restano sopra radar e temperature.
+      const stationHeight=precipStacked?Math.max(0,stationLegend.offsetHeight)+12:5;
+      legends.style.setProperty('--mobile-stack-bottom',(cursor+stationHeight)+'px')
     }
     return
   }
@@ -1997,14 +2031,17 @@ function legend(){
   const stationEl=document.getElementById('stationMapLegend');
   if(!el||!stationEl)return;
   const stationHtml=stationLegendHtml();
-  const html=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+hydroLegendHtml()+frpLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
+  // Scala precipitazioni sopra la scala delle stazioni, nello stesso riquadro.
+  const precipHtml=radarLegendHtml()+operaLegendHtml()+cumLegendHtml();
+  const html=hydroLegendHtml()+frpLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
   const mobile=window.innerWidth<=800;
   const hasTimeline=activeTimelineElements().length>0;
 
-  stationEl.innerHTML=stationHtml;
-  stationEl.classList.toggle('on',!!stationHtml);
-  // Su smartphone la legenda stazioni lascia spazio al prodotto meteo attivo.
-  stationEl.classList.toggle('mobile-suppressed',mobile&&(!!html||hasTimeline));
+  stationEl.innerHTML=precipHtml+stationHtml;
+  stationEl.classList.toggle('on',!!(precipHtml||stationHtml));
+  stationEl.classList.toggle('has-precip',!!precipHtml);
+  // La legenda radar resta visibile anche su smartphone sopra gli slider.
+  stationEl.classList.toggle('mobile-suppressed',mobile&&!precipHtml&&(!!html||hasTimeline));
 
   el.innerHTML=html;
   el.classList.toggle('on',!!html);
