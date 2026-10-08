@@ -532,6 +532,13 @@ header .live{margin-left:0}
 .map3d-mouse-btn.active{background:#15526b;border-color:#42d7ff;color:#fff}
 .map3d-mouse-hint{display:block;margin-top:7px;font-size:10px;line-height:1.3;color:#b6d0e2}
 @media(max-width:800px){.map3d-mouse-tools{display:none!important}}
+/* Subregioni storico-geografiche (non confini amministrativi). */
+.subregions-note{font-size:9px;line-height:1.4;color:#758e9e;padding:5px 9px 8px}
+.subregions-label{font:800 10px/1.2 Inter,system-ui,Arial;color:#ffffff;
+  background:#094355dd;border:1px solid #e5ffffb3;border-radius:6px;
+  text-shadow:0 1px 2px #000;box-shadow:0 2px 5px #0006;
+  padding:3px 5px;white-space:nowrap;text-align:center;pointer-events:none}
+@media(max-width:800px){.subregions-note{font-size:10px}}
 </style>
 </head>
 <body>
@@ -680,6 +687,8 @@ header .live{margin-left:0}
         </div>
         <div class="control-section-label">Elementi sulla mappa</div>
         <button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button>
+        <button class="btn" id="subregionsBtn" disabled title="In attesa della cartografia vettoriale verificata">Subregioni storiche <span>IN ATTESA</span></button>
+        <div class="subregions-note">Confini storico-geografici indicativi, distinti dai limiti amministrativi.</div>
       </div></div>
     </div>
   </div>
@@ -1411,7 +1420,8 @@ function ensure3dDataLayers(){
   update3dStations();
   update3dLightning();
   update3dHydro();
-  sync3dPrecipLayers()
+  sync3dPrecipLayers();
+  syncHistoricSubregions3d()
 }
 function update3dStations(){
   if(!map3d||!map3dStyleReady)return;
@@ -2316,6 +2326,123 @@ boundariesBtn.onclick=()=>{
   syncBoundaries();
 };
 syncBoundaries();
+
+// Le geometrie delle regioni storiche NON vengono ricostruite dalle immagini:
+// il pulsante è utilizzabile soltanto in presenza di un GeoJSON vettoriale verificato.
+const historicSubregionsBtn=document.getElementById('subregionsBtn');
+const historicSubregions2d=L.layerGroup();
+const historicSubregionsLabels=L.layerGroup();
+let historicSubregionsData=null,historicSubregionsOn=false;
+const HISTORIC_SUBREGIONS_PATH='data/subregioni-storiche.geojson';
+function historicSubregionName(f){
+  return String(f?.properties?.nome||f?.properties?.name||'Subregione storica').trim()
+}
+function historicSubregionsValid(data){
+  return data?.type==='FeatureCollection'&&Array.isArray(data.features)&&
+    data.features.length>0&&data.features.every(f=>
+      f?.type==='Feature'&&['Polygon','MultiPolygon'].includes(f.geometry?.type)&&
+      Array.isArray(f.geometry.coordinates)&&f.geometry.coordinates.length>0&&
+      typeof(f.properties?.nome||f.properties?.name)==='string'
+    )
+}
+function buildHistoricSubregions2d(){
+  historicSubregions2d.clearLayers();
+  historicSubregionsLabels.clearLayers();
+  if(!historicSubregionsData)return;
+  L.geoJSON(historicSubregionsData,{
+    pane:'satbounds',
+    style:()=>({color:'#28d1d9',weight:2.2,opacity:.92,dashArray:'7 5',
+      fill:false,interactive:true}),
+    onEachFeature:(feature,layer)=>{
+      const name=historicSubregionName(feature);
+      layer.bindPopup('<strong>'+name.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))+
+        '</strong><br>Confine storico-geografico indicativo. Non è un limite amministrativo.');
+      const bounds=layer.getBounds();
+      if(bounds.isValid()){
+        const label=L.marker(bounds.getCenter(),{
+          pane:'satbounds',interactive:false,
+          icon:L.divIcon({className:'subregions-label',html:name.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),iconSize:null})
+        });
+        historicSubregionsLabels.addLayer(label)
+      }
+    }
+  }).addTo(historicSubregions2d)
+}
+function syncHistoricSubregions2d(){
+  const active=historicSubregionsOn&&!!historicSubregionsData;
+  if(active){
+    if(!map.hasLayer(historicSubregions2d))historicSubregions2d.addTo(map);
+    if(map.getZoom()>=8.5){
+      if(!map.hasLayer(historicSubregionsLabels))historicSubregionsLabels.addTo(map)
+    }else if(map.hasLayer(historicSubregionsLabels))map.removeLayer(historicSubregionsLabels)
+  }else{
+    if(map.hasLayer(historicSubregions2d))map.removeLayer(historicSubregions2d);
+    if(map.hasLayer(historicSubregionsLabels))map.removeLayer(historicSubregionsLabels)
+  }
+}
+function syncHistoricSubregions3d(){
+  if(!map3d||!map3dStyleReady)return;
+  const sourceId='historic-subregions-3d';
+  if(!historicSubregionsData){
+    return
+  }
+  if(!map3d.getSource(sourceId)){
+    map3d.addSource(sourceId,{type:'geojson',data:historicSubregionsData})
+  }
+  if(!map3d.getLayer('historic-subregions-3d-line')){
+    map3d.addLayer({
+      id:'historic-subregions-3d-line',type:'line',source:sourceId,
+      paint:{'line-color':'#24d2e2','line-width':2.4,'line-opacity':.92,'line-dasharray':[3,2]}
+    })
+  }
+  if(!map3d.getLayer('historic-subregions-3d-labels')){
+    map3d.addLayer({
+      id:'historic-subregions-3d-labels',type:'symbol',source:sourceId,minzoom:8.5,
+      layout:{
+        'text-field':['coalesce',['get','nome'],['get','name']],
+        'text-size':11,'text-allow-overlap':false,'text-padding':5,
+        'text-pitch-alignment':'viewport',
+        'text-font':['Open Sans Bold']
+      },
+      paint:{'text-color':'#ffffff','text-halo-color':'#134351','text-halo-width':2.2}
+    })
+  }
+  const visibility=historicSubregionsOn?'visible':'none';
+  for(const id of ['historic-subregions-3d-line','historic-subregions-3d-labels']){
+    if(map3d.getLayer(id))map3d.setLayoutProperty(id,'visibility',visibility)
+  }
+  raise3dOperationalLayers()
+}
+historicSubregionsBtn.onclick=()=>{
+  if(!historicSubregionsData)return;
+  historicSubregionsOn=!historicSubregionsOn;
+  historicSubregionsBtn.classList.toggle('active',historicSubregionsOn);
+  historicSubregionsBtn.lastElementChild.textContent=historicSubregionsOn?'ON':'OFF';
+  syncHistoricSubregions2d();
+  syncHistoricSubregions3d()
+};
+map.on('zoomend',syncHistoricSubregions2d);
+async function initializeHistoricSubregions(){
+  try{
+    const response=await fetch(HISTORIC_SUBREGIONS_PATH,{cache:'force-cache'});
+    if(!response.ok)throw new Error('GeoJSON non disponibile: '+response.status);
+    const data=await response.json();
+    if(!historicSubregionsValid(data))throw new Error('File con geometrie mancanti o non valide');
+    historicSubregionsData=data;
+    buildHistoricSubregions2d();
+    historicSubregionsBtn.disabled=false;
+    historicSubregionsBtn.title='Mostra confini storico-geografici indicativi';
+    historicSubregionsBtn.lastElementChild.textContent='OFF';
+    syncHistoricSubregions2d();
+    syncHistoricSubregions3d()
+  }catch(e){
+    historicSubregionsBtn.disabled=true;
+    historicSubregionsBtn.lastElementChild.textContent='DATI NON DISP.';
+    historicSubregionsBtn.title='Il GeoJSON delle subregioni storiche non è ancora stato verificato';
+    console.info('Subregioni storico-geografiche: dataset non disponibile',e.message)
+  }
+}
+initializeHistoricSubregions();
 
 const FRP_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/frp.json';
 const FRP_ATTR='FRP © EUMETSAT · MTG FCI';
