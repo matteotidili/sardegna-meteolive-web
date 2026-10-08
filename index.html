@@ -17,7 +17,7 @@
 main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{display:none;position:absolute;inset:0;z-index:1}#map3d.on{display:block}#map.map-hidden{display:none}
 .station3d-mobile-marker{
   display:grid;place-items:center;box-sizing:border-box;
-  width:38px;height:38px;border-radius:50%;
+  width:44px;height:44px;border-radius:50%;
   border:2px solid #fff;box-shadow:0 1px 6px #000b;
   text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;
   transform:translateZ(0)
@@ -25,7 +25,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .station3d-mobile-value{
   display:block;min-width:100%;
   color:#fff;
-  font:950 12px/1 Inter,system-ui,Arial;
+  font:950 13.5px/1 Inter,system-ui,Arial;
   letter-spacing:-.02em;
   text-align:center;
   text-shadow:
@@ -37,6 +37,18 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
   pointer-events:none
 }
 .station3d-mobile-marker:active{transform:scale(.94)}
+/* Popup MapLibre: fondo scuro e testo ad alto contrasto. */
+#map3d .maplibregl-popup-content{
+  background:#0c1724;color:#f1f7ff;border:1px solid #36536b;border-radius:11px;
+  padding:12px 14px;box-shadow:0 8px 24px #0008;
+  font:500 12px/1.45 Inter,system-ui,Arial
+}
+#map3d .maplibregl-popup-content b{font-size:14px;color:#fff}
+#map3d .maplibregl-popup-anchor-bottom .maplibregl-popup-tip{border-top-color:#0c1724}
+#map3d .maplibregl-popup-anchor-top .maplibregl-popup-tip{border-bottom-color:#0c1724}
+#map3d .maplibregl-popup-anchor-left .maplibregl-popup-tip{border-right-color:#0c1724}
+#map3d .maplibregl-popup-anchor-right .maplibregl-popup-tip{border-left-color:#0c1724}
+#map3d .maplibregl-popup-close-button{color:#fff;font-size:17px}
 
 
 .panel{position:absolute;z-index:1000;top:14px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 15px 40px #0007;backdrop-filter:blur(16px);overflow:hidden}
@@ -1169,7 +1181,7 @@ function ensure3dOperaLayer(time){
   if(!map3d.getLayer('opera-radar-3d-layer')){
     map3d.addLayer({
       id:'opera-radar-3d-layer',type:'raster',source:'opera-radar-3d',
-      paint:{'raster-opacity':.56,'raster-fade-duration':0},
+      paint:{'raster-opacity':.46,'raster-fade-duration':0},
       layout:{visibility:'none'}
     },first3dSymbolLayer())
   }
@@ -1189,12 +1201,12 @@ function sync3dPrecipLayers(){
     return
   }
   if(radarOn&&radarFrames[radarIndex]){
-    update3dDpcLayer('SRI',radarFrames[radarIndex],.66);
+    update3dDpcLayer('SRI',radarFrames[radarIndex],.52);
     raise3dOperationalLayers();
     return
   }
   if(cumActive&&cumLayer?._productKey&&cumLayer?._frame){
-    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.60)
+    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.42)
   }
   raise3dOperationalLayers()
 }
@@ -1207,7 +1219,7 @@ function clearMobile3dStationMarkers(){
   station3dMobileMarkers.forEach(m=>{try{m.remove()}catch(e){}});
   station3dMobileMarkers=[]
 }
-function mobile3dStationCandidates(){
+function station3dCandidates(spacing){
   if(!map3d||!mode3d||!stationsOn)return [];
   const bounds=map3d.getBounds();
   const candidates=stations.filter(baseVisible).filter(s=>
@@ -1221,7 +1233,7 @@ function mobile3dStationCandidates(){
     a.pri-b.pri||a.stable.localeCompare(b.stable,'it')
   );
 
-  const spacing=34,grid=new Map(),accepted=[];
+  const grid=new Map(),accepted=[];
   for(const item of candidates){
     const gx=Math.floor(item.p.x/spacing),gy=Math.floor(item.p.y/spacing);
     let collide=false;
@@ -1248,7 +1260,7 @@ function renderMobile3dStations(){
   clearMobile3dStationMarkers();
   if(!MOBILE_MAP()||!map3d||!mode3d||!map3dStyleReady||!stationsOn)return;
 
-  const selected=mobile3dStationCandidates();
+  const selected=station3dCandidates(48);
   for(const item of selected){
     const s=item.s,el=document.createElement('div');
     el.className='station3d-mobile-marker';
@@ -1290,33 +1302,35 @@ function ensure3dDataLayers(){
   if(!map3d||!map3dStyleReady)return;
   if(!map3d.getSource('stations-3d')){
     map3d.addSource('stations-3d',{type:'geojson',data:fc()});
+    // Dimensioni maggiorate e numeri centrati; il filtro spaziale previene sovrapposizioni.
     map3d.addLayer({
       id:'stations-3d-points',type:'circle',source:'stations-3d',
       paint:{
-        'circle-radius':['interpolate',['linear'],['zoom'],6,6.5,10,8.5,14,11],
+        'circle-radius':['interpolate',['linear'],['zoom'],5,18,7,20,10,22,14,23],
         'circle-color':['get','color'],
         'circle-stroke-color':'#ffffff',
-        'circle-stroke-width':['interpolate',['linear'],['zoom'],6,1.6,10,2.1,14,2.6],
-        'circle-opacity':.98,
-        'circle-stroke-opacity':.96
+        'circle-stroke-width':2.4,
+        'circle-opacity':.99,
+        'circle-stroke-opacity':1
       }
     });
     map3d.addLayer({
-      id:'stations-3d-labels',type:'symbol',source:'stations-3d',minzoom:6.3,
+      id:'stations-3d-labels',type:'symbol',source:'stations-3d',
       layout:{
-        'text-field':['get','label3d'],
-        'text-size':['interpolate',['linear'],['zoom'],6.3,9,9,10.5,13,12],
-        'text-offset':[0,-1.45],
-        'text-anchor':'bottom',
-        'text-line-height':1.05,
-        'text-allow-overlap':false,
-        'text-ignore-placement':false
+        'text-field':['get','value3d'],
+        'text-size':['interpolate',['linear'],['zoom'],5,12,8,13,11,14],
+        'text-anchor':'center',
+        'text-justify':'center',
+        'text-allow-overlap':true,
+        'text-ignore-placement':true,
+        'text-pitch-alignment':'viewport',
+        'text-rotation-alignment':'viewport'
       },
       paint:{
-        'text-color':'#07111d',
-        'text-halo-color':'rgba(255,255,255,.96)',
-        'text-halo-width':1.8,
-        'text-halo-blur':.2
+        'text-color':'#ffffff',
+        'text-halo-color':'#07111d',
+        'text-halo-width':1.65,
+        'text-halo-blur':0
       }
     });
     map3d.on('click','stations-3d-points',e=>{
@@ -1370,18 +1384,20 @@ function ensure3dDataLayers(){
 }
 function update3dStations(){
   if(!map3d||!map3dStyleReady||!map3d.getSource('stations-3d'))return;
-  const features=stationsOn?stations.filter(baseVisible).map(s=>({
+  // Densità filtrata con coordinate proiettate, per evitare cerchi sovrapposti.
+  const visible=mode3d&&!MOBILE_MAP()?station3dCandidates(48):[];
+  const features=visible.map(({s})=>({
     type:'Feature',
-    geometry:{type:'Point',coordinates:[s.lon,s.lat]},
+    geometry:{type:'Point',coordinates:[Number(s.lon),Number(s.lat)]},
     properties:{
       name:s.name||'Stazione',
       net:s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna',
       param:P[cur].n,
       label:fmt(s[cur],cur,s),
-      label3d:(s.name||'Stazione')+'\n'+fmt(s[cur],cur,s),
+      value3d:fmtMarker(s[cur],cur),
       color:col(s[cur],P[cur].st)
     }
-  })):[];
+  }));
   map3d.getSource('stations-3d').setData(fc(features));
   if(map3d.getLayer('stations-3d-points'))map3d.setLayoutProperty('stations-3d-points','visibility',MOBILE_MAP()?'none':'visible');
   if(map3d.getLayer('stations-3d-labels'))map3d.setLayoutProperty('stations-3d-labels','visibility',MOBILE_MAP()?'none':'visible');
@@ -1431,8 +1447,8 @@ function ensureMap3d(){
     canvasContextAttributes:{antialias:true}
   });
   map3d.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'bottom-right');
-  map3d.on('moveend',()=>{if(mode3d&&MOBILE_MAP())scheduleMobile3dStations(40)});
-  map3d.on('zoomend',()=>{if(mode3d&&MOBILE_MAP())scheduleMobile3dStations(40)});
+  map3d.on('moveend',()=>{if(mode3d){if(MOBILE_MAP())scheduleMobile3dStations(40);else update3dStations()}});
+  map3d.on('zoomend',()=>{if(mode3d){if(MOBILE_MAP())scheduleMobile3dStations(40);else update3dStations()}});
 
   map3d.on('load',()=>{
     // La mappa ora accetta sorgenti e layer: isStyleLoaded() può tornare false durante gli update.
@@ -1641,7 +1657,7 @@ map.getContainer().addEventListener('pointerup',e=>{
     lastTouchTap=now;lastTouchPoint=p;
   }
 },{passive:true});
-window.addEventListener('resize',()=>{syncMapExtent();if(map3d){map3d.resize();if(mode3d)scheduleMobile3dStations(120)}if(window.innerWidth>800)leftPanel.classList.remove('open');syncMobileButtons();layoutTimelineStack()});
+window.addEventListener('resize',()=>{syncMapExtent();if(map3d){map3d.resize();if(mode3d){update3dStations();if(MOBILE_MAP())scheduleMobile3dStations(120)}}if(window.innerWidth>800)leftPanel.classList.remove('open');syncMobileButtons();layoutTimelineStack()});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
 function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
 function fmtMarker(v,k=cur){
