@@ -1151,7 +1151,7 @@ function ensure3dDpcLayer(){
   }
   return true
 }
-async function update3dDpcLayer(productKey,time,opacity=.92){
+async function update3dDpcLayer(productKey,time,opacity=.28){
   if(!mode3d||!map3d||!map3dStyleReady||!productKey||!time)return;
   if(!ensure3dDpcLayer())return;
   const seq=++dpc3dRequestSeq;
@@ -1201,12 +1201,12 @@ function sync3dPrecipLayers(){
     return
   }
   if(radarOn&&radarFrames[radarIndex]){
-    update3dDpcLayer('SRI',radarFrames[radarIndex],.52);
+    update3dDpcLayer('SRI',radarFrames[radarIndex],.28);
     raise3dOperationalLayers();
     return
   }
   if(cumActive&&cumLayer?._productKey&&cumLayer?._frame){
-    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.42)
+    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.22)
   }
   raise3dOperationalLayers()
 }
