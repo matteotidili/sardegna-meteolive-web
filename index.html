@@ -18,7 +18,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .station3d-mobile-marker{
   position:relative;display:grid;place-items:center;box-sizing:border-box;
   width:36px;height:36px;border-radius:50%;
-  border:1.7px solid #fff;box-shadow:0 1px 5px #0009;
+  border:0;box-shadow:0 1px 5px #0009;
   text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;
   transform:translateZ(0)
 }
@@ -83,13 +83,13 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-words span:nth-child(5){flex:5 1 0}
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
-.badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1;border:1.6px solid #fff;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;font-variant-numeric:tabular-nums}.badge.suspect{opacity:.7}
+.badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1;border:0;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;font-variant-numeric:tabular-nums}.badge.suspect{opacity:.7}
 .station-marker-number{position:absolute;left:50%;top:50%;display:block;white-space:nowrap;font:950 18px/1 "Arial Narrow",Arial,Inter,system-ui,sans-serif;letter-spacing:-.07em;font-variant-numeric:tabular-nums;transform:translate(-50%,-50%) scaleX(.81);transform-origin:center;pointer-events:none}
 .badge.light-ink{color:#10202b;text-shadow:0 1px 0 #ffffff9c}
 .badge.dark-ink{color:#fff;text-shadow:0 1px 2px #000e,0 0 2px #000c}
 @media(max-width:800px){
   .badge{
-    border-width:1.8px;
+    border-width:0;
     box-shadow:0 1px 5px #000a,0 0 0 1px #0004;
   }
 }
@@ -334,7 +334,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
   .time-label{min-width:64px;font-size:8px}
   .timeline input[type=range]{width:100%;min-width:48px}
   .leaflet-control-zoom{display:none}
-  .badge{width:28px;height:28px;padding:0;font-size:8px;border-width:2px}
+  .badge{width:28px;height:28px;padding:0;font-size:8px;border-width:0}
   .leaflet-popup-content{margin:12px 14px}
 }
 @media(max-width:480px){
@@ -1370,8 +1370,8 @@ function ensure3dDataLayers(){
       paint:{
         'circle-radius':['interpolate',['linear'],['zoom'],5,18,7,20,10,22,14,23],
         'circle-color':['get','color'],
-        'circle-stroke-color':'#ffffff',
-        'circle-stroke-width':2.4,
+        'circle-stroke-color':'rgba(0,0,0,0)',
+        'circle-stroke-width':0,
         'circle-opacity':.99,
         'circle-stroke-opacity':1
       }
