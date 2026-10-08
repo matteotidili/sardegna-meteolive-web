@@ -17,7 +17,7 @@
 main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{display:none;position:absolute;inset:0;z-index:1}#map3d.on{display:block}#map.map-hidden{display:none}
 .station3d-mobile-marker{
   display:grid;place-items:center;box-sizing:border-box;
-  width:34px;height:34px;border-radius:50%;
+  width:38px;height:38px;border-radius:50%;
   border:2px solid #fff;box-shadow:0 1px 6px #000b;
   text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;
   transform:translateZ(0)
@@ -25,7 +25,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .station3d-mobile-value{
   display:block;min-width:100%;
   color:#fff;
-  font:950 11px/1 Inter,system-ui,Arial;
+  font:950 12px/1 Inter,system-ui,Arial;
   letter-spacing:-.02em;
   text-align:center;
   text-shadow:
@@ -68,6 +68,22 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
 .badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:900;font-size:8.5px;line-height:1;border:2px solid #fff;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;text-shadow:0 1px 1px #ffffff66}.badge.suspect{opacity:.62}
+@media(max-width:800px){
+  .badge{
+    font-size:11.5px;
+    font-weight:950;
+    color:#fff;
+    border-width:2px;
+    box-shadow:0 1px 6px #000b,0 0 0 1px #0004;
+    text-shadow:
+      -1px -1px 0 #000,
+       1px -1px 0 #000,
+      -1px  1px 0 #000,
+       1px  1px 0 #000,
+       0 1px 2px #000;
+  }
+}
+
 .styles{position:absolute;z-index:990;right:14px;bottom:14px;background:#091522e8;border:1px solid #294055;border-radius:12px;padding:7px;display:flex;gap:5px}.base{border:1px solid #294055;background:#0f1c2a;color:#dbeaf6;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:700;cursor:pointer}.base.active{border-color:#46d6ff;background:#123144}
 .status{position:absolute;z-index:950;left:50%;transform:translateX(-50%);bottom:14px;background:#07131fe8;border:1px solid #294055;border-radius:12px;padding:8px 12px;font-size:11px;color:#a9bdcf}
 .timeline{display:none;position:absolute;z-index:980;left:50%;transform:translateX(-50%);bottom:58px;width:min(690px,calc(100% - 330px));background:#07131ff0;border:1px solid #294055;border-radius:13px;padding:9px 11px;box-shadow:0 10px 28px #0007;backdrop-filter:blur(12px);align-items:center;gap:8px}.timeline.on{display:flex}.timeline.stacked{bottom:103px}
@@ -1612,10 +1628,10 @@ function obsAgeMin(s){
 function markerMetrics(){
   const z=map.getZoom(),mobile=MOBILE_MAP();
   if(mobile){
-    if(z<=7)return {d:26,sx:29,sy:29};
-    if(z===8)return {d:27,sx:30,sy:30};
-    if(z===9)return {d:28,sx:30,sy:30};
-    return {d:29,sx:31,sy:31}
+    if(z<=7)return {d:34,sx:38,sy:38};
+    if(z===8)return {d:35,sx:39,sy:39};
+    if(z===9)return {d:36,sx:40,sy:40};
+    return {d:37,sx:41,sy:41}
   }
   if(z<=7)return {d:27,sx:30,sy:30};
   if(z===8)return {d:28,sx:31,sy:31};
