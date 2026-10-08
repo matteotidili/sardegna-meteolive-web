@@ -1,0 +1,58 @@
+name: Audit soglie idrometriche ARPAS
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/audit-arpas-hydro.yml'
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Inspect official ARPAS FeatureServer
+        run: |
+          python - <<'PY'
+          import json, urllib.parse, urllib.request, collections, datetime
+          base='https://services6.arcgis.com/VdOe78ROZ6pyB2c8/arcgis/rest/services/idrometri_real_time_vista/FeatureServer/1'
+          def get(url,params):
+            q=urllib.parse.urlencode(params)
+            req=urllib.request.Request(url+'?'+q,headers={'User-Agent':'SardegnaMeteoLive-Hydro-Audit/1.0'})
+            with urllib.request.urlopen(req,timeout=30) as r:return json.load(r)
+          meta=get(base,{'f':'json'})
+          print('LAYER:',meta.get('name'),'ERROR:',meta.get('error'))
+          print('FIELDS:',[(x['name'],x.get('alias'),x.get('type')) for x in meta.get('fields',[])])
+          j=get(base+'/query',{'where':'1=1','outFields':'cod_srv,cae_nome,altra_denominazione,tipomisura,time,value,trend,zero,s1,s2,s3,nota_m_slm,note','returnGeometry':'false','resultRecordCount':'2000','f':'json'})
+          print('QUERY ERROR:',j.get('error'))
+          rows=[x.get('attributes',{}) for x in j.get('features',[])]
+          print('RECORDS:',len(rows),'TRUNCATED:',j.get('exceededTransferLimit'))
+          now=datetime.datetime.now(datetime.timezone.utc).timestamp()*1000
+          def n(v):
+            try:return float(v) if v is not None and v!='' else None
+            except:return None
+          def stale(p):
+            t=n(p.get('time'))
+            return not t or now-t>2*3600*1000
+          def stage(p):
+            v=n(p.get('value'))
+            if v is None:return -1
+            if stale(p):return -2
+            ss=[n(p.get(k)) for k in ['s1','s2','s3']]
+            if all(x is None for x in ss):return -3
+            for st,x in [(3,ss[2]),(2,ss[1]),(1,ss[0])]:
+              if x is not None and v>=x:return st
+            return 0
+          print('STAGES:',dict(collections.Counter(stage(x) for x in rows)))
+          print('S3 VALUES COUNTS:',collections.Counter(str(x.get('s3')) for x in rows).most_common(35))
+          print('S2 VALUES COUNTS:',collections.Counter(str(x.get('s2')) for x in rows).most_common(20))
+          print('S1 VALUES COUNTS:',collections.Counter(str(x.get('s1')) for x in rows).most_common(20))
+          print('S3 MATCHES:')
+          for p in rows:
+            if stage(p)==3:
+              print(json.dumps({k:p.get(k) for k in ['cod_srv','cae_nome','altra_denominazione','tipomisura','time','value','zero','s1','s2','s3','trend','note']},ensure_ascii=False))
+          print('FRESH SAMPLE:')
+          for p in rows[:8]:
+            print(json.dumps({k:p.get(k) for k in ['cod_srv','cae_nome','time','value','s1','s2','s3']},ensure_ascii=False))
+          PY
