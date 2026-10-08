@@ -2537,7 +2537,7 @@ historicSubregionsFile.addEventListener('change',async()=>{
     if(file.size>15*1024*1024)throw new Error('File superiore a 15 MB');
     const data=JSON.parse(await file.text());
     activateHistoricSubregions(data,'file locale '+file.name);
-    historicSubregionsStatus('Geometrie caricate ('+historicSubregionsData.features.length+'). Attiva il layer dal pulsante.');
+    historicSubregionsStatus('Geometrie caricate ('+historicSubregionsData.features.length+'). Layer attivo; puoi disattivarlo dal pulsante.');
   }catch(e){
     historicSubregionsStatus('Importazione non riuscita: '+e.message)
   }
