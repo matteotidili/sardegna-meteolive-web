@@ -17,18 +17,21 @@
 main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{display:none;position:absolute;inset:0;z-index:1}#map3d.on{display:block}#map.map-hidden{display:none}
 .station3d-mobile-marker{
   display:grid;place-items:center;box-sizing:border-box;
-  width:44px;height:44px;border-radius:50%;
-  border:2px solid #fff;box-shadow:0 1px 6px #000b;
+  width:36px;height:36px;border-radius:50%;
+  border:1.7px solid #fff;box-shadow:0 1px 5px #0009;
   text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;
   transform:translateZ(0)
 }
 .station3d-mobile-value{
-  display:block;min-width:100%;
+  display:block;
   color:#fff;
-  font:950 15px/1 Inter,system-ui,Arial;
-  letter-spacing:-.045em;
+  font:950 19px/1 "Arial Narrow",Arial,Inter,system-ui,sans-serif;
+  letter-spacing:-.07em;
   font-variant-numeric:tabular-nums;
   text-align:center;
+  white-space:nowrap;
+  transform:scaleX(.81);
+  transform-origin:center;
   text-shadow:
     -1px -1px 0 #000,
      1px -1px 0 #000,
@@ -80,16 +83,14 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-words span:nth-child(5){flex:5 1 0}
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
-.badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0 2px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1.1;border:2px solid #fff;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;letter-spacing:-.045em;font-variant-numeric:tabular-nums;text-shadow:0 1px 1px #ffffff80}.badge.suspect{opacity:.7}
+.badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1;border:1.6px solid #fff;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;font-variant-numeric:tabular-nums}.badge.suspect{opacity:.7}
+.station-marker-number{display:block;white-space:nowrap;font:950 18px/1 "Arial Narrow",Arial,Inter,system-ui,sans-serif;letter-spacing:-.07em;font-variant-numeric:tabular-nums;transform:scaleX(.81);transform-origin:center;pointer-events:none}
 .badge.light-ink{color:#10202b;text-shadow:0 1px 0 #ffffff9c}
 .badge.dark-ink{color:#fff;text-shadow:0 1px 2px #000e,0 0 2px #000c}
 @media(max-width:800px){
   .badge{
-    font-size:14px;
-    font-weight:950;
-    border-width:2.3px;
-    letter-spacing:-.06em;
-    box-shadow:0 1px 6px #000a,0 0 0 1px #0004;
+    border-width:1.8px;
+    box-shadow:0 1px 5px #000a,0 0 0 1px #0004;
   }
 }
 
@@ -1279,7 +1280,8 @@ function station3dCandidates(spacing){
         const bucket=grid.get(ix+','+iy);
         if(!bucket)continue;
         for(const keep of bucket){
-          if(Math.abs(item.p.x-keep.p.x)<spacing&&Math.abs(item.p.y-keep.p.y)<spacing){
+          const dx=item.p.x-keep.p.x,dy=item.p.y-keep.p.y;
+          if(dx*dx+dy*dy<spacing*spacing){
             collide=true;break
           }
         }
@@ -1293,14 +1295,21 @@ function station3dCandidates(spacing){
   }
   return accepted
 }
+function station3dMarkerSize(){
+  const zoom=map3d?.getZoom()??7;
+  return Math.round(Math.max(34,Math.min(40,35+(zoom-7)*.7)))
+}
 function renderMobile3dStations(){
   clearMobile3dStationMarkers();
   if(!map3d||!mode3d||!map3dStyleReady||!stationsOn)return;
 
-  const selected=station3dCandidates(52);
+  const diameter=station3dMarkerSize();
+  const selected=station3dCandidates(diameter+1);
   for(const item of selected){
     const s=item.s,el=document.createElement('div');
     el.className='station3d-mobile-marker';
+    el.style.width=diameter+'px';
+    el.style.height=diameter+'px';
     const bg=col(s[cur],P[cur].st);
     el.style.background=bg;
     const valueEl=document.createElement('span');
@@ -1308,7 +1317,9 @@ function renderMobile3dStations(){
     const darkInk=markerUseDarkInk(bg);
     valueEl.style.color=darkInk?'#10202b':'#ffffff';
     valueEl.style.textShadow=darkInk?'0 1px 0 #ffffffba':'0 1px 2px #000,0 0 2px #000';
-    valueEl.textContent=fmtMarker(s[cur],cur);
+    const value=fmtMarker(s[cur],cur);
+    valueEl.textContent=value;
+    valueEl.style.fontSize=stationMarkerFontSize(diameter,value)+'px';
     el.appendChild(valueEl);
     el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+fmt(s[cur],cur,s);
     el.setAttribute('aria-label',el.title);
@@ -1777,17 +1788,16 @@ function obsAgeMin(s){
 }
 function markerMetrics(){
   const z=map.getZoom(),mobile=MOBILE_MAP();
-  if(mobile){
-    if(z<=7)return {d:40,sx:46,sy:46};
-    if(z===8)return {d:42,sx:48,sy:48};
-    if(z===9)return {d:43,sx:49,sy:49};
-    return {d:44,sx:50,sy:50}
-  }
-  if(z<=7)return {d:27,sx:30,sy:30};
-  if(z===8)return {d:28,sx:31,sy:31};
-  if(z===9)return {d:29,sx:31,sy:31};
-  if(z===10)return {d:30,sx:32,sy:32};
-  return {d:31,sx:33,sy:33}
+  // Piccoli e progressivi: la scala aumenta con lo zoom senza salti.
+  const minimum=mobile?33:27,maximum=mobile?39:33;
+  const diameter=Math.round(Math.max(minimum,Math.min(maximum,minimum+(z-7)*.85)));
+  const gap=1; // separazione minima reale fra cerchi: massima densità utile
+  return {d:diameter,sx:diameter+gap,sy:diameter+gap}
+}
+function stationMarkerFontSize(diameter,value){
+  const length=String(value).length;
+  const factor=length>=6?.39:length===5?.47:length===4?.56:.63;
+  return Math.round(Math.min(22,diameter*factor)*10)/10
 }
 function ico(s){
   const v=s[cur],bg=col(v,P[cur].st),m=markerMetrics();
@@ -1795,7 +1805,7 @@ function ico(s){
   const cls='badge '+(markerUseDarkInk(bg)?'light-ink':'dark-ink')+(suspect?' suspect':'');
   return L.divIcon({
     className:'',
-    html:'<div class="'+cls+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px">'+fmtMarker(v,cur)+'</div>',
+    html:'<div class="'+cls+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px"><span class="station-marker-number" style="font-size:'+stationMarkerFontSize(m.d,fmtMarker(v,cur))+'px">'+fmtMarker(v,cur)+'</span></div>',
     iconSize:[m.d,m.d],
     iconAnchor:[m.d/2,m.d/2]
   })
@@ -2207,8 +2217,9 @@ function selectedMarkers(){
         const bucket=grid.get(ix+','+iy);
         if(!bucket)continue;
         for(const keep of bucket){
-          if(Math.abs(item.p.x-keep.p.x)<spacing.x &&
-             Math.abs(item.p.y-keep.p.y)<spacing.y){
+          const dx=item.p.x-keep.p.x,dy=item.p.y-keep.p.y;
+          const minDistance=Math.max(spacing.x,spacing.y);
+          if(dx*dx+dy*dy<minDistance*minDistance){
             collide=true;break
           }
         }
