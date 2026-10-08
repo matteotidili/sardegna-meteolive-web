@@ -532,6 +532,10 @@ header .live{margin-left:0}
 @media(max-width:800px){.map3d-mouse-tools{display:none!important}}
 /* Subregioni storico-geografiche (non confini amministrativi). */
 .subregions-note{font-size:9px;line-height:1.4;color:#758e9e;padding:5px 9px 8px}
+.subregions-note a{color:#238eaa;text-decoration:underline}
+#subregionsDataStatus{display:block;margin-top:5px;color:#5a7585;font-size:9px;font-weight:750}
+.subregions-import{display:block;max-width:100%;margin-top:8px;padding:6px 8px;border:1px solid #b8cfda;border-radius:7px;background:#ecf5f8;color:#145b72;font-weight:850;font-size:10px;cursor:pointer}
+.subregions-import input{display:block;margin-top:5px;width:100%;max-width:100%;font-size:10px;cursor:pointer}
 .subregions-label{font:800 10px/1.2 Inter,system-ui,Arial;color:#ffffff;
   background:#094355dd;border:1px solid #e5ffffb3;border-radius:6px;
   text-shadow:0 1px 2px #000;box-shadow:0 2px 5px #0006;
@@ -685,8 +689,14 @@ header .live{margin-left:0}
         </div>
         <div class="control-section-label">Elementi sulla mappa</div>
         <button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button>
-        <button class="btn" id="subregionsBtn" disabled title="In attesa della cartografia vettoriale verificata">Subregioni storiche <span>IN ATTESA</span></button>
-        <div class="subregions-note">Confini storico-geografici indicativi, distinti dai limiti amministrativi.</div>
+        <button class="btn" id="subregionsBtn" disabled title="Ricerca della sorgente vettoriale in corso">Subregioni storiche <span>CARICAMENTO</span></button>
+        <div class="subregions-note" id="subregionsInfo">Confini storico-geografici indicativi, distinti dai limiti amministrativi.
+          <a href="https://geonue.com/le-regioni-storiche-della-sardegna/" target="_blank" rel="noopener noreferrer">Fonte GeoNue / Nurnet</a>
+          <span id="subregionsDataStatus" role="status" aria-live="polite"></span>
+          <label class="subregions-import">Importa GeoJSON verificato
+            <input id="subregionsFile" type="file" accept=".geojson,.json,application/geo+json,application/json" aria-label="Importa un file GeoJSON delle subregioni storiche della Sardegna">
+          </label>
+        </div>
       </div></div>
     </div>
   </div>
@@ -2357,16 +2367,68 @@ const historicSubregions2d=L.layerGroup();
 const historicSubregionsLabels=L.layerGroup();
 let historicSubregionsData=null,historicSubregionsOn=false;
 const HISTORIC_SUBREGIONS_PATH='data/subregioni-storiche.geojson';
+const HISTORIC_SUBREGIONS_REMOTE=[
+  // Copia cartografica originale uMap; la disponibilità e le policy CORS dipendono dal gestore.
+  'https://umap.geonue.com/it/map/6/download/',
+  'https://umap.geonue.com/it/map/6/geojson/'
+];
+const historicSubregionsDataStatus=document.getElementById('subregionsDataStatus');
+const historicSubregionsFile=document.getElementById('subregionsFile');
+let historicSubregionsOrigin='';
+function historicSubregionsStatus(message){historicSubregionsDataStatus.textContent=message}
 function historicSubregionName(f){
   return String(f?.properties?.nome||f?.properties?.name||'Subregione storica').trim()
 }
+function normalizeHistoricSubregions(data){
+  // Export uMap possono annidare più collezioni; manteniamo solo poligoni con nome.
+  const features=[];
+  const visit=(part,depth=0)=>{
+    if(!part||depth>5)return;
+    if(Array.isArray(part)){for(const child of part)visit(child,depth+1);return}
+    if(part.type==='Feature'&&['Polygon','MultiPolygon'].includes(part.geometry?.type)){
+      const p=part.properties||{};
+      const nome=String(p.nome||p.name||p.NOME||p.Name||p.subregione||p.SUBREGIONE||'').trim();
+      if(!nome||!Array.isArray(part.geometry.coordinates))return;
+      features.push({...part,properties:{...p,nome}})
+    }
+    if(Array.isArray(part.features))visit(part.features,depth+1);
+    if(Array.isArray(part.layers))visit(part.layers,depth+1);
+    if(Array.isArray(part.datalayers))visit(part.datalayers,depth+1);
+    if(Array.isArray(part.dataLayers))visit(part.dataLayers,depth+1)
+  };
+  visit(data);
+  return {type:'FeatureCollection',features}
+}
 function historicSubregionsValid(data){
-  return data?.type==='FeatureCollection'&&Array.isArray(data.features)&&
-    data.features.length>0&&data.features.every(f=>
-      f?.type==='Feature'&&['Polygon','MultiPolygon'].includes(f.geometry?.type)&&
-      Array.isArray(f.geometry.coordinates)&&f.geometry.coordinates.length>0&&
-      typeof(f.properties?.nome||f.properties?.name)==='string'
-    )
+  if(data?.type!=='FeatureCollection'||!Array.isArray(data.features)||data.features.length<12)return false;
+  const labels=new Set();
+  for(const f of data.features){
+    if(f?.type!=='Feature'||!['Polygon','MultiPolygon'].includes(f.geometry?.type)||
+      typeof f.properties?.nome!=='string'||!f.properties.nome.trim())return false;
+    labels.add(f.properties.nome.toLowerCase());
+    const scan=(value,depth=0)=>{
+      if(depth>8)return false;
+      if(Array.isArray(value)&&value.length>=2&&value.every(v=>typeof v==='number')){
+        return value[0]>=7.9&&value[0]<=10.1&&value[1]>=38.7&&value[1]<=41.5
+      }
+      return Array.isArray(value)&&value.length>0&&value.every(v=>scan(v,depth+1))
+    };
+    if(!scan(f.geometry.coordinates))return false
+  }
+  return labels.size>=12
+}
+function activateHistoricSubregions(data,origin){
+  const normalized=normalizeHistoricSubregions(data);
+  if(!historicSubregionsValid(normalized))throw new Error('Poligoni insufficienti, non validi o esterni alla Sardegna');
+  historicSubregionsData=normalized;
+  historicSubregionsOrigin=origin;
+  buildHistoricSubregions2d();
+  historicSubregionsBtn.disabled=false;
+  historicSubregionsBtn.title='Attiva/disattiva confini storico-geografici indicativi';
+  historicSubregionsBtn.lastElementChild.textContent=historicSubregionsOn?'ON':'OFF';
+  historicSubregionsStatus(normalized.features.length+' aree disponibili · '+origin);
+  syncHistoricSubregions2d();
+  syncHistoricSubregions3d()
 }
 function buildHistoricSubregions2d(){
   historicSubregions2d.clearLayers();
@@ -2424,8 +2486,7 @@ function syncHistoricSubregions3d(){
       layout:{
         'text-field':['coalesce',['get','nome'],['get','name']],
         'text-size':11,'text-allow-overlap':false,'text-padding':5,
-        'text-pitch-alignment':'viewport',
-        'text-font':['Open Sans Bold']
+        'text-pitch-alignment':'viewport'
       },
       paint:{'text-color':'#ffffff','text-halo-color':'#134351','text-halo-width':2.2}
     })
@@ -2445,26 +2506,43 @@ historicSubregionsBtn.onclick=()=>{
   syncHistoricSubregions3d()
 };
 map.on('zoomend',syncHistoricSubregions2d);
-async function initializeHistoricSubregions(){
-  try{
-    const response=await fetch(HISTORIC_SUBREGIONS_PATH,{cache:'force-cache'});
-    if(!response.ok)throw new Error('GeoJSON non disponibile: '+response.status);
-    const data=await response.json();
-    if(!historicSubregionsValid(data))throw new Error('File con geometrie mancanti o non valide');
-    historicSubregionsData=data;
-    buildHistoricSubregions2d();
-    historicSubregionsBtn.disabled=false;
-    historicSubregionsBtn.title='Mostra confini storico-geografici indicativi';
-    historicSubregionsBtn.lastElementChild.textContent='OFF';
-    syncHistoricSubregions2d();
-    syncHistoricSubregions3d()
-  }catch(e){
-    historicSubregionsBtn.disabled=true;
-    historicSubregionsBtn.lastElementChild.textContent='DATI NON DISP.';
-    historicSubregionsBtn.title='Il GeoJSON delle subregioni storiche non è ancora stato verificato';
-    console.info('Subregioni storico-geografiche: dataset non disponibile',e.message)
-  }
+async function fetchHistoricSubregions(url){
+  const response=await fetch(url,{mode:'cors',cache:'no-cache',signal:AbortSignal.timeout(12000)});
+  if(!response.ok)throw new Error('HTTP '+response.status);
+  return response.json()
 }
+async function initializeHistoricSubregions(){
+  const sources=[
+    {url:HISTORIC_SUBREGIONS_PATH,name:'archivio locale'},
+    ...HISTORIC_SUBREGIONS_REMOTE.map(url=>({url,name:'GeoNue uMap'}))
+  ];
+  for(const source of sources){
+    try{
+      const data=await fetchHistoricSubregions(source.url);
+      activateHistoricSubregions(data,source.name);
+      return
+    }catch(e){
+      console.info('Subregioni, sorgente non utilizzabile',source.url,e.message)
+    }
+  }
+  historicSubregionsBtn.disabled=true;
+  historicSubregionsBtn.lastElementChild.textContent='DATI NON DISP.';
+  historicSubregionsBtn.title='GeoJSON storico non raggiungibile: importa un file verificato';
+  historicSubregionsStatus('Sorgente vettoriale non raggiungibile. Puoi importare il GeoJSON originale; nessun confine inventato.')
+}
+historicSubregionsFile.addEventListener('change',async()=>{
+  const file=historicSubregionsFile.files?.[0];
+  if(!file)return;
+  try{
+    if(file.size>15*1024*1024)throw new Error('File superiore a 15 MB');
+    const data=JSON.parse(await file.text());
+    activateHistoricSubregions(data,'file locale '+file.name);
+    historicSubregionsStatus('Geometrie caricate ('+historicSubregionsData.features.length+'). Attiva il layer dal pulsante.');
+  }catch(e){
+    historicSubregionsStatus('Importazione non riuscita: '+e.message)
+  }
+});
+
 initializeHistoricSubregions();
 
 const FRP_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/frp.json';
