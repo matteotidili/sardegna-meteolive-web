@@ -1221,18 +1221,23 @@ function clearMobile3dStationMarkers(){
 }
 function station3dCandidates(spacing){
   if(!map3d||!mode3d||!stationsOn)return [];
-  const bounds=map3d.getBounds();
-  const candidates=stations.filter(baseVisible).filter(s=>
-    Number.isFinite(Number(s.lat))&&Number.isFinite(Number(s.lon))&&
-    bounds.contains([Number(s.lon),Number(s.lat)])
-  ).map(s=>{
-    const p=map3d.project([Number(s.lon),Number(s.lat)]);
+  const canvas=map3d.getCanvas();
+  const width=canvas.clientWidth||map3dEl.clientWidth;
+  const height=canvas.clientHeight||map3dEl.clientHeight;
+  // La selezione usa i pixel dello schermo, non getBounds() che in 3D
+  // con pitch elevato può escludere punti effettivamente visibili.
+  const candidates=stations.filter(baseVisible).map(s=>{
+    const lon=Number(s.lon),lat=Number(s.lat);
+    if(!Number.isFinite(lon)||!Number.isFinite(lat))return null;
+    let p;
+    try{p=map3d.project([lon,lat])}catch(e){return null}
+    if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)||
+       p.x< -spacing||p.x>width+spacing||p.y< -spacing||p.y>height+spacing)return null;
     return {s,p,pri:priority(s),stable:stationKey(s)}
-  }).sort((a,b)=>
+  }).filter(Boolean).sort((a,b)=>
     Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||
     a.pri-b.pri||a.stable.localeCompare(b.stable,'it')
   );
-
   const grid=new Map(),accepted=[];
   for(const item of candidates){
     const gx=Math.floor(item.p.x/spacing),gy=Math.floor(item.p.y/spacing);
@@ -1258,9 +1263,9 @@ function station3dCandidates(spacing){
 }
 function renderMobile3dStations(){
   clearMobile3dStationMarkers();
-  if(!MOBILE_MAP()||!map3d||!mode3d||!map3dStyleReady||!stationsOn)return;
+  if(!map3d||!mode3d||!map3dStyleReady||!stationsOn)return;
 
-  const selected=station3dCandidates(48);
+  const selected=station3dCandidates(52);
   for(const item of selected){
     const s=item.s,el=document.createElement('div');
     el.className='station3d-mobile-marker';
@@ -1383,31 +1388,17 @@ function ensure3dDataLayers(){
   sync3dPrecipLayers()
 }
 function update3dStations(){
-  if(!map3d||!map3dStyleReady||!map3d.getSource('stations-3d'))return;
-  // Densità filtrata con coordinate proiettate, per evitare cerchi sovrapposti.
-  const visible=mode3d&&!MOBILE_MAP()?station3dCandidates(48):[];
-  const features=visible.map(({s})=>({
-    type:'Feature',
-    geometry:{type:'Point',coordinates:[Number(s.lon),Number(s.lat)]},
-    properties:{
-      name:s.name||'Stazione',
-      net:s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna',
-      param:P[cur].n,
-      label:fmt(s[cur],cur,s),
-      value3d:fmtMarker(s[cur],cur),
-      color:col(s[cur],P[cur].st)
+  if(!map3d||!map3dStyleReady)return;
+  // Usiamo marker HTML in entrambe le modalità: le etichette GeoJSON di MapLibre
+  // possono sparire in 3D per il collision detection o a causa del pitch.
+  if(map3d.getSource('stations-3d'))map3d.getSource('stations-3d').setData(fc());
+  for(const id of ['stations-3d-points','stations-3d-labels']){
+    if(map3d.getLayer(id)&&map3d.getLayoutProperty(id,'visibility')!=='none'){
+      map3d.setLayoutProperty(id,'visibility','none')
     }
-  }));
-  map3d.getSource('stations-3d').setData(fc(features));
-  if(map3d.getLayer('stations-3d-points'))map3d.setLayoutProperty('stations-3d-points','visibility',MOBILE_MAP()?'none':'visible');
-  if(map3d.getLayer('stations-3d-labels'))map3d.setLayoutProperty('stations-3d-labels','visibility',MOBILE_MAP()?'none':'visible');
-  raise3dOperationalLayers();
-  if(MOBILE_MAP())scheduleMobile3dStations(20);
-  else clearMobile3dStationMarkers();
-  if(mode3d&&!MOBILE_MAP()){
-    const status=document.getElementById('status');
-    if(status)status.textContent='Vista 3D · '+features.length+' stazioni · '+P[cur].n+(hydroOn?' · idrometri ARPAS':'')+' · precipitazioni e fulmini compatibili'
   }
+  scheduleMobile3dStations(30);
+  raise3dOperationalLayers()
 }
 function lightningColor(ageMin){
   if(ageMin<5)return '#fff34d';
@@ -1447,8 +1438,8 @@ function ensureMap3d(){
     canvasContextAttributes:{antialias:true}
   });
   map3d.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'bottom-right');
-  map3d.on('moveend',()=>{if(mode3d){if(MOBILE_MAP())scheduleMobile3dStations(40);else update3dStations()}});
-  map3d.on('zoomend',()=>{if(mode3d){if(MOBILE_MAP())scheduleMobile3dStations(40);else update3dStations()}});
+  map3d.on('moveend',()=>{if(mode3d)scheduleMobile3dStations(40)});
+  map3d.on('zoomend',()=>{if(mode3d)scheduleMobile3dStations(40)});
 
   map3d.on('load',()=>{
     // La mappa ora accetta sorgenti e layer: isStyleLoaded() può tornare false durante gli update.
@@ -1513,7 +1504,7 @@ function enter3d(){
   if(map3dStyleReady)ensure3dDataLayers();
   setTimeout(()=>{if(mode3d&&map3dStyleReady)ensure3dDataLayers()},250);
   setTimeout(()=>{if(mode3d&&map3dStyleReady)ensure3dDataLayers()},900);
-  setTimeout(()=>{if(mode3d&&MOBILE_MAP())renderMobile3dStations()},1050);
+  setTimeout(()=>{if(mode3d&&map3dStyleReady)renderMobile3dStations()},1050);
   schedule3dPrecipSync(80);
   const status=document.getElementById('status');
   statusBefore3d=status.textContent;
@@ -1657,7 +1648,7 @@ map.getContainer().addEventListener('pointerup',e=>{
     lastTouchTap=now;lastTouchPoint=p;
   }
 },{passive:true});
-window.addEventListener('resize',()=>{syncMapExtent();if(map3d){map3d.resize();if(mode3d){update3dStations();if(MOBILE_MAP())scheduleMobile3dStations(120)}}if(window.innerWidth>800)leftPanel.classList.remove('open');syncMobileButtons();layoutTimelineStack()});
+window.addEventListener('resize',()=>{syncMapExtent();if(map3d){map3d.resize();if(mode3d)scheduleMobile3dStations(120)}if(window.innerWidth>800)leftPanel.classList.remove('open');syncMobileButtons();layoutTimelineStack()});
 function col(v,s){if(!Number.isFinite(v))return'#68727d';if(v<=s[0][0])return'rgb('+s[0][1]+')';for(let i=1;i<s.length;i++)if(v<=s[i][0]){let[a,ca]=s[i-1],[b,cb]=s[i],t=(v-a)/(b-a),c=ca.map((x,j)=>Math.round(x+(cb[j]-x)*t));return'rgb('+c+')'}return'rgb('+s.at(-1)[1]+')'}
 function fmt(v,k=cur,s=null){if(!Number.isFinite(v))return'—';if(s&&s.network==='wunderground'){if(k==='rh')return v.toFixed(0)+'%';if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1)+'°';return v.toFixed(1)}return P[k].fmt(v)}
 function fmtMarker(v,k=cur){
