@@ -969,7 +969,7 @@ let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,st
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
 let base=sat,currentBaseMode='sat';sat.addTo(map);
-let map3d=null,mode3d=false,statusBefore3d='';
+let map3d=null,mode3d=false,statusBefore3d='',map3dStyleReady=false;
 let station3dMobileMarkers=[];
 let station3dMobileRefreshTimer=null;
 
@@ -1077,7 +1077,7 @@ function hide3dPrecipLayer(id){
   if(map3d?.getLayer(id))map3d.setLayoutProperty(id,'visibility','none')
 }
 function raise3dOperationalLayers(){
-  if(!map3d||!map3d.isStyleLoaded())return;
+  if(!map3d||!map3dStyleReady)return;
   for(const id of ['hydro-3d-points','stations-3d-points','stations-3d-labels','lightning-3d-points']){
     if(map3d.getLayer(id)){
       try{map3d.moveLayer(id)}catch(e){}
@@ -1085,7 +1085,7 @@ function raise3dOperationalLayers(){
   }
 }
 function ensure3dDpcLayer(){
-  if(!map3d||!map3d.isStyleLoaded())return false;
+  if(!map3d||!map3dStyleReady)return false;
   if(!map3d.getSource('dpc-precip-3d')){
     const tiny='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL8WQAAAABJRU5ErkJggg==';
     map3d.addSource('dpc-precip-3d',{
@@ -1110,7 +1110,7 @@ function ensure3dDpcLayer(){
   return true
 }
 async function update3dDpcLayer(productKey,time,opacity=.92){
-  if(!mode3d||!map3d||!map3d.isStyleLoaded()||!productKey||!time)return;
+  if(!mode3d||!map3d||!map3dStyleReady||!productKey||!time)return;
   if(!ensure3dDpcLayer())return;
   const seq=++dpc3dRequestSeq;
   const canvas=await buildDpc3dMosaic(productKey,time);
@@ -1118,13 +1118,14 @@ async function update3dDpcLayer(productKey,time,opacity=.92){
   const source=map3d.getSource('dpc-precip-3d');
   if(!source)return;
   try{
-    source.updateImage({image:canvas,coordinates:DPC3D_GRID.coordinates});
+    // MapLibre 5.6.1 accetta `url`, non `image`, in ImageSource.updateImage().
+    source.updateImage({url:canvas.toDataURL('image/png'),coordinates:DPC3D_GRID.coordinates});
     map3d.setPaintProperty('dpc-precip-3d-layer','raster-opacity',opacity);
     map3d.setLayoutProperty('dpc-precip-3d-layer','visibility','visible')
   }catch(e){console.warn('DPC radar 3D',e)}
 }
 function ensure3dOperaLayer(time){
-  if(!map3d||!map3d.isStyleLoaded()||!time)return false;
+  if(!map3d||!map3dStyleReady||!time)return false;
   const tiles=[operaFrameUrl(time)];
   if(!map3d.getSource('opera-radar-3d')){
     map3d.addSource('opera-radar-3d',{
@@ -1145,7 +1146,7 @@ function ensure3dOperaLayer(time){
   return true
 }
 function sync3dPrecipLayers(){
-  if(!mode3d||!map3d||!map3d.isStyleLoaded())return;
+  if(!mode3d||!map3d||!map3dStyleReady)return;
   dpc3dRequestSeq++;
   hide3dPrecipLayer('dpc-precip-3d-layer');
   hide3dPrecipLayer('opera-radar-3d-layer');
@@ -1215,7 +1216,7 @@ function mobile3dStationCandidates(){
 }
 function renderMobile3dStations(){
   clearMobile3dStationMarkers();
-  if(!MOBILE_MAP()||!map3d||!mode3d||!map3d.isStyleLoaded()||!stationsOn)return;
+  if(!MOBILE_MAP()||!map3d||!mode3d||!map3dStyleReady||!stationsOn)return;
 
   const selected=mobile3dStationCandidates();
   for(const item of selected){
@@ -1256,7 +1257,7 @@ function scheduleMobile3dStations(delay=60){
   },delay)
 }
 function ensure3dDataLayers(){
-  if(!map3d||!map3d.isStyleLoaded())return;
+  if(!map3d||!map3dStyleReady)return;
   if(!map3d.getSource('stations-3d')){
     map3d.addSource('stations-3d',{type:'geojson',data:fc()});
     map3d.addLayer({
@@ -1338,7 +1339,7 @@ function ensure3dDataLayers(){
   sync3dPrecipLayers()
 }
 function update3dStations(){
-  if(!map3d||!map3d.isStyleLoaded()||!map3d.getSource('stations-3d'))return;
+  if(!map3d||!map3dStyleReady||!map3d.getSource('stations-3d'))return;
   const features=stationsOn?stations.filter(baseVisible).map(s=>({
     type:'Feature',
     geometry:{type:'Point',coordinates:[s.lon,s.lat]},
@@ -1370,7 +1371,7 @@ function lightningColor(ageMin){
   return '#6f3a44'
 }
 function update3dLightning(){
-  if(!map3d||!map3d.isStyleLoaded()||!map3d.getSource('lightning-3d'))return;
+  if(!map3d||!map3dStyleReady||!map3d.getSource('lightning-3d'))return;
   const now=Date.now(),cut=now-60*60*1000;
   const features=lightningOn&&lightningMode==='live'?lightningStrikes.filter(s=>s.time>=cut).map(s=>{
     const age=(now-s.time)/60000,isNew=age<.5;
@@ -1404,6 +1405,8 @@ function ensureMap3d(){
   map3d.on('zoomend',()=>{if(mode3d&&MOBILE_MAP())scheduleMobile3dStations(40)});
 
   map3d.on('load',()=>{
+    // La mappa ora accetta sorgenti e layer: isStyleLoaded() può tornare false durante gli update.
+    map3dStyleReady=true;
     try{
       if(!map3d.getSource('terrain-3d')){
         map3d.addSource('terrain-3d',{type:'raster-dem',url:'https://tiles.mapterhorn.com/tilejson.json'});
@@ -1461,9 +1464,9 @@ function enter3d(){
   const m=ensureMap3d();
   m.resize();
   m.jumpTo({center:[c.lng,c.lat],zoom:map.getZoom(),pitch:48,bearing:m.getBearing()||-12});
-  if(m.isStyleLoaded())ensure3dDataLayers();
-  setTimeout(()=>{if(mode3d&&map3d?.isStyleLoaded())ensure3dDataLayers()},250);
-  setTimeout(()=>{if(mode3d&&map3d?.isStyleLoaded())ensure3dDataLayers()},900);
+  if(map3dStyleReady)ensure3dDataLayers();
+  setTimeout(()=>{if(mode3d&&map3dStyleReady)ensure3dDataLayers()},250);
+  setTimeout(()=>{if(mode3d&&map3dStyleReady)ensure3dDataLayers()},900);
   setTimeout(()=>{if(mode3d&&MOBILE_MAP())renderMobile3dStations()},1050);
   schedule3dPrecipSync(80);
   const status=document.getElementById('status');
@@ -1956,7 +1959,7 @@ async function loadHydroData(force=false){
   }
 }
 function update3dHydro(){
-  if(!map3d||!map3d.isStyleLoaded()||!map3d.getSource('hydro-3d'))return;
+  if(!map3d||!map3dStyleReady||!map3d.getSource('hydro-3d'))return;
   const features=hydroOn?hydroFeatures.map(f=>{
     const p=f.properties||{},coords=f.geometry?.coordinates;
     if(!Array.isArray(coords)||coords.length<2)return null;
