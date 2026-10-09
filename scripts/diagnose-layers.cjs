@@ -56,7 +56,7 @@ const { chromium }=require('playwright-core');
        modelVisible:document.getElementById('aromeTimeline')?.classList.contains('on')};
     });
     console.log('AROME',JSON.stringify(ar));
-    if(!ar.overlayOn||ar.imageWidth<250||!ar.modelVisible||Number(ar.sliderMax)<8||ar.mapMinZoom!==3||ar.forecastMenuActive!=='ATTIVO')process.exitCode=1;
+    if(!ar.overlayOn||ar.imageWidth<2700||!ar.modelVisible||Number(ar.sliderMax)!==50||ar.mapMinZoom!==3||ar.forecastMenuActive!=='ATTIVO')process.exitCode=1;
    }
    const after=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
    const css=await button.evaluate(el=>({active:el.classList.contains('active'),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility}));
@@ -98,7 +98,7 @@ const { chromium }=require('playwright-core');
      timelineVisible:document.getElementById('aromeTimeline').classList.contains('on')};
   });
   console.log('MOBILE AROME',JSON.stringify({state,mobileErrors}));
-  if(!state.menuClosed||state.imageWidth<250||!state.timelineVisible||mobileErrors.length)process.exitCode=1;
+  if(!state.menuClosed||state.imageWidth<2700||!state.timelineVisible||mobileErrors.length)process.exitCode=1;
  }catch(e){console.log('MOBILE ERROR',e.message.slice(0,600));process.exitCode=1}
  await mobile.close();
  await browser.close();
