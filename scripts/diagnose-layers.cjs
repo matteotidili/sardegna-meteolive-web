@@ -66,5 +66,28 @@ const { chromium }=require('playwright-core');
  console.log('PAGEERRORS',JSON.stringify(errors.slice(0,30)));
  console.log('CONSOLEERRORS',JSON.stringify(logs.slice(0,20)));
  console.log('REQUESTFAILED',JSON.stringify(failed.slice(0,25)));
+ // Verifica responsiva: il layer AROME deve essere disponibile su mobile senza menu invasivi.
+ const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+ const mobileErrors=[];
+ mobile.on('pageerror',e=>mobileErrors.push(e.message));
+ try{
+  await mobile.goto('https://matteotidili.github.io/sardegna-meteolive-web/?mobile-arome='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
+  await mobile.waitForTimeout(2100);
+  await mobile.locator('#mobileMenu').click({timeout:10000});
+  await mobile.locator('#controlsTab').click({timeout:10000});
+  const precip=mobile.locator('[data-acc="precip"]');
+  if((await precip.getAttribute('aria-expanded'))!=='true')await precip.click({timeout:5000});
+  await mobile.locator('#aromeBtn').click({timeout:10000});
+  await mobile.waitForTimeout(3600);
+  const state=await mobile.evaluate(()=>{
+   const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img')).find(x=>x.src.includes('precip_h'));
+   return {menuClosed:!document.querySelector('.panel.left').classList.contains('open'),
+     imageWidth:img?.naturalWidth||0,forecastInfo:document.getElementById('aromeInfoStatus').textContent,
+     timelineVisible:document.getElementById('aromeTimeline').classList.contains('on')};
+  });
+  console.log('MOBILE AROME',JSON.stringify({state,mobileErrors}));
+  if(!state.menuClosed||state.imageWidth<250||!state.timelineVisible||mobileErrors.length)process.exitCode=1;
+ }catch(e){console.log('MOBILE ERROR',e.message.slice(0,600));process.exitCode=1}
+ await mobile.close();
  await browser.close();
 })().catch(e=>{console.log('FATAL',e.stack);process.exitCode=1});
