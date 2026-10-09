@@ -57,6 +57,19 @@ const { chromium }=require('playwright-core');
     });
     console.log('AROME',JSON.stringify(ar));
     if(!ar.overlayOn||ar.imageWidth<2700||!ar.modelVisible||Number(ar.sliderMax)!==50||ar.mapMinZoom!==3||ar.forecastMenuActive!=='ATTIVO')process.exitCode=1;
+    await page.locator('#aromeRange').evaluate(el=>{
+      el.value=el.max;
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await page.waitForTimeout(1900);
+    const last=await page.evaluate(()=>{
+      const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img')).find(x=>x.src.includes('data/arome/precip_h51.png'));
+      return {lastFrame:!!img,imageWidth:img?.naturalWidth,
+        time:document.getElementById('aromeTime')?.textContent,
+        sliderValue:document.getElementById('aromeRange')?.value};
+    });
+    console.log('AROME H51',JSON.stringify(last));
+    if(!last.lastFrame||last.imageWidth<2700||!last.time?.includes('H+51')||last.sliderValue!=='50')process.exitCode=1;
    }
    const after=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
    const css=await button.evaluate(el=>({active:el.classList.contains('active'),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility}));
