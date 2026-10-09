@@ -27,7 +27,7 @@ Il materiale didattico GeoNue presenta a propria volta condizioni CC BY 3.0 IT: 
 - **2D**: poligoni con confine tratteggiato azzurro, nessun riempimento, popup per il nome e etichette a zoom opportuno. I layer meteo e le stazioni restano leggibili.
 - **3D**: poligoni GeoJSON MapLibre, linea tratteggiata sovrapposta al rilievo ed etichette che evitano sovrapposizioni.
 - La posizione del file locale assicura funzionamento indipendente dai vecchi endpoint GeoNue, che restituiscono 404.
-- L'importazione manuale GeoJSON rimane disponibile come funzione di verifica o sostituzione locale. Non viene pubblicato automaticamente nulla importato da un singolo browser.
+- Il pannello espone soltanto l'interruttore ON/OFF e la provenienza del dataset; il caricamento manuale di un GeoJSON dall'interfaccia non è più previsto.
 
 ### Controlli
 
