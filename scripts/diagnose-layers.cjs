@@ -28,6 +28,7 @@ const { chromium }=require('playwright-core');
   ['base','boundariesBtn'],
   ['base','subregionsBtn'],
   ['precip','radarBtn'],
+  ['precip','aromeBtn'],
   ['precip','operaBtn'],
   ['satellite','satMetBtn'],
   ['satellite','satIr105Btn'],
@@ -43,7 +44,18 @@ const { chromium }=require('playwright-core');
    const before=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
    if(await button.isDisabled()){console.log('TEST '+id+' DISABLED '+before);continue}
    await button.click({timeout:7000});
-   await page.waitForTimeout(850);
+   await page.waitForTimeout(id==='aromeBtn'?4300:850);
+   if(id==='aromeBtn'){
+    const ar=await page.evaluate(()=>{
+     const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img')).find(x=>x.src.includes('data/arome/precip_h'));
+     return {overlayOn:!!img,imageWidth:img?.naturalWidth,imageHeight:img?.naturalHeight,
+       sliderMax:document.getElementById('aromeRange')?.max,
+       forecastStamp:document.getElementById('aromeInfoStatus')?.textContent,
+       modelVisible:document.getElementById('aromeTimeline')?.classList.contains('on')};
+    });
+    console.log('AROME',JSON.stringify(ar));
+    if(!ar.overlayOn||ar.imageWidth<250||!ar.modelVisible||Number(ar.sliderMax)<8)process.exitCode=1;
+   }
    const after=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
    const css=await button.evaluate(el=>({active:el.classList.contains('active'),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility}));
    const status=await page.locator('#status').innerText();
