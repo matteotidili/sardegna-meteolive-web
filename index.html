@@ -61,6 +61,8 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
 .control-list{padding:8px}.accordion-item{margin-bottom:6px;border:1px solid #22394d;border-radius:12px;background:#091520e8;overflow:hidden}.accordion-item:last-child{margin-bottom:0}.accordion-head{width:100%;min-height:42px;display:flex;align-items:center;gap:8px;border:0;background:#0d1b29;color:#d8e6f2;padding:9px 10px;cursor:pointer;text-align:left}.accordion-item.open>.accordion-head{background:#10283a}.accordion-head:hover{background:#112536}.acc-title{flex:1;min-width:0;font-size:9px;font-weight:950;letter-spacing:.11em;text-transform:uppercase}.acc-state{display:none!important}.acc-state.on{border-color:#2c718d;background:#0d2c3d;color:#bfefff}.acc-chevron{flex:0 0 auto;width:18px;height:18px;display:grid;place-items:center;color:#7890a4;font-size:14px;transition:transform .18s ease}.accordion-item.open .acc-chevron{transform:rotate(180deg);color:#c7d8e6}.accordion-body{max-height:0;opacity:0;overflow:hidden;transition:max-height .22s ease,opacity .16s ease}.accordion-item.open .accordion-body{max-height:620px;opacity:1}.accordion-inner{padding:7px 8px 9px;border-top:1px solid #1e3446;background:#07131e}.compact-label{padding:5px 4px 6px;font-size:8px;font-weight:900;letter-spacing:.1em;color:#8299ad}.station-controls{display:grid;grid-template-columns:1fr;gap:7px}.net{padding:0}.network-switch{margin-top:5px}.basemap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.accordion-inner>.btn{margin:3px 0}.accordion-inner .layer-note{padding-left:9px;padding-right:9px}.baseopt{min-width:0;border:1px solid #2a4358;background:#0d1b29;color:#afc1d1;border-radius:8px;padding:7px 5px;font-size:9px;font-weight:850;cursor:pointer}.baseopt.active{background:#12394d;border-color:#42d7ff;color:#fff}.baseopt[data-base="3d"]{grid-column:1/-1}
 .layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.arome-legend-bar{height:11px;border-radius:8px;border:1px solid #afc2cd;background:linear-gradient(90deg,#1ebef5,#1f82f5,#00bed2,#00b964,#f0dc19,#fc9423,#f0312b,#b219a6,#ff6ef4)}
+.arome-product-select{display:block;width:100%;max-width:100%;border:1px solid #426a80;border-radius:7px;background:#092637;color:#f5fbff;font-weight:750;font-size:11px;padding:9px;margin:7px 0}
+.arome-product-select option,.arome-product-select optgroup{background:#0d2738;color:#eaf5fa}
 .arome-map-actions{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0}
 .arome-map-actions button{flex:1 1 45%;min-width:0;padding:8px 6px;border:1px solid #3c728b;border-radius:7px;background:#0e354a;color:#e6f6ff;font-size:10px;font-weight:800;cursor:pointer}
 .radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
@@ -614,12 +616,17 @@ header .live{margin-left:0}
 
     <div class="accordion-item" data-acc-item="forecast">
       <button class="accordion-head" type="button" data-acc="forecast" aria-expanded="false">
-        <span class="acc-title">Previsione piogge</span><span class="acc-state" id="accAromeState">OFF</span><span class="acc-chevron">⌄</span>
+        <span class="acc-title">Previsioni AROME</span><span class="acc-state" id="accAromeState">OFF</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
-        <button class="btn" id="aromeBtn">AROME HD · Precipitazione oraria <span>OFF</span></button>
+        <button class="btn" id="aromeBtn">Modello AROME HD <span>OFF</span></button>
+        <label class="control-section-label" for="aromeProductSelect">Parametro meteorologico</label>
+        <select id="aromeProductSelect" class="arome-product-select" aria-label="Parametro AROME HD">
+          <option value="precip_1h">Precipitazioni previste 1 h</option>
+        </select>
+        <div class="layer-note" id="aromeProductNote">Seleziona un parametro per visualizzare previsione e legenda.</div>
         <div class="layer-note" id="aromeInfo">
-          Modello AROME-France HD 0,01° · precipitazione prevista, non osservata · scadenze H+1–H+51 · Météo-France.
+          Modello AROME-France HD 0,01° · scadenze H+1–H+51 · Météo-France. Previsioni simulate, non osservazioni.
           <div id="aromeInfoStatus">Attiva per caricare la previsione.</div>
           <div class="arome-map-actions">
             <button type="button" id="aromeFitBtn">Intero dominio</button>
@@ -1073,7 +1080,7 @@ let lightningOn=false,lightningSocket=null,lightningReconnectTimer=null,lightnin
 let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lightningLastIdBySrc={},lightningFeedLoops=0;
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
-let aromeForecast=null,aromeIndex=0,aromeOverlay=null,aromePlayTimer=null,aromeLoading=false;
+let aromeForecast=null,aromeIndex=0,aromeOverlay=null,aromePlayTimer=null,aromeLoading=false,aromeProductKey='precip_1h';
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
 let base=sat,currentBaseMode='sat';sat.addTo(map);
@@ -3417,6 +3424,8 @@ const aromeTimeline=document.getElementById('aromeTimeline');
 const aromeRange=document.getElementById('aromeRange');
 const aromePlay=document.getElementById('aromePlay');
 const aromeTime=document.getElementById('aromeTime');
+const aromeProductSelect=document.getElementById('aromeProductSelect');
+const aromeProductNote=document.getElementById('aromeProductNote');
 const aromeFitBtn=document.getElementById('aromeFitBtn');
 const aromeSardiniaBtn=document.getElementById('aromeSardiniaBtn');
 function fitAromeDomain(){
@@ -3433,12 +3442,80 @@ function aromeLabel(date){
   const d=new Date(date);
   return Number.isFinite(d.getTime())?d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'
 }
+const AROME_PRECIP={"label":"Precipitazioni previste nell'ora precedente","unit":"mm","scale":"precip","group":"Precipitazioni"};
+const AROME_PRODUCT_NOTES={
+  tmaxrun:"Estremo dei valori previsti a cadenza oraria dall'inizio della corsa, non la massima continua nell'intervallo.",
+  tminrun:"Estremo dei valori previsti a cadenza oraria dall'inizio della corsa, non la minima continua nell'intervallo.",
+  windchill:"Formula wind chill valida solo per T ≤ 10 °C e vento > 4,8 km/h; le altre celle sono trasparenti.",
+  humidex:"Indice humidex ricavato da temperatura e punto di rugiada; visualizzato per T ≥ 20 °C e humidex ≥ 25.",
+  td2m:"Punto di rugiada calcolato da temperatura 2 m e umidità relativa mediante formula di Magnus.",
+  gust10:"Stima vettoriale dalle componenti massime nell'ora: i picchi U/V potrebbero non essere simultanei.",
+  gustmaxrun:"Massimo progressivo delle raffiche orarie stimate dalle componenti U/V; non misura osservata.",
+  sim_refl:"Riflettività massima diagnostica del modello, NON radar osservato; scala dBZ indicativa da campo GRIB locale.",
+  sim_ir:"Temperatura di brillanza IR simulata dal modello, NON immagine satellitare osservata.",
+  precip_phase:"Categoria diagnostica ricavata da pioggia/neve/graupel previsti, NON classificazione severità Météo-France.",
+  rain_acc:"Cumulata dell'intera corsa, non accumulo della sola ora selezionata.",
+  snow_acc:"Precipitazione nevosa cumulata in equivalente in acqua, NON spessore di neve al suolo.",
+  graupel_acc:"Graupel cumulato in equivalente in acqua dall'inizio della corsa.",
+  frozen_acc:"Somma cumulata neve + graupel in equivalente in acqua.",
+  cape:"CAPE_INS diagnostica del modello: non equivale necessariamente alla MUCAPE delle altre piattaforme."
+};
+function aromeSelectedMeta(){
+  return aromeProductKey==='precip_1h'?AROME_PRECIP:aromeForecast?.parameters?.[aromeProductKey]||AROME_PRECIP
+}
+function aromeRefreshProductOptions(){
+  const selected=aromeProductKey, catalog=aromeForecast?.parameters||{};
+  aromeProductSelect.replaceChildren();
+  const base=document.createElement('option');
+  base.value='precip_1h';base.textContent='Precipitazioni previste 1 h';aromeProductSelect.appendChild(base);
+  const names=['Temperature','Precipitazioni','Vento','Atmosfera','Instabilità','Nuvolosità'];
+  for(const group of names){
+    const entries=Object.entries(catalog).filter(([id,p])=>p.group===group);
+    if(!entries.length)continue;
+    const optgroup=document.createElement('optgroup');optgroup.label=group;
+    for(const [id,p] of entries){
+      if(!/^[a-z0-9_]+$/.test(id))continue;
+      const opt=document.createElement('option');
+      opt.value=id;opt.textContent=p.label+(p.unit?' · '+p.unit:'');
+      optgroup.appendChild(opt)
+    }
+    aromeProductSelect.appendChild(optgroup)
+  }
+  const values=Array.from(aromeProductSelect.options).map(o=>o.value);
+  aromeProductKey=values.includes(selected)?selected:'precip_1h';
+  aromeProductSelect.value=aromeProductKey
+}
 function aromeLegendHtml(){
   if(!aromeOn||!aromeForecast)return '';
-  return '<div class="map-legend-row"><div class="map-legend-title">AROME HD · precipitazione prevista 1 h · mm</div>'+
-    '<div class="arome-legend-bar"></div><div class="map-legend-labels"><span>0,1</span><span>1</span><span>2</span><span>5</span><span>10</span><span>20</span><span>40+</span></div>'+
-    '<div class="map-legend-note">Modello deterministico: pioggia + neve + graupel (acqua equivalente). Non è una misura radar.</div></div>'
+  const meta=aromeSelectedMeta(),stops=Array.isArray(meta.stops)?meta.stops:[];
+  const fallback=[[.1,[30,190,245]],[1,[0,190,210]],[5,[240,220,25]],[20,[240,49,43]],[80,[255,110,244]]];
+  const entries=stops.length?stops:fallback;
+  let bar='';
+  if(meta.scale==='phase'){
+    bar='<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;font-size:9px">'+
+     '<span>🟦 Pioggia</span><span>⬜ Neve</span><span>🟧 Graupel</span><span>🟪 Mista</span></div>'
+  }else{
+    const range=entries[entries.length-1][0]-entries[0][0]||1;
+    const colors=entries.map(item=>{const value=Number(item[0]),c=item[1];const pos=100*(value-entries[0][0])/range;
+      return 'rgb('+c.map(x=>Math.max(0,Math.min(255,Number(x)||0))).join(',')+') '+pos.toFixed(2)+'%'
+    });
+    const ticks=[0,.25,.5,.75,1].map(f=>{
+      const v=Number(entries[0][0])+f*range;return '<span>'+v.toLocaleString('it-IT',{maximumFractionDigits:v<10?1:0})+'</span>'
+    }).join('');
+    bar='<div class="arome-legend-bar" style="background:linear-gradient(90deg,'+colors.join(',')+')"></div>'+
+      '<div class="map-legend-labels">'+ticks+'</div>'
+  }
+  const safeLabel=String(meta.label||'AROME').replaceAll('&','&amp;').replaceAll('<','&lt;');
+  const safeUnit=String(meta.unit||'').replaceAll('&','&amp;').replaceAll('<','&lt;');
+  return '<div class="map-legend-row"><div class="map-legend-title">AROME HD · '+safeLabel+' · '+safeUnit+'</div>'+
+    bar+'<div class="map-legend-note">Modello deterministico Météo-France 0,01°. '+
+    String(AROME_PRODUCT_NOTES[aromeProductKey]||'Prodotto modellistico, non osservazione.').replaceAll('<','&lt;')+'</div></div>'
 }
+aromeProductSelect.onchange=()=>{
+  aromeProductKey=aromeProductSelect.value;
+  if(aromeOn&&aromeForecast)aromeFrame(aromeIndex)
+};
+
 function aromeStop(){
   if(aromePlayTimer){clearInterval(aromePlayTimer);aromePlayTimer=null}
   aromePlay.textContent='▶';aromePlay.classList.remove('active')
@@ -3451,13 +3528,23 @@ function aromeFrame(i){
   aromeRange.value=String(aromeIndex);
   aromeTime.textContent='H+'+frame.lead_hours+' · '+aromeLabel(frame.valid_time);
   const ageH=(Date.now()-Date.parse(aromeForecast.run_time))/3600000;
+  const isPrecip=aromeProductKey==='precip_1h';
+  const meta=aromeSelectedMeta();
+  const info=AROME_PRODUCT_NOTES[aromeProductKey]||
+    (isPrecip?'Precipitazione totale (pioggia + neve + graupel) accumulata nell’ora precedente.':
+     'Campo simulato da AROME, non un’osservazione meteorologica.');
+  aromeProductNote.textContent=info;
   aromeInfoStatus.textContent='Corsa '+aromeLabel(aromeForecast.run_time)+' · valida '+aromeLabel(frame.valid_time)+
-    ' · accumulo dell’ora precedente'+(ageH>8?' · ⚠ run non recente':'')+
-    (Number.isFinite(frame.max_mm)?' · massimo nel dominio '+frame.max_mm.toFixed(1)+' mm':'');
+    (isPrecip?' · accumulo 1 h':' · '+meta.label)+
+    (ageH>8?' · ⚠ run non recente':'')+
+    (isPrecip&&Number.isFinite(frame.max_mm)?' · massimo nel dominio '+frame.max_mm.toFixed(1)+' mm':'');
   if(aromeOverlay&&map.hasLayer(aromeOverlay))map.removeLayer(aromeOverlay);
-  const safe=/^data\/arome\/precip_h\d{2}\.png$/.test(frame.image);
+  const safe=isPrecip?/^data\/arome\/precip_h\d{2}\.png$/.test(frame.image):
+    /^[a-z0-9_]+$/.test(aromeProductKey)&&!!aromeForecast.parameters?.[aromeProductKey];
   if(safe){
-    const url=AROME_RAW+frame.image+'?run='+encodeURIComponent(aromeForecast.run_time);
+    const url=isPrecip?AROME_RAW+frame.image+'?run='+encodeURIComponent(aromeForecast.run_time):
+      AROME_RAW+'data/arome/products/'+aromeProductKey+'/h'+String(frame.lead_hours).padStart(2,'0')+
+        '.webp?run='+encodeURIComponent(aromeForecast.run_time);
     aromeOverlay=L.imageOverlay(url,aromeForecast.bounds,{pane:'weather',opacity:.8,
       attribution:AROME_ATTR,interactive:false,crossOrigin:true});
     aromeOverlay.on('error',()=>{if(aromeOn)aromeInfoStatus.textContent+=' · immagine non raggiungibile'});
@@ -3484,6 +3571,7 @@ async function aromeLoad(force=false){
     const previousRun=aromeForecast?.run_time;
     const previousValid=aromeForecast?.frames?.[aromeIndex]?.valid_time;
     aromeForecast={...data,frames};
+    aromeRefreshProductOptions();
     aromeRange.max=String(frames.length-1);
     if(!previousRun&&aromeOn)fitAromeDomain();
     if(aromeOn){
