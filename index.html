@@ -3470,6 +3470,7 @@ async function aromeLoad(force=false){
 function setAromeState(on){
   aromeOn=!!on;
   if(aromeOn){
+    closeMobilePanels();
     if(mode3d)setBaseMode('sat');
     if(radarOn)setRadarState(false);
     if(operaOn)setOperaState(false);
