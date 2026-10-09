@@ -3517,6 +3517,8 @@ function setArpasRadarState(on){
   arpasRadarBtn.lastElementChild.textContent=arpasRadarOn?'ON':'OFF';
   arpasRadarInfo.classList.toggle('on',arpasRadarOn);
   if(arpasRadarOn){
+    // Su smartphone chiude il menu laterale, altrimenti coprirebbe il radar.
+    closeMobilePanels();
     if(arpasRadarFrames.length)arpasRadarFrame(arpasRadarIndex);
     arpasRadarLoad()
   }
