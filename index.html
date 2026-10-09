@@ -63,6 +63,12 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.arome-legend-bar{height:11px;border-radius:8px;border:1px solid #afc2cd;background:linear-gradient(90deg,#1ebef5,#1f82f5,#00bed2,#00b964,#f0dc19,#fc9423,#f0312b,#b219a6,#ff6ef4)}
 .arome-product-select{display:block;width:100%;max-width:100%;border:1px solid #426a80;border-radius:7px;background:#092637;color:#f5fbff;font-weight:750;font-size:11px;padding:9px;margin:7px 0}
 .arome-product-select option,.arome-product-select optgroup{background:#0d2738;color:#eaf5fa}
+.arome-products-count{font-size:10px;font-weight:800;color:#0b6685;padding:0 2px 7px}
+.arome-quick-picker{display:none;position:absolute;z-index:1006;top:10px;left:calc(50% + 150px);transform:translateX(-50%);width:min(410px,calc(100% - 330px));gap:9px;align-items:center;background:#071b2af2;border:1px solid #32657b;border-radius:10px;padding:7px 9px;box-shadow:0 8px 23px #0007}
+.arome-quick-picker.on{display:flex}
+.arome-quick-picker label{font:850 10px/1.1 Inter,system-ui,sans-serif;white-space:nowrap;color:#abdeef}
+.arome-quick-picker select{flex:1;min-width:0;max-width:100%;padding:8px 7px;border:1px solid #40768f;border-radius:7px;background:#102f41;color:#fff;font-size:11px;font-weight:800}
+@media(max-width:800px){.arome-quick-picker{top:7px;left:50%;width:calc(100% - 18px);padding:7px 9px}.arome-quick-picker label{font-size:9px}.arome-quick-picker select{font-size:12px;min-height:37px}}
 .arome-map-actions{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0}
 .arome-map-actions button{flex:1 1 45%;min-width:0;padding:8px 6px;border:1px solid #3c728b;border-radius:7px;background:#0e354a;color:#e6f6ff;font-size:10px;font-weight:800;cursor:pointer}
 .radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
@@ -624,6 +630,7 @@ header .live{margin-left:0}
         <select id="aromeProductSelect" class="arome-product-select" aria-label="Parametro AROME HD">
           <option value="precip_1h">Precipitazioni previste 1 h</option>
         </select>
+        <div class="arome-products-count" id="aromeProductsCount" role="status">Caricamento parametri AROME…</div>
         <div class="layer-note" id="aromeProductNote">Seleziona un parametro per visualizzare previsione e legenda.</div>
         <div class="layer-note" id="aromeInfo">
           Modello AROME-France HD 0,01° · scadenze H+1–H+51 · Météo-France. Previsioni simulate, non osservazioni.
@@ -725,6 +732,12 @@ header .live{margin-left:0}
   </div>
   </div>
 </aside>
+<div class="arome-quick-picker" id="aromeQuickPicker">
+  <label for="aromeQuickSelect">AROME · PARAMETRO</label>
+  <select id="aromeQuickSelect" aria-label="Seleziona il parametro AROME direttamente dalla mappa">
+    <option value="precip_1h">Precipitazioni previste 1 h</option>
+  </select>
+</div>
 <div class="map-legends" id="mapLegends" aria-live="polite"></div>
 <div class="station-map-legend" id="stationMapLegend" aria-live="polite"></div>
 <div class="timeline" id="aromeTimeline"><div class="time-kind">AROME HD · PREV.</div><button class="timebtn" id="aromePrev" title="Ora precedente">‹</button><button class="timebtn" id="aromePlay" title="Riproduci">▶</button><button class="timebtn" id="aromeNext" title="Ora successiva">›</button><input id="aromeRange" type="range" min="0" max="50" value="0" step="1" aria-label="Ora di previsione AROME da H+1 a H+51"><div class="time-label" id="aromeTime">—</div></div>
@@ -1735,6 +1748,8 @@ document.getElementById('stationDirectory').onclick=e=>{
 
 function syncMobileButtons(){
   const open=leftPanel.classList.contains('open');
+  const picker=document.getElementById('aromeQuickPicker');
+  if(picker)picker.style.visibility=window.innerWidth<=800&&open?'hidden':'';
   mobileMenu.classList.toggle('active',open);
   mobileMenu.setAttribute('aria-expanded',open?'true':'false');
   mobileBackdrop.classList.toggle('on',open);
@@ -3426,6 +3441,9 @@ const aromePlay=document.getElementById('aromePlay');
 const aromeTime=document.getElementById('aromeTime');
 const aromeProductSelect=document.getElementById('aromeProductSelect');
 const aromeProductNote=document.getElementById('aromeProductNote');
+const aromeProductsCount=document.getElementById('aromeProductsCount');
+const aromeQuickPicker=document.getElementById('aromeQuickPicker');
+const aromeQuickSelect=document.getElementById('aromeQuickSelect');
 const aromeFitBtn=document.getElementById('aromeFitBtn');
 const aromeSardiniaBtn=document.getElementById('aromeSardiniaBtn');
 function fitAromeDomain(){
@@ -3483,7 +3501,24 @@ function aromeRefreshProductOptions(){
   }
   const values=Array.from(aromeProductSelect.options).map(o=>o.value);
   aromeProductKey=values.includes(selected)?selected:'precip_1h';
-  aromeProductSelect.value=aromeProductKey
+  aromeProductSelect.value=aromeProductKey;
+  aromeQuickSelect.replaceChildren(...Array.from(aromeProductSelect.children).map(el=>el.cloneNode(true)));
+  aromeQuickSelect.value=aromeProductKey;
+  const count=values.length;
+  aromeProductsCount.textContent=count>1?count+' parametri disponibili · scegli anche prima di attivare il layer':'Caricamento parametri…'
+}
+function aromeChooseProduct(value){
+  const options=Array.from(aromeProductSelect.options).map(el=>el.value);
+  if(!options.includes(value))return;
+  aromeProductKey=value;
+  aromeProductSelect.value=value;
+  aromeQuickSelect.value=value;
+  if(!aromeOn){
+    setAromeState(true);
+  }else if(aromeForecast){
+    aromeStop();
+    aromeFrame(aromeIndex)
+  }
 }
 function aromeLegendHtml(){
   if(!aromeOn||!aromeForecast)return '';
@@ -3511,10 +3546,8 @@ function aromeLegendHtml(){
     bar+'<div class="map-legend-note">Modello deterministico Météo-France 0,01°. '+
     String(AROME_PRODUCT_NOTES[aromeProductKey]||'Prodotto modellistico, non osservazione.').replaceAll('<','&lt;')+'</div></div>'
 }
-aromeProductSelect.onchange=()=>{
-  aromeProductKey=aromeProductSelect.value;
-  if(aromeOn&&aromeForecast)aromeFrame(aromeIndex)
-};
+aromeProductSelect.onchange=()=>aromeChooseProduct(aromeProductSelect.value);
+aromeQuickSelect.onchange=()=>aromeChooseProduct(aromeQuickSelect.value);
 
 function aromeStop(){
   if(aromePlayTimer){clearInterval(aromePlayTimer);aromePlayTimer=null}
@@ -3591,6 +3624,7 @@ async function aromeLoad(force=false){
 function setAromeState(on){
   aromeOn=!!on;
   syncMapExtent();
+  aromeQuickPicker.classList.toggle('on',aromeOn);
   if(aromeOn){
     closeMobilePanels();
     if(mode3d)setBaseMode('sat');
@@ -3623,6 +3657,9 @@ aromePlay.onclick=()=>{
 };
 setInterval(()=>{if(aromeOn&&!document.hidden)aromeLoad(true)},12*60*1000);
 document.addEventListener('visibilitychange',()=>{if(aromeOn&&!document.hidden)aromeLoad(true)});
+// Carica il catalogo all'apertura della pagina: selettore completo anche con layer OFF.
+// L'attivazione rimane manuale, ma l'elenco dei prodotti non dipende più dal pulsante ON.
+aromeLoad(true);
 
 const OPERA_TILE_BASE='https://tiles.radareu.cz/tiles/nimbus/rate/';
 const operaBtn=document.getElementById('operaBtn'),operaInfo=document.getElementById('operaInfo'),operaMeta=document.getElementById('operaMeta');
