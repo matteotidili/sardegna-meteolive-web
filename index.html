@@ -534,8 +534,6 @@ header .live{margin-left:0}
 .subregions-note{font-size:9px;line-height:1.4;color:#758e9e;padding:5px 9px 8px}
 .subregions-note a{color:#238eaa;text-decoration:underline}
 #subregionsDataStatus{display:block;margin-top:5px;color:#5a7585;font-size:9px;font-weight:750}
-.subregions-import{display:block;max-width:100%;margin-top:8px;padding:6px 8px;border:1px solid #b8cfda;border-radius:7px;background:#ecf5f8;color:#145b72;font-weight:850;font-size:10px;cursor:pointer}
-.subregions-import input{display:block;margin-top:5px;width:100%;max-width:100%;font-size:10px;cursor:pointer}
 .subregions-label{font:800 10px/1.2 Inter,system-ui,Arial;color:#ffffff;
   background:#094355dd;border:1px solid #e5ffffb3;border-radius:6px;
   text-shadow:0 1px 2px #000;box-shadow:0 2px 5px #0006;
@@ -693,9 +691,6 @@ header .live{margin-left:0}
         <div class="subregions-note" id="subregionsInfo">Confini storico-geografici indicativi, distinti dai limiti amministrativi.
           <a href="https://geonue.com/le-regioni-storiche-della-sardegna/" target="_blank" rel="noopener noreferrer">Realizzato da Nordai Srl sulla piattaforma GeoNue</a> · <a href="https://twitter.com/geonue" target="_blank" rel="noopener noreferrer">@GeoNue</a>
           <span id="subregionsDataStatus" role="status" aria-live="polite"></span>
-          <label class="subregions-import">Importa GeoJSON verificato
-            <input id="subregionsFile" type="file" accept=".geojson,.json,application/geo+json,application/json" aria-label="Importa un file GeoJSON delle subregioni storiche della Sardegna">
-          </label>
         </div>
       </div></div>
     </div>
@@ -2387,7 +2382,6 @@ const HISTORIC_SUBREGIONS_REMOTE=[
   'https://umap.geonue.com/it/map/6/geojson/'
 ];
 const historicSubregionsDataStatus=document.getElementById('subregionsDataStatus');
-const historicSubregionsFile=document.getElementById('subregionsFile');
 let historicSubregionsOrigin='';
 function historicSubregionsStatus(message){historicSubregionsDataStatus.textContent=message}
 function historicSubregionName(f){
@@ -2542,22 +2536,9 @@ async function initializeHistoricSubregions(){
   }
   historicSubregionsBtn.disabled=true;
   historicSubregionsBtn.lastElementChild.textContent='DATI NON DISP.';
-  historicSubregionsBtn.title='GeoJSON storico non raggiungibile: importa un file verificato';
-  historicSubregionsStatus('Sorgente vettoriale non raggiungibile. Puoi importare il GeoJSON originale; nessun confine inventato.')
+  historicSubregionsBtn.title='Dataset delle subregioni storiche temporaneamente non disponibile';
+  historicSubregionsStatus('Sorgente vettoriale non raggiungibile: impossibile visualizzare i confini.')
 }
-historicSubregionsFile.addEventListener('change',async()=>{
-  const file=historicSubregionsFile.files?.[0];
-  if(!file)return;
-  try{
-    if(file.size>15*1024*1024)throw new Error('File superiore a 15 MB');
-    const data=JSON.parse(await file.text());
-    activateHistoricSubregions(data,'file locale '+file.name);
-    historicSubregionsStatus('Geometrie caricate ('+historicSubregionsData.features.length+'). Usa il pulsante per visualizzare i confini.');
-  }catch(e){
-    historicSubregionsStatus('Importazione non riuscita: '+e.message)
-  }
-});
-
 initializeHistoricSubregions();
 
 const FRP_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/frp.json';
