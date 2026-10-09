@@ -3484,7 +3484,9 @@ function setAromeState(on){
   }
   aromeBtn.classList.toggle('active',aromeOn);
   aromeBtn.lastElementChild.textContent=aromeOn?'ON':'OFF';
-  syncTimelineStack();syncAccordionStates();legend()
+  syncTimelineStack();syncAccordionStates();legend();
+  // Chiudi la sidebar anche dopo la sincronizzazione dei layer, su viewport mobili.
+  if(aromeOn)closeMobilePanels()
 }
 aromeBtn.onclick=()=>setAromeState(!aromeOn);
 document.getElementById('aromePrev').onclick=()=>{aromeStop();aromeFrame(aromeIndex-1)};
