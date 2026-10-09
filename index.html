@@ -688,7 +688,7 @@ header .live{margin-left:0}
           <button class="baseopt" data-base="3d">3D</button>
         </div>
         <div class="control-section-label">Elementi sulla mappa</div>
-        <button class="btn active" id="boundariesBtn">Confini amministrativi <span>ON</span></button>
+        <button class="btn" id="boundariesBtn">Confini amministrativi <span>OFF</span></button>
         <button class="btn" id="subregionsBtn" disabled title="Ricerca della sorgente vettoriale in corso">Subregioni storiche <span>CARICAMENTO</span></button>
         <div class="subregions-note" id="subregionsInfo">Confini storico-geografici indicativi, distinti dai limiti amministrativi.
           <a href="https://geonue.com/le-regioni-storiche-della-sardegna/" target="_blank" rel="noopener noreferrer">Realizzato da Nordai Srl sulla piattaforma GeoNue</a> · <a href="https://twitter.com/geonue" target="_blank" rel="noopener noreferrer">@GeoNue</a>
@@ -2299,7 +2299,7 @@ document.querySelectorAll('[data-base]').forEach(b=>{
 });
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x.dataset.net===netFilter));render()});
 const boundariesBtn=document.getElementById('boundariesBtn');
-let boundariesPreference=true,boundariesLoaded=false,boundariesLoading=false;
+let boundariesPreference=false,boundariesLoaded=false,boundariesLoading=false;
 const boundariesLayer=L.layerGroup();
 function boundaryStyleHalo(){return {pane:'satbounds',color:'#06111c',weight:3.6,opacity:.74,fill:false,interactive:false}}
 function boundaryStyleLine(){return {pane:'satbounds',color:'#f7fbff',weight:1.3,opacity:.94,fill:false,interactive:false}}
@@ -2346,12 +2346,13 @@ async function loadBoundaries(){
 }
 function syncBoundaries(){
   const show=boundariesPreference;
+  boundariesBtn.classList.toggle('active',show);
+  boundariesBtn.lastElementChild.textContent=show?'ON':'OFF';
   if(show){
-    if(!boundariesLoaded){loadBoundaries();return}
-    if(!map.hasLayer(boundariesLayer))boundariesLayer.addTo(map)
+    if(!boundariesLoaded){
+      if(!boundariesLoading)loadBoundaries();
+    }else if(!map.hasLayer(boundariesLayer))boundariesLayer.addTo(map)
   }else if(map.hasLayer(boundariesLayer))map.removeLayer(boundariesLayer);
-  boundariesBtn.classList.toggle('active',boundariesPreference);
-  boundariesBtn.lastElementChild.textContent=boundariesPreference?'ON':'OFF';
   syncAccordionStates()
 }
 boundariesBtn.onclick=()=>{
@@ -2372,7 +2373,7 @@ map.getPane('historiclabels').style.zIndex=495;
 map.getPane('historiclabels').style.pointerEvents='none';
 const historicSubregions2d=L.layerGroup();
 const historicSubregionsLabels=L.layerGroup();
-let historicSubregionsData=null,historicSubregionsOn=true;
+let historicSubregionsData=null,historicSubregionsOn=false;
 const HISTORIC_SUBREGIONS_PATH='data/subregioni-storiche.geojson';
 const HISTORIC_SUBREGIONS_REMOTE=[
   // La mappa originale GeoNue include lo slug "regioni-storiche-della-sardegna_6".
@@ -2434,6 +2435,7 @@ function activateHistoricSubregions(data,origin){
   buildHistoricSubregions2d();
   historicSubregionsBtn.disabled=false;
   historicSubregionsBtn.title='Attiva/disattiva confini storico-geografici indicativi';
+  historicSubregionsBtn.classList.toggle('active',historicSubregionsOn);
   historicSubregionsBtn.lastElementChild.textContent=historicSubregionsOn?'ON':'OFF';
   historicSubregionsStatus(normalized.features.length+' aree disponibili · '+origin);
   syncHistoricSubregions2d();
@@ -2546,7 +2548,7 @@ historicSubregionsFile.addEventListener('change',async()=>{
     if(file.size>15*1024*1024)throw new Error('File superiore a 15 MB');
     const data=JSON.parse(await file.text());
     activateHistoricSubregions(data,'file locale '+file.name);
-    historicSubregionsStatus('Geometrie caricate ('+historicSubregionsData.features.length+'). Layer attivo; puoi disattivarlo dal pulsante.');
+    historicSubregionsStatus('Geometrie caricate ('+historicSubregionsData.features.length+'). Usa il pulsante per visualizzare i confini.');
   }catch(e){
     historicSubregionsStatus('Importazione non riuscita: '+e.message)
   }
