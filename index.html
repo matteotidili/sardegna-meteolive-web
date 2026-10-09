@@ -539,6 +539,32 @@ header .live{margin-left:0}
   text-shadow:0 1px 2px #000;box-shadow:0 2px 5px #0006;
   padding:3px 5px;white-space:nowrap;text-align:center;pointer-events:none}
 @media(max-width:800px){.subregions-note{font-size:10px}}
+/* Visualizzatore radar ARPAS: immagini originali con mappa e legenda incorporate.
+   Non sono sovrapposte alle coordinate Leaflet senza un raster georeferenziato. */
+.arpas-radar-viewer{
+  position:absolute;top:12px;right:12px;z-index:997;
+  width:min(660px,calc(100% - 345px));max-height:calc(100% - 24px);
+  display:flex;flex-direction:column;overflow:hidden;
+  background:#0a1827f7;color:#eff8ff;border:1px solid #37647c;
+  border-radius:13px;box-shadow:0 12px 32px #000a
+}
+.arpas-radar-viewer[hidden]{display:none}
+.arpas-radar-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#0b2435}
+.arpas-radar-head strong{font-size:12px;font-weight:850}
+.arpas-radar-head button{border:1px solid #45657b;background:#16354c;color:#fff;border-radius:7px;font-size:18px;min-width:29px;min-height:27px;cursor:pointer}
+.arpas-radar-image{display:block;width:100%;height:auto;max-height:min(58vh,500px);object-fit:contain;background:#091725}
+.arpas-radar-controls{display:flex;align-items:center;gap:7px;padding:8px 10px 5px}
+.arpas-radar-controls button{background:#173649;color:#eaf6fc;border:1px solid #466477;border-radius:7px;min-width:31px;min-height:29px;cursor:pointer}
+.arpas-radar-controls input{flex:1;min-width:45px;accent-color:#28c1e9}
+.arpas-radar-stamp{padding:0 12px 6px;color:#cceaf4;font-size:11px;font-weight:700}
+.arpas-radar-note{padding:6px 12px 10px;border-top:1px solid #294558;color:#bad0db;font-size:10px;line-height:1.45}
+.arpas-radar-note a{color:#85d8ff}
+@media(max-width:800px){
+  .arpas-radar-viewer{left:7px;right:7px;top:8px;width:auto;max-height:calc(100% - 16px)}
+  .arpas-radar-head strong{font-size:11px}
+  .arpas-radar-image{max-height:min(52vh,450px)}
+  .arpas-radar-note{font-size:9px}
+}
 </style>
 </head>
 <body>
@@ -591,6 +617,8 @@ header .live{margin-left:0}
       </button>
       <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
+        <button class="btn" id="arpasRadarBtn">Radar ARPAS · Monte Rasu <span>OFF</span></button>
+        <div class="layer-note" id="arpasRadarInfo">DPSRI 1.000 m · pioggia stimata (mm/h) · portata 200 km · ultime 36 scansioni</div>
         <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
@@ -697,6 +725,24 @@ header .live{margin-left:0}
   </div>
   </div>
 </aside>
+<section id="arpasRadarViewer" class="arpas-radar-viewer" aria-label="Radar ARPAS Monte Rasu DPSRI" hidden>
+  <div class="arpas-radar-head">
+    <strong>Radar ARPAS · Monte Rasu · DPSRI</strong>
+    <button type="button" id="arpasRadarClose" aria-label="Chiudi radar ARPAS" title="Chiudi">×</button>
+  </div>
+  <img class="arpas-radar-image" id="arpasRadarImage" alt="Prodotto radar ARPAS DPSRI di Monte Rasu con cartografia e scala mm/h" referrerpolicy="no-referrer">
+  <div class="arpas-radar-controls">
+    <button type="button" id="arpasRadarPrev" title="Scansione precedente" aria-label="Scansione radar precedente">‹</button>
+    <button type="button" id="arpasRadarPlay" title="Riproduci ultime 36 scansioni" aria-label="Riproduci animazione">▶</button>
+    <button type="button" id="arpasRadarNext" title="Scansione successiva" aria-label="Scansione radar successiva">›</button>
+    <input id="arpasRadarRange" type="range" min="0" max="35" value="35" step="1" aria-label="Scorrimento immagini radar ARPAS">
+    <button type="button" id="arpasRadarRefresh" title="Verifica nuove immagini" aria-label="Aggiorna radar">↻</button>
+  </div>
+  <div id="arpasRadarStamp" class="arpas-radar-stamp" role="status" aria-live="polite">In attesa delle ultime immagini ARPAS…</div>
+  <div class="arpas-radar-note">Radar in fase di test e calibrazione: immagini a scopo illustrativo, con disponibilità non garantita. Mappa e legenda sono parte dell'immagine originale; non è un layer GIS georeferenziato.
+    <a href="https://www.sar.sardegna.it/servizi/meteo/imgradar_it.asp?prod=4" target="_blank" rel="noopener noreferrer">Fonte ARPAS · Monte Rasu</a>
+  </div>
+</section>
 <div class="map-legends" id="mapLegends" aria-live="polite"></div>
 <div class="station-map-legend" id="stationMapLegend" aria-live="polite"></div>
 <div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
@@ -1050,6 +1096,7 @@ let lightningOn=false,lightningSocket=null,lightningReconnectTimer=null,lightnin
 let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lightningLastIdBySrc={},lightningFeedLoops=0;
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
+let arpasRadarOn=false,arpasRadarFrames=[],arpasRadarIndex=0,arpasRadarTimer=null,arpasRadarLoading=false,arpasRadarRequestToken=0;
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
 let base=sat,currentBaseMode='sat';sat.addTo(map);
@@ -1742,7 +1789,7 @@ function setAccState(id,text,on=false){
 function syncAccordionStates(){
   const baseNames={operational:'Operativa',light:'Chiara',sat:'Satellite',relief:'Rilievo','3d':'3D'};
   setAccState('accBaseState',baseNames[currentBaseMode]||'Operativa',true);
-  const precipOn=radarOn||operaOn||!!cumActive;
+  const precipOn=radarOn||operaOn||!!cumActive||arpasRadarOn;
   setAccState('accPrecipState',precipOn?'ATTIVO':'OFF',precipOn);
   setAccState('accLightningState',lightningOn?'ATTIVO':'OFF',lightningOn);
   setAccState('accSatelliteState',satMetOn?'ON':'OFF',satMetOn);
@@ -3379,6 +3426,112 @@ document.getElementById('radarPrev').onclick=()=>{stopRadarAnimation();setRadarF
 document.getElementById('radarNext').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex+1)};
 radarPlay.onclick=()=>radarTimer?stopRadarAnimation():startRadarAnimation();
 radarRange.oninput=()=>{stopRadarAnimation();setRadarFrame(Number(radarRange.value))};
+// Radar ARPAS Monte Rasu: la pagina ufficiale fornisce un'animazione PNG
+// cartografata, NON un raster con georeferenziazione GIS riutilizzabile.
+// Il visualizzatore ne conserva quindi cartografia, scala, proiezione e avvertenze.
+const ARPAS_RADAR_META='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/arpas_radar.json';
+const arpasRadarBtn=document.getElementById('arpasRadarBtn');
+const arpasRadarInfo=document.getElementById('arpasRadarInfo');
+const arpasRadarViewer=document.getElementById('arpasRadarViewer');
+const arpasRadarImage=document.getElementById('arpasRadarImage');
+const arpasRadarStamp=document.getElementById('arpasRadarStamp');
+const arpasRadarRange=document.getElementById('arpasRadarRange');
+const arpasRadarPlay=document.getElementById('arpasRadarPlay');
+function arpasRadarTime(value){
+  const time=Date.parse(value);
+  return Number.isFinite(time)?new Date(time).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'orario non disponibile'
+}
+function arpasRadarStop(){
+  if(arpasRadarTimer){clearInterval(arpasRadarTimer);arpasRadarTimer=null}
+  arpasRadarPlay.textContent='▶';
+  arpasRadarPlay.title='Riproduci';
+}
+function arpasRadarFrame(index){
+  if(!arpasRadarFrames.length)return;
+  const i=Math.max(0,Math.min(arpasRadarFrames.length-1,Number(index)||0));
+  const frame=arpasRadarFrames[i];
+  arpasRadarIndex=i;
+  arpasRadarRange.value=String(i);
+  const token=++arpasRadarRequestToken;
+  const age=(Date.now()-Date.parse(arpasRadarFrames.at(-1).time))/60000;
+  const stale=Number.isFinite(age)&&age>35;
+  arpasRadarStamp.textContent='Scansione '+(i+1)+'/'+arpasRadarFrames.length+' · '+arpasRadarTime(frame.time)+
+    (stale?' · ⚠ ultimo dato oltre 35 min fa':'');
+  arpasRadarImage.onload=()=>{
+    if(token!==arpasRadarRequestToken)return;
+    // Un URL immagine effettivo garantisce l'aggiornamento senza ricostruire la mappa.
+  };
+  arpasRadarImage.onerror=()=>{
+    if(token!==arpasRadarRequestToken)return;
+    arpasRadarStamp.textContent='Immagine ARPAS non raggiungibile · '+arpasRadarTime(frame.time)+
+      ' · consulta la sorgente ufficiale';
+  };
+  arpasRadarImage.src=frame.url;
+}
+async function arpasRadarLoad(){
+  if(arpasRadarLoading)return;
+  arpasRadarLoading=true;
+  if(arpasRadarOn)arpasRadarStamp.textContent='Ricerca delle ultime scansioni ARPAS…';
+  try{
+    const response=await fetch(ARPAS_RADAR_META+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const dataset=await response.json();
+    const frames=(Array.isArray(dataset.frames)?dataset.frames:[]).filter(f=>
+      typeof f.time==='string'&&Number.isFinite(Date.parse(f.time))&&
+      typeof f.url==='string'&&f.url.startsWith('https://www.sar.sardegna.it/servizi_live/meteo/radar/dBR.dpsri/')&&
+      f.url.endsWith('.png')
+    ).slice(-36);
+    if(!frames.length)throw new Error('Nessuna scansione disponibile');
+    const keepLatest=!arpasRadarFrames.length||arpasRadarIndex===arpasRadarFrames.length-1;
+    const currentTime=arpasRadarFrames[arpasRadarIndex]?.time;
+    arpasRadarFrames=frames;
+    arpasRadarRange.max=String(frames.length-1);
+    if(arpasRadarOn){
+      const previous=frames.findIndex(f=>f.time===currentTime);
+      arpasRadarFrame(keepLatest||previous<0?frames.length-1:previous);
+    }
+  }catch(e){
+    console.warn('Radar ARPAS',e);
+    if(arpasRadarOn){
+      if(arpasRadarFrames.length)arpasRadarFrame(arpasRadarIndex);
+      else arpasRadarStamp.textContent='Radar ARPAS temporaneamente non disponibile · apri la fonte ufficiale';
+    }
+  }finally{arpasRadarLoading=false}
+}
+function arpasRadarPlayToggle(){
+  if(arpasRadarTimer){arpasRadarStop();return}
+  if(!arpasRadarOn||arpasRadarFrames.length<2)return;
+  if(arpasRadarIndex===arpasRadarFrames.length-1)arpasRadarFrame(0);
+  arpasRadarTimer=setInterval(()=>{
+    if(!arpasRadarOn){arpasRadarStop();return}
+    arpasRadarFrame((arpasRadarIndex+1)%arpasRadarFrames.length)
+  },1100);
+  arpasRadarPlay.textContent='Ⅱ';
+  arpasRadarPlay.title='Pausa';
+}
+function setArpasRadarState(on){
+  arpasRadarOn=!!on;
+  if(!arpasRadarOn)arpasRadarStop();
+  arpasRadarViewer.hidden=!arpasRadarOn;
+  arpasRadarBtn.classList.toggle('active',arpasRadarOn);
+  arpasRadarBtn.lastElementChild.textContent=arpasRadarOn?'ON':'OFF';
+  arpasRadarInfo.classList.toggle('on',arpasRadarOn);
+  if(arpasRadarOn){
+    if(arpasRadarFrames.length)arpasRadarFrame(arpasRadarIndex);
+    arpasRadarLoad()
+  }
+  syncAccordionStates()
+}
+arpasRadarBtn.onclick=()=>setArpasRadarState(!arpasRadarOn);
+document.getElementById('arpasRadarClose').onclick=()=>setArpasRadarState(false);
+document.getElementById('arpasRadarPrev').onclick=()=>{arpasRadarStop();arpasRadarFrame(arpasRadarIndex-1)};
+document.getElementById('arpasRadarNext').onclick=()=>{arpasRadarStop();arpasRadarFrame(arpasRadarIndex+1)};
+arpasRadarPlay.onclick=arpasRadarPlayToggle;
+arpasRadarRange.oninput=()=>{arpasRadarStop();arpasRadarFrame(arpasRadarRange.value)};
+document.getElementById('arpasRadarRefresh').onclick=()=>arpasRadarLoad();
+setInterval(()=>{if(arpasRadarOn&&!document.hidden)arpasRadarLoad()},10*60*1000);
+document.addEventListener('visibilitychange',()=>{if(arpasRadarOn&&!document.hidden)arpasRadarLoad()});
+
 const OPERA_TILE_BASE='https://tiles.radareu.cz/tiles/nimbus/rate/';
 const operaBtn=document.getElementById('operaBtn'),operaInfo=document.getElementById('operaInfo'),operaMeta=document.getElementById('operaMeta');
 const operaTimeline=document.getElementById('operaTimeline'),operaRange=document.getElementById('operaRange'),operaTime=document.getElementById('operaTime'),operaPlay=document.getElementById('operaPlay');
