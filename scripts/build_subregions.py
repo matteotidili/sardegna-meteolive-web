@@ -107,7 +107,8 @@ def convert(content: bytes):
             if z.getinfo(name).file_size > 90_000_000:
                 raise RuntimeError("Elemento sorgente troppo grande: " + name)
             return io.BytesIO(z.read(name))
-        reader = shapefile.Reader(shp=source(".shp"), shx=source(".shx"), dbf=source(".dbf"), encoding="utf-8", encodingErrors="replace")
+        # Lo shapefile GeoNue usa accenti in codifica occidentale legacy, non UTF-8.
+        reader = shapefile.Reader(shp=source(".shp"), shx=source(".shx"), dbf=source(".dbf"), encoding="latin1")
         field_names = [field[0] for field in reader.fields[1:]]
         records = [dict(zip(field_names, tuple(item.record))) for item in reader.shapeRecords()]
         if not records:
