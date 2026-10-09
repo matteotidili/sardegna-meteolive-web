@@ -59,7 +59,8 @@ const { chromium }=require('playwright-core');
     if(!ar.overlayOn||ar.imageWidth<2700||!ar.modelVisible||Number(ar.sliderMax)!==50||ar.mapMinZoom!==3||ar.forecastMenuActive!=='ATTIVO')process.exitCode=1;
     const productCount=await page.locator('#aromeProductSelect option').count();
     console.log('AROME PRODUCTS',productCount);
-    if(productCount>=20){
+    if(productCount<22)process.exitCode=1;
+    if(productCount>=22){
      for(const product of ['t2m','wind10','cape','sim_refl','precip_phase','sim_ir']){
       await page.locator('#aromeProductSelect').selectOption(product);
       await page.waitForTimeout(1700);
@@ -75,7 +76,7 @@ const { chromium }=require('playwright-core');
      }
      await page.locator('#aromeProductSelect').selectOption('precip_1h');
      await page.waitForTimeout(600);
-    }else console.log('AROME PRODUCTS PENDING: catalog unavailable in forecast.json yet');
+    }else console.log('AROME PRODUCTS ERROR: incomplete catalog in forecast.json');
     await page.locator('#aromeRange').evaluate(el=>{
       el.value=el.max;
       el.dispatchEvent(new Event('input',{bubbles:true}));
