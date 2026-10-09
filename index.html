@@ -725,6 +725,11 @@ const P={
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
 let stations=[],cur='temp',marks=[],netFilter='all',query='',operaMapWide=false,focusedStationKey='';
 let meteoalarmOn=false,meteoalarmData=null,meteoalarmMapData=null,meteoalarmLoading=false;
+// Le referenze DOM del banner sono necessarie anche durante la prima sincronizzazione dei layer.
+const sardiniaAlertBanner=document.getElementById('sardiniaAlertBanner');
+const sardiniaAlertMain=document.getElementById('sardiniaAlertMain');
+const sardiniaAlertHazards=document.getElementById('sardiniaAlertHazards');
+const meteoalarmPeriod=document.getElementById('meteoalarmPeriod');
 let frpOn=false,frpData=null,frpLoading=false,frpAttributionOn=false;
 let hydroOn=false,hydroLoading=false,hydroFeatures=[],hydroAttributionOn=false,hydroLastLoad=0;
 const HYDRO_RT='https://services6.arcgis.com/VdOe78ROZ6pyB2c8/arcgis/rest/services/idrometri_real_time_vista/FeatureServer/1';
@@ -2353,7 +2358,6 @@ function syncBoundaries(){
       if(!boundariesLoading)loadBoundaries();
     }else if(!map.hasLayer(boundariesLayer))boundariesLayer.addTo(map)
   }else if(map.hasLayer(boundariesLayer))map.removeLayer(boundariesLayer);
-  syncAccordionStates()
 }
 boundariesBtn.onclick=()=>{
   boundariesPreference=!boundariesPreference;
@@ -2729,10 +2733,6 @@ const METEOALARM_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-m
 const METEOALARM_MAP_DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/meteoalarm_map.geojson';
 const meteoalarmBtn=document.getElementById('meteoalarmBtn');
 const meteoalarmSummary=document.getElementById('meteoalarmSummary');
-const sardiniaAlertBanner=document.getElementById('sardiniaAlertBanner');
-const sardiniaAlertMain=document.getElementById('sardiniaAlertMain');
-const sardiniaAlertHazards=document.getElementById('sardiniaAlertHazards');
-const meteoalarmPeriod=document.getElementById('meteoalarmPeriod');
 let meteoalarmRenderVersion=0;
 sardiniaAlertBanner.onclick=()=>{
   showSidebarTab(false);
