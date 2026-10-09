@@ -28,6 +28,7 @@ const { chromium }=require('playwright-core');
   ['base','boundariesBtn'],
   ['base','subregionsBtn'],
   ['precip','radarBtn'],
+  ['precip','arpasRadarBtn'],
   ['precip','operaBtn'],
   ['satellite','satMetBtn'],
   ['satellite','satIr105Btn'],
@@ -43,7 +44,19 @@ const { chromium }=require('playwright-core');
    const before=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
    if(await button.isDisabled()){console.log('TEST '+id+' DISABLED '+before);continue}
    await button.click({timeout:7000});
-   await page.waitForTimeout(850);
+   await page.waitForTimeout(id==='arpasRadarBtn'?4500:850);
+   if(id==='arpasRadarBtn'){
+    const proof=await page.evaluate(()=>({
+      viewerVisible:!document.getElementById('arpasRadarViewer')?.hidden,
+      imageLoaded:document.getElementById('arpasRadarImage')?.naturalWidth>0,
+      imageWidth:document.getElementById('arpasRadarImage')?.naturalWidth,
+      imageURL:document.getElementById('arpasRadarImage')?.currentSrc,
+      stamp:document.getElementById('arpasRadarStamp')?.textContent,
+      max:document.getElementById('arpasRadarRange')?.max
+    }));
+    console.log('ARPAS',JSON.stringify(proof));
+    if(!proof.viewerVisible||!proof.imageLoaded||Number(proof.max)<20)console.log('ARPAS WARNING: image was not loaded or metadata unavailable');
+   }
    const after=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
    const css=await button.evaluate(el=>({active:el.classList.contains('active'),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility}));
    const status=await page.locator('#status').innerText();
