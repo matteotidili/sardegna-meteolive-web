@@ -37,3 +37,29 @@ Il layer AROME è **mutuamente esclusivo con radar DPC, radar OPERA ed accumulat
 Una simulazione AROME a griglia fine non permette di conoscere con certezza posizione, intensità e tempistica dei singoli rovesci o temporali: sono previsioni deterministiche. Per l'attività di monitoraggio attuale, confrontare con radar osservativo e rete pluviometrica. L'intero Mediterraneo non è incluso nel modello AROME HD; il bordo meridionale raggiunge soltanto 37,5°N.
 
 Se mancano i GRIB completi, il collector non pubblica una corsa parziale e non inventa scadenze; il sito segnala gli eventuali errori e la non attualità del run.
+
+## Catalogo multiparametrico AROME (GRIB2 SP1, SP2 e SP3)
+
+Nel menu **Layer meteo → Previsioni AROME** è presente un selettore dinamico dei prodotti generati effettivamente nel repository dati. La sequenza temporale resta unica, con 51 scadenze orarie. Le legende utilizzano scale fisse in unità fisiche, pubblicate nel catalogo JSON, evitando scale relative che cambiano da una scadenza all'altra.
+
+| Campo nell'interfaccia | Sorgente / natura |
+|---|---|
+| Temperatura 2 m, umidità 2 m | SP1, valori diretti (T in kelvin convertita in °C) |
+| Punto di rugiada 2 m | Calcolo con formula Magnus da temperatura e UR SP1 |
+| Windchill | Formula canadese valida per T ≤ 10 °C e vento superiore a 4,8 km/h |
+| Humidex | Formula da temperatura e pressione di vapore dedotta dal punto di rugiada; visualizzato dove applicabile |
+| Temperatura max/min dal run | Estremi progressivi dei campioni orari previsti: **non** gli estremi continui ufficiali per singolo intervallo |
+| Vento medio 10 m | Modulo delle componenti istantanee U e V SP1, km/h |
+| Raffiche 10 m | Modulo delle componenti massime U/V nell'ora: **stima** perché i due estremi componenti non sono necessariamente simultanei |
+| Raffica max dall'inizio corsa | Massimo progressivo della precedente stima oraria |
+| CAPE_INS | Diagnostica AROME SP2. Non va automaticamente identificata con CAPE superficiale o MUCAPE di altre elaborazioni |
+| Nuvolosità bassa/media/alta | Diagnostiche SP2, in % |
+| Riflettività radar simulata | Parametro GRIB2 disciplina 0, categoria 16, numero 193, unità non riconosciute da ecCodes; la scala dBZ è indicativa. **Non radar osservato** |
+| Cumulata totale, neve, graupel, neve+graupel | Accumuli cumulativi da inizio run SP2, kg/m² = mm di acqua equivalente |
+| Fase prevalente delle precipitazioni | Classificazione **derivata** dalla frazione delle precipitazioni orarie modellistiche (pioggia/neve/graupel); **non** prodotto di severità Météo-France |
+| Temperatura di brillanza IR simulata | SP3, disciplina 0/categoria 5/numero 7, valori in kelvin convertiti in °C. **Non satellite osservato** |
+
+Rimangono esclusi i prodotti Meteociel per i quali i pacchetti SP1/SP2/SP3 aperti non consentono una ricostruzione equivalente e verificata: **tipo di precipitazione severa Météo-France, altezza della neve al suolo, isoterme sovrapposte**. L'interfaccia non mostra prodotti inventati o classificazioni che non derivano dai campi disponibili.
+
+Le immagini aggiuntive vengono generate come WebP RGBA georeferenziati al passo griglia di 0,01°, sotto \`data/arome/products/{parameter}/hNN.webp\`; si conserva trasparenza totale dove il modello non contiene dati. La scelta del parametro non cambia la finestra temporale selezionata. Le colorazioni sono interpretazioni grafiche proprietarie dell'app, mentre i valori fisici vengono dai GRIB originali Météo-France.
+
