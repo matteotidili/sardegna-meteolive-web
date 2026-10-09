@@ -57,6 +57,25 @@ const { chromium }=require('playwright-core');
     });
     console.log('AROME',JSON.stringify(ar));
     if(!ar.overlayOn||ar.imageWidth<2700||!ar.modelVisible||Number(ar.sliderMax)!==50||ar.mapMinZoom!==3||ar.forecastMenuActive!=='ATTIVO')process.exitCode=1;
+    const productCount=await page.locator('#aromeProductSelect option').count();
+    console.log('AROME PRODUCTS',productCount);
+    if(productCount>=20){
+     for(const product of ['t2m','wind10','cape','sim_refl','precip_phase','sim_ir']){
+      await page.locator('#aromeProductSelect').selectOption(product);
+      await page.waitForTimeout(1700);
+      const check=await page.evaluate(id=>{
+       const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img'))
+         .find(x=>x.src.includes('/products/'+id+'/'));
+       return {product:id,imageURL:img?.currentSrc,imageWidth:img?.naturalWidth,
+         notes:document.getElementById('aromeProductNote')?.textContent,
+         select:document.getElementById('aromeProductSelect')?.value};
+      },product);
+      console.log('AROME PRODUCT CHECK',JSON.stringify(check));
+      if(!check.imageWidth||check.imageWidth<2700||check.select!==product)process.exitCode=1;
+     }
+     await page.locator('#aromeProductSelect').selectOption('precip_1h');
+     await page.waitForTimeout(600);
+    }else console.log('AROME PRODUCTS PENDING: catalog unavailable in forecast.json yet');
     await page.locator('#aromeRange').evaluate(el=>{
       el.value=el.max;
       el.dispatchEvent(new Event('input',{bubbles:true}));
