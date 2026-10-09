@@ -60,7 +60,8 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .net{padding:11px 15px;border-bottom:1px solid #20364a;font-size:12px}.counter{font-size:10px;color:var(--muted);margin-top:5px}.network-switch{display:flex;gap:5px;margin-top:9px}.netbtn{flex:1;border:1px solid #2a4358;background:#0d1b29;color:#9fb4c6;border-radius:8px;padding:6px 5px;font-size:9px;font-weight:800;cursor:pointer}.netbtn.active{background:#12394d;border-color:#42d7ff;color:#fff}
 .list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
 .control-list{padding:8px}.accordion-item{margin-bottom:6px;border:1px solid #22394d;border-radius:12px;background:#091520e8;overflow:hidden}.accordion-item:last-child{margin-bottom:0}.accordion-head{width:100%;min-height:42px;display:flex;align-items:center;gap:8px;border:0;background:#0d1b29;color:#d8e6f2;padding:9px 10px;cursor:pointer;text-align:left}.accordion-item.open>.accordion-head{background:#10283a}.accordion-head:hover{background:#112536}.acc-title{flex:1;min-width:0;font-size:9px;font-weight:950;letter-spacing:.11em;text-transform:uppercase}.acc-state{display:none!important}.acc-state.on{border-color:#2c718d;background:#0d2c3d;color:#bfefff}.acc-chevron{flex:0 0 auto;width:18px;height:18px;display:grid;place-items:center;color:#7890a4;font-size:14px;transition:transform .18s ease}.accordion-item.open .acc-chevron{transform:rotate(180deg);color:#c7d8e6}.accordion-body{max-height:0;opacity:0;overflow:hidden;transition:max-height .22s ease,opacity .16s ease}.accordion-item.open .accordion-body{max-height:620px;opacity:1}.accordion-inner{padding:7px 8px 9px;border-top:1px solid #1e3446;background:#07131e}.compact-label{padding:5px 4px 6px;font-size:8px;font-weight:900;letter-spacing:.1em;color:#8299ad}.station-controls{display:grid;grid-template-columns:1fr;gap:7px}.net{padding:0}.network-switch{margin-top:5px}.basemap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.accordion-inner>.btn{margin:3px 0}.accordion-inner .layer-note{padding-left:9px;padding-right:9px}.baseopt{min-width:0;border:1px solid #2a4358;background:#0d1b29;color:#afc1d1;border-radius:8px;padding:7px 5px;font-size:9px;font-weight:850;cursor:pointer}.baseopt.active{background:#12394d;border-color:#42d7ff;color:#fff}.baseopt[data-base="3d"]{grid-column:1/-1}
-.layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
+.layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.arome-legend-bar{height:11px;border-radius:8px;border:1px solid #afc2cd;background:linear-gradient(90deg,#1ebef5,#1f82f5,#00bed2,#00b964,#f0dc19,#fc9423,#f0312b,#b219a6,#ff6ef4)}
+.radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
 .opera-legend{margin-top:10px;padding-top:8px;border-top:1px solid #20364a}
 .opera-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#c5d7e6;margin-bottom:5px;font-weight:800}
 .opera-legend-bar{display:grid;grid-template-columns:repeat(13,1fr);height:12px;border:1px solid #ffffff38;border-radius:5px;overflow:hidden;box-shadow:0 1px 5px #0008}
@@ -591,6 +592,8 @@ header .live{margin-left:0}
       </button>
       <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
+        <button class="btn" id="aromeBtn">Modello AROME HD · pioggia prevista <span>OFF</span></button>
+        <div class="layer-note" id="aromeInfo">Previsioni AROME-France HD · griglia 0,01° · fonte Météo-France · NON è un radar osservativo.<div id="aromeInfoStatus">Attiva per caricare la previsione.</div></div>
         <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
@@ -699,6 +702,7 @@ header .live{margin-left:0}
 </aside>
 <div class="map-legends" id="mapLegends" aria-live="polite"></div>
 <div class="station-map-legend" id="stationMapLegend" aria-live="polite"></div>
+<div class="timeline" id="aromeTimeline"><div class="time-kind">AROME HD · PREV.</div><button class="timebtn" id="aromePrev" title="Ora precedente">‹</button><button class="timebtn" id="aromePlay" title="Riproduci">▶</button><button class="timebtn" id="aromeNext" title="Ora successiva">›</button><input id="aromeRange" type="range" min="0" max="11" value="0" step="1" aria-label="Ora di previsione AROME"><div class="time-label" id="aromeTime">—</div></div>
 <div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="timeline" id="operaTimeline"><div class="time-kind">EU RADAR</div><button class="timebtn" id="operaPrev" title="Frame precedente">‹</button><button class="timebtn" id="operaPlay" title="Riproduci">▶</button><button class="timebtn" id="operaNext" title="Frame successivo">›</button><input id="operaRange" type="range" min="0" max="11" value="11" step="1" aria-label="Sequenza temporale radar Europa"><div class="time-label" id="operaTime">ULTIMO</div></div>
 <div class="timeline" id="satTimeline"><div class="time-kind">SAT</div><button class="timebtn" id="satPrev" title="Frame precedente">‹</button><button class="timebtn" id="satPlay" title="Riproduci">▶</button><button class="timebtn" id="satNext" title="Frame successivo">›</button><input id="satRange" type="range" min="0" max="18" value="18" step="1" aria-label="Sequenza temporale satellite"><div class="time-label" id="satTime">ULTIMO</div></div>
@@ -1050,6 +1054,7 @@ let lightningOn=false,lightningSocket=null,lightningReconnectTimer=null,lightnin
 let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lightningLastIdBySrc={},lightningFeedLoops=0;
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
+let aromeOn=false,aromeForecast=null,aromeIndex=0,aromeOverlay=null,aromePlayTimer=null,aromeLoading=false;
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
 let base=sat,currentBaseMode='sat';sat.addTo(map);
@@ -1742,7 +1747,7 @@ function setAccState(id,text,on=false){
 function syncAccordionStates(){
   const baseNames={operational:'Operativa',light:'Chiara',sat:'Satellite',relief:'Rilievo','3d':'3D'};
   setAccState('accBaseState',baseNames[currentBaseMode]||'Operativa',true);
-  const precipOn=radarOn||operaOn||!!cumActive;
+  const precipOn=radarOn||operaOn||!!cumActive||aromeOn;
   setAccState('accPrecipState',precipOn?'ATTIVO':'OFF',precipOn);
   setAccState('accLightningState',lightningOn?'ATTIVO':'OFF',lightningOn);
   setAccState('accSatelliteState',satMetOn?'ON':'OFF',satMetOn);
@@ -1850,7 +1855,7 @@ function lightningLegendHtml(){
   return '<div class="map-legend-row"><div class="map-legend-title">Fulmini LIVE · colore = età della scarica</div><div class="lightning-scale"><span><i class="lightning-dot" style="background:#fff34d"></i>0–5 min</span><span><i class="lightning-dot" style="background:#ff9f1a"></i>5–15 min</span><span><i class="lightning-dot" style="background:#ef5b35"></i>15–30 min</span><span><i class="lightning-dot" style="background:#b53b4b"></i>30–45 min</span><span><i class="lightning-dot" style="background:#6f3a44"></i>45–60 min</span></div><div class="lightning-direction"><span>Più recente</span><span>Più vecchio</span></div><div class="map-legend-note">Anello bianco pulsante = scarica appena ricevuta · Blitzortung / LightningMaps</div></div>'
 }
 function activeTimelineElements(){
-  return ['radarTimeline','operaTimeline','satTimeline','lightningTimeline']
+  return ['radarTimeline','operaTimeline','satTimeline','lightningTimeline','aromeTimeline']
     .map(id=>document.getElementById(id))
     .filter(x=>x&&x.classList.contains('on'))
 }
@@ -2169,7 +2174,7 @@ function legend(){
   if(!el||!stationEl)return;
   const stationHtml=stationLegendHtml();
   // Scala precipitazioni sopra la scala delle stazioni, nello stesso riquadro.
-  const precipHtml=radarLegendHtml()+operaLegendHtml()+cumLegendHtml();
+  const precipHtml=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+aromeLegendHtml();
   const html=hydroLegendHtml()+frpLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
   const mobile=window.innerWidth<=800;
   const hasTimeline=activeTimelineElements().length>0;
@@ -3355,6 +3360,7 @@ function startRadarAnimation(){
   radarPlay.textContent='Ⅱ';radarPlay.classList.add('active');radarPlay.title='Pausa'
 }
 function setRadarState(on){
+  if(on&&aromeOn)setAromeState(false);
   if(on&&operaOn)setOperaState(false);
   radarOn=on;
   if(on){
@@ -3379,6 +3385,120 @@ document.getElementById('radarPrev').onclick=()=>{stopRadarAnimation();setRadarF
 document.getElementById('radarNext').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex+1)};
 radarPlay.onclick=()=>radarTimer?stopRadarAnimation():startRadarAnimation();
 radarRange.oninput=()=>{stopRadarAnimation();setRadarFrame(Number(radarRange.value))};
+// Precipitazione oraria AROME HD 0,01° da GRIB2 ufficiali Météo-France.
+// Gli accumuli da H0 sono differenziati tra scadenze consecutive nel collector.
+const AROME_META='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/arome/forecast.json';
+const AROME_RAW='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/';
+const AROME_ATTR='AROME-France HD © Météo-France · Licence Ouverte 2.0';
+const aromeBtn=document.getElementById('aromeBtn');
+const aromeInfo=document.getElementById('aromeInfo');
+const aromeInfoStatus=document.getElementById('aromeInfoStatus');
+const aromeTimeline=document.getElementById('aromeTimeline');
+const aromeRange=document.getElementById('aromeRange');
+const aromePlay=document.getElementById('aromePlay');
+const aromeTime=document.getElementById('aromeTime');
+function aromeLabel(date){
+  const d=new Date(date);
+  return Number.isFinite(d.getTime())?d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'
+}
+function aromeLegendHtml(){
+  if(!aromeOn||!aromeForecast)return '';
+  return '<div class="map-legend-row"><div class="map-legend-title">AROME HD · precipitazione prevista 1 h · mm</div>'+
+    '<div class="arome-legend-bar"></div><div class="map-legend-labels"><span>0,1</span><span>1</span><span>2</span><span>5</span><span>10</span><span>20</span><span>40+</span></div>'+
+    '<div class="map-legend-note">Modello deterministico: pioggia + neve + graupel (acqua equivalente). Non è una misura radar.</div></div>'
+}
+function aromeStop(){
+  if(aromePlayTimer){clearInterval(aromePlayTimer);aromePlayTimer=null}
+  aromePlay.textContent='▶';aromePlay.classList.remove('active')
+}
+function aromeFrame(i){
+  if(!aromeOn||!aromeForecast?.frames?.length)return;
+  const frames=aromeForecast.frames;
+  aromeIndex=Math.min(frames.length-1,Math.max(0,Math.round(Number(i)||0)));
+  const frame=frames[aromeIndex];
+  aromeRange.value=String(aromeIndex);
+  aromeTime.textContent=aromeLabel(frame.valid_time);
+  const ageH=(Date.now()-Date.parse(aromeForecast.run_time))/3600000;
+  aromeInfoStatus.textContent='Corsa '+aromeLabel(aromeForecast.run_time)+' · valida '+aromeLabel(frame.valid_time)+
+    ' · accumulo dell’ora precedente'+(ageH>8?' · ⚠ run non recente':'')+
+    (Number.isFinite(frame.max_mm)?' · massimo nel dominio '+frame.max_mm.toFixed(1)+' mm':'');
+  if(aromeOverlay&&map.hasLayer(aromeOverlay))map.removeLayer(aromeOverlay);
+  const safe=/^data\/arome\/precip_h\d{2}\.png$/.test(frame.image);
+  if(safe){
+    const url=AROME_RAW+frame.image+'?run='+encodeURIComponent(aromeForecast.run_time);
+    aromeOverlay=L.imageOverlay(url,aromeForecast.bounds,{pane:'weather',opacity:.8,
+      attribution:AROME_ATTR,interactive:false,crossOrigin:true});
+    aromeOverlay.on('error',()=>{if(aromeOn)aromeInfoStatus.textContent+=' · immagine non raggiungibile'});
+    aromeOverlay.addTo(map)
+  }
+  legend()
+}
+async function aromeLoad(force=false){
+  if(aromeLoading)return;
+  if(!force&&aromeForecast){if(aromeOn)aromeFrame(aromeIndex);return}
+  aromeLoading=true;
+  if(aromeOn)aromeInfoStatus.textContent='Caricamento ultima corsa AROME HD…';
+  try{
+    const r=await fetch(AROME_META+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(15000)});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    if(data.model!=='AROME-France HD'||data.product!=='precipitation_1h'||
+       !Array.isArray(data.frames)||data.frames.length<6||!Array.isArray(data.bounds)||
+       data.bounds.length!==2||!Number.isFinite(Date.parse(data.run_time)))
+       throw new Error('Metadati non validi');
+    const frames=data.frames.filter(f=>f.accumulation_hours===1&&
+       /^data\/arome\/precip_h\d{2}\.png$/.test(f.image)&&Number.isFinite(Date.parse(f.valid_time)));
+    if(frames.length<6)throw new Error('Scadenze insufficienti');
+    const previousRun=aromeForecast?.run_time;
+    const previousValid=aromeForecast?.frames?.[aromeIndex]?.valid_time;
+    aromeForecast={...data,frames};
+    aromeRange.max=String(frames.length-1);
+    if(aromeOn){
+      let index=frames.findIndex(f=>f.valid_time===previousValid);
+      if(previousRun!==data.run_time||index<0)index=frames.findIndex(f=>Date.parse(f.valid_time)>=Date.now());
+      if(index<0)index=frames.length-1;
+      aromeFrame(index)
+    }
+  }catch(e){
+    console.warn('Previsioni AROME HD',e);
+    if(aromeOn){
+      aromeInfoStatus.textContent='Dati AROME non disponibili: '+e.message;
+      if(!aromeForecast){setAromeState(false);aromeInfo.classList.add('on')}
+    }
+  }finally{aromeLoading=false}
+}
+function setAromeState(on){
+  aromeOn=!!on;
+  if(aromeOn){
+    if(mode3d)setBaseMode('sat');
+    if(radarOn)setRadarState(false);
+    if(operaOn)setOperaState(false);
+    if(cumActive)setCumState(null);
+    aromeInfo.classList.add('on');aromeTimeline.classList.add('on');
+    aromeLoad(true)
+  }else{
+    aromeStop();aromeTimeline.classList.remove('on');aromeInfo.classList.remove('on');
+    if(aromeOverlay&&map.hasLayer(aromeOverlay))map.removeLayer(aromeOverlay);
+    aromeOverlay=null
+  }
+  aromeBtn.classList.toggle('active',aromeOn);
+  aromeBtn.lastElementChild.textContent=aromeOn?'ON':'OFF';
+  syncTimelineStack();syncAccordionStates();legend()
+}
+aromeBtn.onclick=()=>setAromeState(!aromeOn);
+document.getElementById('aromePrev').onclick=()=>{aromeStop();aromeFrame(aromeIndex-1)};
+document.getElementById('aromeNext').onclick=()=>{aromeStop();aromeFrame(aromeIndex+1)};
+aromeRange.oninput=()=>{aromeStop();aromeFrame(aromeRange.value)};
+aromePlay.onclick=()=>{
+  if(aromePlayTimer){aromeStop();return}
+  if(!aromeOn||!aromeForecast?.frames?.length)return;
+  if(aromeIndex===aromeForecast.frames.length-1)aromeFrame(0);
+  aromePlayTimer=setInterval(()=>aromeFrame((aromeIndex+1)%aromeForecast.frames.length),950);
+  aromePlay.textContent='Ⅱ';aromePlay.classList.add('active')
+};
+setInterval(()=>{if(aromeOn&&!document.hidden)aromeLoad(true)},12*60*1000);
+document.addEventListener('visibilitychange',()=>{if(aromeOn&&!document.hidden)aromeLoad(true)});
+
 const OPERA_TILE_BASE='https://tiles.radareu.cz/tiles/nimbus/rate/';
 const operaBtn=document.getElementById('operaBtn'),operaInfo=document.getElementById('operaInfo'),operaMeta=document.getElementById('operaMeta');
 const operaTimeline=document.getElementById('operaTimeline'),operaRange=document.getElementById('operaRange'),operaTime=document.getElementById('operaTime'),operaPlay=document.getElementById('operaPlay');
@@ -3517,6 +3637,7 @@ async function loadOperaTimeline(forceLatest=true){
   }else if(forceLatest&&operaFrames.length)setOperaFrame(operaFrames.length-1)
 }
 function setOperaState(on){
+  if(on&&aromeOn)setAromeState(false);
   if(on&&radarOn)setRadarState(false);
   operaOn=on;
   operaMapWide=on;
@@ -3949,6 +4070,7 @@ async function setCumState(code){
   }else{
     const product=CUM_PRODUCTS[code];
     if(!product)return;
+    if(aromeOn)setAromeState(false);
     if(radarOn)setRadarState(false);
     if(operaOn)setOperaState(false);
     cumStamp.textContent='Ricerca ultimo '+code.toUpperCase()+'…';
