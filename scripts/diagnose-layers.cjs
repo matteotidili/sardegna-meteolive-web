@@ -28,7 +28,7 @@ const { chromium }=require('playwright-core');
   ['base','boundariesBtn'],
   ['base','subregionsBtn'],
   ['precip','radarBtn'],
-  ['precip','aromeBtn'],
+  ['forecast','aromeBtn'],
   ['precip','operaBtn'],
   ['satellite','satMetBtn'],
   ['satellite','satIr105Btn'],
@@ -51,10 +51,12 @@ const { chromium }=require('playwright-core');
      return {overlayOn:!!img,imageWidth:img?.naturalWidth,imageHeight:img?.naturalHeight,
        sliderMax:document.getElementById('aromeRange')?.max,
        forecastStamp:document.getElementById('aromeInfoStatus')?.textContent,
+       mapMinZoom:typeof map!=='undefined'?map.getMinZoom():null,
+       forecastMenuActive:document.getElementById('accAromeState')?.textContent,
        modelVisible:document.getElementById('aromeTimeline')?.classList.contains('on')};
     });
     console.log('AROME',JSON.stringify(ar));
-    if(!ar.overlayOn||ar.imageWidth<250||!ar.modelVisible||Number(ar.sliderMax)<8)process.exitCode=1;
+    if(!ar.overlayOn||ar.imageWidth<250||!ar.modelVisible||Number(ar.sliderMax)<8||ar.mapMinZoom!==3||ar.forecastMenuActive!=='ATTIVO')process.exitCode=1;
    }
    const after=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
    const css=await button.evaluate(el=>({active:el.classList.contains('active'),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility}));
@@ -75,7 +77,7 @@ const { chromium }=require('playwright-core');
   await mobile.waitForTimeout(2100);
   // GitHub Pages può pubblicare dopo l'avvio del test: attendi il codice corrente.
   for(let retry=0;retry<4;retry++){
-   const fresh=await mobile.evaluate(()=>Array.from(document.scripts).some(x=>x.textContent.includes('Chiudi la sidebar anche dopo la sincronizzazione dei layer')));
+   const fresh=await mobile.evaluate(()=>!!document.querySelector('[data-acc="forecast"]'));
    if(fresh)break;
    console.log('MOBILE WAIT DEPLOY '+retry);
    await mobile.waitForTimeout(12000);
@@ -83,15 +85,15 @@ const { chromium }=require('playwright-core');
   }
   await mobile.locator('#mobileMenu').click({timeout:10000});
   await mobile.locator('#controlsTab').click({timeout:10000});
-  const precip=mobile.locator('[data-acc="precip"]');
-  if((await precip.getAttribute('aria-expanded'))!=='true')await precip.click({timeout:5000});
+  const forecast=mobile.locator('[data-acc="forecast"]');
+  if((await forecast.getAttribute('aria-expanded'))!=='true')await forecast.click({timeout:5000});
   await mobile.locator('#aromeBtn').click({timeout:10000});
   await mobile.waitForTimeout(3600);
   const state=await mobile.evaluate(()=>{
    const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img')).find(x=>x.src.includes('precip_h'));
    return {menuClosed:!document.querySelector('.panel.left').classList.contains('open'),
      viewportWidth:window.innerWidth,
-     codeFresh:Array.from(document.scripts).some(x=>x.textContent.includes('Chiudi la sidebar anche dopo la sincronizzazione dei layer')),
+     codeFresh:!!document.querySelector('[data-acc="forecast"]'),
      imageWidth:img?.naturalWidth||0,forecastInfo:document.getElementById('aromeInfoStatus').textContent,
      timelineVisible:document.getElementById('aromeTimeline').classList.contains('on')};
   });
