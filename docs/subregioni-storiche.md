@@ -23,7 +23,7 @@ Il materiale didattico GeoNue presenta a propria volta condizioni CC BY 3.0 IT: 
 
 ## Visualizzazione nell'app
 
-- Nella sezione **Mappa e visualizzazione → Subregioni storiche**, il pulsante viene attivato automaticamente al caricamento del file locale; la visualizzazione iniziale è attiva.
+- Nella sezione **Mappa e visualizzazione → Subregioni storiche**, il pulsante viene abilitato al caricamento del file locale, ma il layer rimane **OFF** fino all'attivazione manuale. Anche i **Confini amministrativi** sono OFF all'avvio; entrambi rimangono nel loro stato durante il passaggio tra 2D e 3D.
 - **2D**: poligoni con confine tratteggiato azzurro, nessun riempimento, popup per il nome e etichette a zoom opportuno. I layer meteo e le stazioni restano leggibili.
 - **3D**: poligoni GeoJSON MapLibre, linea tratteggiata sovrapposta al rilievo ed etichette che evitano sovrapposizioni.
 - La posizione del file locale assicura funzionamento indipendente dai vecchi endpoint GeoNue, che restituiscono 404.
