@@ -11,6 +11,9 @@ const { chromium }=require('playwright-core');
  try{const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000});console.log('NAV',response?.status());}
  catch(e){console.log('NAV ERROR',e.message)}
  await page.waitForTimeout(3200);
+ // All controls are in the second sidebar tab (hidden until explicitly opened).
+ await page.locator('#controlsTab').click({timeout:10000});
+ await page.waitForTimeout(250);
  console.log('INIT',JSON.stringify(await page.evaluate(()=>({
   map:!!document.querySelector('#map .leaflet-container'),
   leaflet:typeof window.L,
