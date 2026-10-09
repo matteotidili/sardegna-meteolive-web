@@ -24,6 +24,17 @@ const { chromium }=require('playwright-core');
   leafletImgs:document.querySelectorAll('.leaflet-tile-loaded').length,
   ready:document.readyState
  }))));
+ // Verifica il caricamento proattivo: 22 scelte disponibili PRIMA dell'attivazione AROME.
+ try{
+  await page.waitForFunction(()=>document.querySelectorAll('#aromeProductSelect option').length===22,{timeout:20000});
+ }catch(e){console.log('AROME PRELOAD TIMEOUT',e.message.slice(0,160))}
+ const preload=await page.evaluate(()=>({
+  choices:document.querySelectorAll('#aromeProductSelect option').length,
+  status:document.getElementById('aromeProductsCount')?.textContent,
+  layerOff:document.getElementById('aromeBtn')?.lastElementChild?.textContent
+ }));
+ console.log('AROME PRELOAD',JSON.stringify(preload));
+ if(preload.choices!==22||preload.layerOff!=='OFF')process.exitCode=1;
  const tests=[
   ['base','boundariesBtn'],
   ['base','subregionsBtn'],
@@ -61,6 +72,21 @@ const { chromium }=require('playwright-core');
     console.log('AROME PRODUCTS',productCount);
     if(productCount<22)process.exitCode=1;
     if(productCount>=22){
+     const floating=await page.evaluate(()=>({
+       visible:document.getElementById('aromeQuickPicker').classList.contains('on'),
+       options:document.querySelectorAll('#aromeQuickSelect option').length
+     }));
+     console.log('AROME FLOATING',JSON.stringify(floating));
+     if(!floating.visible||floating.options!==22)process.exitCode=1;
+     await page.locator('#aromeQuickSelect').selectOption('td2m');
+     await page.waitForTimeout(1350);
+     const quick=await page.evaluate(()=>({
+       synced:document.getElementById('aromeProductSelect').value,
+       imageWidth:Array.from(document.querySelectorAll('.leaflet-weather-pane img'))
+        .find(x=>x.src.includes('/products/td2m/'))?.naturalWidth
+     }));
+     console.log('AROME QUICK SWITCH',JSON.stringify(quick));
+     if(quick.synced!=='td2m'||quick.imageWidth<2700)process.exitCode=1;
      for(const product of ['t2m','wind10','cape','sim_refl','precip_phase','sim_ir']){
       await page.locator('#aromeProductSelect').selectOption(product);
       await page.waitForTimeout(1700);
@@ -132,6 +158,18 @@ const { chromium }=require('playwright-core');
   });
   console.log('MOBILE AROME',JSON.stringify({state,mobileErrors}));
   if(!state.menuClosed||state.imageWidth<2700||!state.timelineVisible||mobileErrors.length)process.exitCode=1;
+  await mobile.locator('#aromeQuickSelect').selectOption('wind10',{timeout:10000});
+  await mobile.waitForTimeout(2300);
+  const quickMobile=await mobile.evaluate(()=>({
+    pickerShown:getComputedStyle(document.getElementById('aromeQuickPicker')).display,
+    selected:document.getElementById('aromeQuickSelect').value,
+    sidebarValue:document.getElementById('aromeProductSelect').value,
+    imageWidth:Array.from(document.querySelectorAll('.leaflet-weather-pane img'))
+       .find(x=>x.src.includes('/products/wind10/'))?.naturalWidth
+  }));
+  console.log('MOBILE QUICK AROME',JSON.stringify(quickMobile));
+  if(quickMobile.pickerShown==='none'||quickMobile.imageWidth<2700||
+    quickMobile.selected!=='wind10'||quickMobile.sidebarValue!=='wind10')process.exitCode=1;
  }catch(e){console.log('MOBILE ERROR',e.message.slice(0,600));process.exitCode=1}
  await mobile.close();
  await browser.close();
