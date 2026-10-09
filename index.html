@@ -2363,6 +2363,13 @@ syncBoundaries();
 // Le geometrie delle regioni storiche NON vengono ricostruite dalle immagini:
 // il pulsante è utilizzabile soltanto in presenza di un GeoJSON vettoriale verificato.
 const historicSubregionsBtn=document.getElementById('subregionsBtn');
+// Pane dedicati: i confini rimangono sopra i raster meteo, ma sotto le stazioni.
+map.createPane('historicbounds');
+map.getPane('historicbounds').style.zIndex=490;
+map.getPane('historicbounds').style.pointerEvents='auto';
+map.createPane('historiclabels');
+map.getPane('historiclabels').style.zIndex=495;
+map.getPane('historiclabels').style.pointerEvents='none';
 const historicSubregions2d=L.layerGroup();
 const historicSubregionsLabels=L.layerGroup();
 let historicSubregionsData=null,historicSubregionsOn=true;
@@ -2437,7 +2444,7 @@ function buildHistoricSubregions2d(){
   historicSubregionsLabels.clearLayers();
   if(!historicSubregionsData)return;
   L.geoJSON(historicSubregionsData,{
-    pane:'satbounds',
+    pane:'historicbounds',
     style:()=>({color:'#28d1d9',weight:2.2,opacity:.92,dashArray:'7 5',
       fill:false,interactive:true}),
     onEachFeature:(feature,layer)=>{
@@ -2447,7 +2454,7 @@ function buildHistoricSubregions2d(){
       const bounds=layer.getBounds();
       if(bounds.isValid()){
         const label=L.marker(bounds.getCenter(),{
-          pane:'satbounds',interactive:false,
+          pane:'historiclabels',interactive:false,
           icon:L.divIcon({className:'subregions-label',html:name.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),iconSize:null})
         });
         historicSubregionsLabels.addLayer(label)
@@ -2459,7 +2466,7 @@ function syncHistoricSubregions2d(){
   const active=historicSubregionsOn&&!!historicSubregionsData;
   if(active){
     if(!map.hasLayer(historicSubregions2d))historicSubregions2d.addTo(map);
-    if(map.getZoom()>=8.5){
+    if(map.getZoom()>=7.8){
       if(!map.hasLayer(historicSubregionsLabels))historicSubregionsLabels.addTo(map)
     }else if(map.hasLayer(historicSubregionsLabels))map.removeLayer(historicSubregionsLabels)
   }else{
@@ -2484,7 +2491,7 @@ function syncHistoricSubregions3d(){
   }
   if(!map3d.getLayer('historic-subregions-3d-labels')){
     map3d.addLayer({
-      id:'historic-subregions-3d-labels',type:'symbol',source:sourceId,minzoom:8.5,
+      id:'historic-subregions-3d-labels',type:'symbol',source:sourceId,minzoom:7.8,
       layout:{
         'text-field':['coalesce',['get','nome'],['get','name']],
         'text-size':11,'text-allow-overlap':false,'text-padding':5,
