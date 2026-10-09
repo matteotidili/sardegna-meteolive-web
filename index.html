@@ -61,6 +61,8 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .list{padding:8px}.btn{width:100%;display:flex;justify-content:space-between;align-items:center;border:1px solid transparent;background:transparent;color:#bdcbd8;padding:9px 10px;border-radius:9px;margin:2px 0;font-weight:650;cursor:pointer}.btn.active{background:#102b39;border-color:#2a5367;color:#fff}.btn.disabled{opacity:.45;cursor:default}
 .control-list{padding:8px}.accordion-item{margin-bottom:6px;border:1px solid #22394d;border-radius:12px;background:#091520e8;overflow:hidden}.accordion-item:last-child{margin-bottom:0}.accordion-head{width:100%;min-height:42px;display:flex;align-items:center;gap:8px;border:0;background:#0d1b29;color:#d8e6f2;padding:9px 10px;cursor:pointer;text-align:left}.accordion-item.open>.accordion-head{background:#10283a}.accordion-head:hover{background:#112536}.acc-title{flex:1;min-width:0;font-size:9px;font-weight:950;letter-spacing:.11em;text-transform:uppercase}.acc-state{display:none!important}.acc-state.on{border-color:#2c718d;background:#0d2c3d;color:#bfefff}.acc-chevron{flex:0 0 auto;width:18px;height:18px;display:grid;place-items:center;color:#7890a4;font-size:14px;transition:transform .18s ease}.accordion-item.open .acc-chevron{transform:rotate(180deg);color:#c7d8e6}.accordion-body{max-height:0;opacity:0;overflow:hidden;transition:max-height .22s ease,opacity .16s ease}.accordion-item.open .accordion-body{max-height:620px;opacity:1}.accordion-inner{padding:7px 8px 9px;border-top:1px solid #1e3446;background:#07131e}.compact-label{padding:5px 4px 6px;font-size:8px;font-weight:900;letter-spacing:.1em;color:#8299ad}.station-controls{display:grid;grid-template-columns:1fr;gap:7px}.net{padding:0}.network-switch{margin-top:5px}.basemap-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.accordion-inner>.btn{margin:3px 0}.accordion-inner .layer-note{padding-left:9px;padding-right:9px}.baseopt{min-width:0;border:1px solid #2a4358;background:#0d1b29;color:#afc1d1;border-radius:8px;padding:7px 5px;font-size:9px;font-weight:850;cursor:pointer}.baseopt.active{background:#12394d;border-color:#42d7ff;color:#fff}.baseopt[data-base="3d"]{grid-column:1/-1}
 .layer-note{display:none;padding:0 10px 10px;color:#8fa5b8;font-size:9px;line-height:1.35}.layer-note.on{display:block}.arome-legend-bar{height:11px;border-radius:8px;border:1px solid #afc2cd;background:linear-gradient(90deg,#1ebef5,#1f82f5,#00bed2,#00b964,#f0dc19,#fc9423,#f0312b,#b219a6,#ff6ef4)}
+.arome-map-actions{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0}
+.arome-map-actions button{flex:1 1 45%;min-width:0;padding:8px 6px;border:1px solid #3c728b;border-radius:7px;background:#0e354a;color:#e6f6ff;font-size:10px;font-weight:800;cursor:pointer}
 .radar-legend{margin-top:9px}.radar-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9eb3c7;margin-bottom:5px}.radar-legend-bar{height:10px;border-radius:10px;border:1px solid #ffffff26;background:linear-gradient(90deg,rgba(0,205,250,.45) 0%,rgb(0,205,250) 12%,rgb(0,210,70) 28%,rgb(245,235,20) 46%,rgb(250,140,35) 62%,rgb(245,25,45) 80%,rgb(155,0,205) 100%)}.radar-legend-labels{display:flex;justify-content:space-between;gap:3px;margin-top:4px;font-size:7px;color:#a9bdcf;font-variant-numeric:tabular-nums}
 .opera-legend{margin-top:10px;padding-top:8px;border-top:1px solid #20364a}
 .opera-legend-title{font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#c5d7e6;margin-bottom:5px;font-weight:800}
@@ -592,8 +594,6 @@ header .live{margin-left:0}
       </button>
       <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
-        <button class="btn" id="aromeBtn">Modello AROME HD · pioggia prevista <span>OFF</span></button>
-        <div class="layer-note" id="aromeInfo">Previsioni AROME-France HD · griglia 0,01° · fonte Météo-France · NON è un radar osservativo.<div id="aromeInfoStatus">Attiva per caricare la previsione.</div></div>
         <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
@@ -608,6 +608,24 @@ header .live{margin-left:0}
             <button class="cumopt" data-cum="cum24">CUM24h</button>
           </div>
           <div id="cumStamp" style="margin-top:7px"></div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="accordion-item" data-acc-item="forecast">
+      <button class="accordion-head" type="button" data-acc="forecast" aria-expanded="false">
+        <span class="acc-title">Previsione piogge</span><span class="acc-state" id="accAromeState">OFF</span><span class="acc-chevron">⌄</span>
+      </button>
+      <div class="accordion-body"><div class="accordion-inner">
+        <button class="btn" id="aromeBtn">AROME HD · Precipitazione oraria <span>OFF</span></button>
+        <div class="layer-note" id="aromeInfo">
+          Modello AROME-France HD 0,01° · precipitazione prevista, non osservata · scadenze H+1–H+51 · Météo-France.
+          <div id="aromeInfoStatus">Attiva per caricare la previsione.</div>
+          <div class="arome-map-actions">
+            <button type="button" id="aromeFitBtn">Intero dominio</button>
+            <button type="button" id="aromeSardiniaBtn">Centra Sardegna</button>
+          </div>
+          <div>Copertura geografica effettiva della griglia AROME: Mediterraneo occidentale e regioni limitrofe fino a 37,5°N.</div>
         </div>
       </div></div>
     </div>
@@ -702,7 +720,7 @@ header .live{margin-left:0}
 </aside>
 <div class="map-legends" id="mapLegends" aria-live="polite"></div>
 <div class="station-map-legend" id="stationMapLegend" aria-live="polite"></div>
-<div class="timeline" id="aromeTimeline"><div class="time-kind">AROME HD · PREV.</div><button class="timebtn" id="aromePrev" title="Ora precedente">‹</button><button class="timebtn" id="aromePlay" title="Riproduci">▶</button><button class="timebtn" id="aromeNext" title="Ora successiva">›</button><input id="aromeRange" type="range" min="0" max="11" value="0" step="1" aria-label="Ora di previsione AROME"><div class="time-label" id="aromeTime">—</div></div>
+<div class="timeline" id="aromeTimeline"><div class="time-kind">AROME HD · PREV.</div><button class="timebtn" id="aromePrev" title="Ora precedente">‹</button><button class="timebtn" id="aromePlay" title="Riproduci">▶</button><button class="timebtn" id="aromeNext" title="Ora successiva">›</button><input id="aromeRange" type="range" min="0" max="50" value="0" step="1" aria-label="Ora di previsione AROME da H+1 a H+51"><div class="time-label" id="aromeTime">—</div></div>
 <div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="timeline" id="operaTimeline"><div class="time-kind">EU RADAR</div><button class="timebtn" id="operaPrev" title="Frame precedente">‹</button><button class="timebtn" id="operaPlay" title="Riproduci">▶</button><button class="timebtn" id="operaNext" title="Frame successivo">›</button><input id="operaRange" type="range" min="0" max="11" value="11" step="1" aria-label="Sequenza temporale radar Europa"><div class="time-label" id="operaTime">ULTIMO</div></div>
 <div class="timeline" id="satTimeline"><div class="time-kind">SAT</div><button class="timebtn" id="satPrev" title="Frame precedente">‹</button><button class="timebtn" id="satPlay" title="Riproduci">▶</button><button class="timebtn" id="satNext" title="Frame successivo">›</button><input id="satRange" type="range" min="0" max="18" value="18" step="1" aria-label="Sequenza temporale satellite"><div class="time-label" id="satTime">ULTIMO</div></div>
@@ -724,6 +742,7 @@ const P={
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
 let stations=[],cur='temp',marks=[],netFilter='all',query='',operaMapWide=false,focusedStationKey='';
 let meteoalarmOn=false,meteoalarmData=null,meteoalarmMapData=null,meteoalarmLoading=false;
+let aromeOn=false; // Serve anche a syncMapExtent() durante il bootstrap della mappa.
 // Le referenze DOM del banner sono necessarie anche durante la prima sincronizzazione dei layer.
 const sardiniaAlertBanner=document.getElementById('sardiniaAlertBanner');
 const sardiniaAlertMain=document.getElementById('sardiniaAlertMain');
@@ -743,7 +762,7 @@ const OPERA_BOUNDS=L.latLngBounds([30,-15],[55,28]);
 const map=L.map('map',{minZoom:MOBILE_MAP()?6:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true,zoomAnimation:false,markerZoomAnimation:false,fadeAnimation:false}).setView([40.02,9.02],8);
 function syncMapExtent(){
   const mobile=MOBILE_MAP();
-  const min=meteoalarmOn?3:operaMapWide?5:(mobile?6:7);
+  const min=meteoalarmOn?3:aromeOn?3:operaMapWide?5:(mobile?6:7);
   map.setMinZoom(min);
   map.setMaxBounds(null);
   if(map.getZoom()<min)map.setZoom(min)
@@ -1054,7 +1073,7 @@ let lightningOn=false,lightningSocket=null,lightningReconnectTimer=null,lightnin
 let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lightningLastIdBySrc={},lightningFeedLoops=0;
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
-let aromeOn=false,aromeForecast=null,aromeIndex=0,aromeOverlay=null,aromePlayTimer=null,aromeLoading=false;
+let aromeForecast=null,aromeIndex=0,aromeOverlay=null,aromePlayTimer=null,aromeLoading=false;
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
 let base=sat,currentBaseMode='sat';sat.addTo(map);
@@ -1747,8 +1766,9 @@ function setAccState(id,text,on=false){
 function syncAccordionStates(){
   const baseNames={operational:'Operativa',light:'Chiara',sat:'Satellite',relief:'Rilievo','3d':'3D'};
   setAccState('accBaseState',baseNames[currentBaseMode]||'Operativa',true);
-  const precipOn=radarOn||operaOn||!!cumActive||aromeOn;
+  const precipOn=radarOn||operaOn||!!cumActive;
   setAccState('accPrecipState',precipOn?'ATTIVO':'OFF',precipOn);
+  setAccState('accAromeState',aromeOn?'ATTIVO':'OFF',aromeOn);
   setAccState('accLightningState',lightningOn?'ATTIVO':'OFF',lightningOn);
   setAccState('accSatelliteState',satMetOn?'ON':'OFF',satMetOn);
   setAccState('accFiresState',frpOn?'ON':'OFF',frpOn);
@@ -3397,6 +3417,18 @@ const aromeTimeline=document.getElementById('aromeTimeline');
 const aromeRange=document.getElementById('aromeRange');
 const aromePlay=document.getElementById('aromePlay');
 const aromeTime=document.getElementById('aromeTime');
+const aromeFitBtn=document.getElementById('aromeFitBtn');
+const aromeSardiniaBtn=document.getElementById('aromeSardiniaBtn');
+function fitAromeDomain(){
+  if(!aromeForecast?.bounds)return;
+  map.fitBounds(aromeForecast.bounds,{
+    animate:false,
+    paddingTopLeft:window.innerWidth>800?[315,14]:[8,8],
+    paddingBottomRight:window.innerWidth>800?[24,24]:[8,20]
+  })
+}
+aromeFitBtn.onclick=fitAromeDomain;
+aromeSardiniaBtn.onclick=()=>map.fitBounds([[38.7,7.7],[41.5,10.2]],{animate:false,padding:[18,18]});
 function aromeLabel(date){
   const d=new Date(date);
   return Number.isFinite(d.getTime())?d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—'
@@ -3417,7 +3449,7 @@ function aromeFrame(i){
   aromeIndex=Math.min(frames.length-1,Math.max(0,Math.round(Number(i)||0)));
   const frame=frames[aromeIndex];
   aromeRange.value=String(aromeIndex);
-  aromeTime.textContent=aromeLabel(frame.valid_time);
+  aromeTime.textContent='H+'+frame.lead_hours+' · '+aromeLabel(frame.valid_time);
   const ageH=(Date.now()-Date.parse(aromeForecast.run_time))/3600000;
   aromeInfoStatus.textContent='Corsa '+aromeLabel(aromeForecast.run_time)+' · valida '+aromeLabel(frame.valid_time)+
     ' · accumulo dell’ora precedente'+(ageH>8?' · ⚠ run non recente':'')+
@@ -3453,6 +3485,7 @@ async function aromeLoad(force=false){
     const previousValid=aromeForecast?.frames?.[aromeIndex]?.valid_time;
     aromeForecast={...data,frames};
     aromeRange.max=String(frames.length-1);
+    if(!previousRun&&aromeOn)fitAromeDomain();
     if(aromeOn){
       let index=frames.findIndex(f=>f.valid_time===previousValid);
       if(previousRun!==data.run_time||index<0)index=frames.findIndex(f=>Date.parse(f.valid_time)>=Date.now());
@@ -3469,6 +3502,7 @@ async function aromeLoad(force=false){
 }
 function setAromeState(on){
   aromeOn=!!on;
+  syncMapExtent();
   if(aromeOn){
     closeMobilePanels();
     if(mode3d)setBaseMode('sat');
