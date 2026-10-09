@@ -73,6 +73,14 @@ const { chromium }=require('playwright-core');
  try{
   await mobile.goto('https://matteotidili.github.io/sardegna-meteolive-web/?mobile-arome='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await mobile.waitForTimeout(2100);
+  // GitHub Pages può pubblicare dopo l'avvio del test: attendi il codice corrente.
+  for(let retry=0;retry<4;retry++){
+   const fresh=await mobile.evaluate(()=>Array.from(document.scripts).some(x=>x.textContent.includes('Chiudi la sidebar anche dopo la sincronizzazione dei layer')));
+   if(fresh)break;
+   console.log('MOBILE WAIT DEPLOY '+retry);
+   await mobile.waitForTimeout(12000);
+   await mobile.reload({waitUntil:'domcontentloaded',timeout:35000});
+  }
   await mobile.locator('#mobileMenu').click({timeout:10000});
   await mobile.locator('#controlsTab').click({timeout:10000});
   const precip=mobile.locator('[data-acc="precip"]');
@@ -82,6 +90,8 @@ const { chromium }=require('playwright-core');
   const state=await mobile.evaluate(()=>{
    const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img')).find(x=>x.src.includes('precip_h'));
    return {menuClosed:!document.querySelector('.panel.left').classList.contains('open'),
+     viewportWidth:window.innerWidth,
+     codeFresh:Array.from(document.scripts).some(x=>x.textContent.includes('Chiudi la sidebar anche dopo la sincronizzazione dei layer')),
      imageWidth:img?.naturalWidth||0,forecastInfo:document.getElementById('aromeInfoStatus').textContent,
      timelineVisible:document.getElementById('aromeTimeline').classList.contains('on')};
   });
