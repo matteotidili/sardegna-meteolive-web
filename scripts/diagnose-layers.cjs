@@ -11,6 +11,13 @@ const { chromium }=require('playwright-core');
  try{const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000});console.log('NAV',response?.status());}
  catch(e){console.log('NAV ERROR',e.message)}
  await page.waitForTimeout(3200);
+ for(let attempt=0;attempt<5;attempt++){
+  if(await page.locator('#aromeFlowBtn').count())break;
+  console.log('WAIT DEPLOY WIND FLOW',attempt);
+  await page.waitForTimeout(12000);
+  await page.reload({waitUntil:'domcontentloaded',timeout:45000});
+ }
+ if(await page.locator('#aromeFlowBtn').count()!==1)process.exitCode=1;
  // All controls are in the second sidebar tab (hidden until explicitly opened).
  await page.locator('#controlsTab').click({timeout:10000});
  await page.waitForTimeout(250);
@@ -99,6 +106,36 @@ const { chromium }=require('playwright-core');
       },product);
       console.log('AROME PRODUCT CHECK',JSON.stringify(check));
       if(!check.imageWidth||check.imageWidth<2700||check.select!==product)process.exitCode=1;
+      if(product==='wind10'){
+       try{
+        await page.waitForFunction(()=>typeof aromeWindFlow!=='undefined'&&
+          aromeWindFlow.enabled&&aromeWindFlow.data?.length===281*101*2&&
+          aromeWindCurrentKey.endsWith(':1'),{timeout:18000});
+       }catch(e){console.log('AROME WIND START TIMEOUT',e.message.slice(0,180));process.exitCode=1}
+       await page.waitForTimeout(1800);
+       const flow=await page.evaluate(()=>({
+        status:document.getElementById('aromeFlowStatus').textContent,
+        active:aromeWindFlow.enabled,hasVectors:!!aromeWindFlow.data,
+        vectorAtSardinia:aromeWindFlow.sample(9,40),
+        particles:aromeWindFlow.particles.filter(Boolean).length,
+        canvasWidth:aromeWindFlow.canvas.width,
+        canvasHeight:aromeWindFlow.canvas.height,
+        linesOn:document.getElementById('aromeFlowBtn').lastElementChild.textContent
+       }));
+       console.log('AROME WIND VECTORS',JSON.stringify(flow));
+       if(!flow.active||!flow.vectorAtSardinia||flow.particles<5||flow.linesOn!=='ON')process.exitCode=1;
+       await page.locator('#aromeFlowBtn').click();
+       const off=await page.evaluate(()=>({enabled:aromeWindFlow.enabled,text:document.getElementById('aromeFlowBtn').lastElementChild.textContent}));
+       console.log('AROME WIND TOGGLE OFF',JSON.stringify(off));
+       if(off.enabled||off.text!=='OFF')process.exitCode=1;
+       await page.locator('#aromeFlowBtn').click();
+       await page.waitForFunction(()=>aromeWindFlow.enabled,{timeout:6000}).catch(()=>process.exitCode=1);
+       await page.locator('#aromeRange').evaluate(el=>{el.value='11';el.dispatchEvent(new Event('input',{bubbles:true}))});
+       await page.waitForFunction(()=>aromeWindCurrentKey.endsWith(':12')&&aromeWindFlow.enabled,{timeout:12000}).catch(e=>{console.log('AROME WIND H12 ERROR',e.message.slice(0,250));process.exitCode=1});
+       const h12=await page.evaluate(()=>({key:aromeWindCurrentKey,enabled:aromeWindFlow.enabled,time:document.getElementById('aromeTime').textContent}));
+       console.log('AROME WIND H12',JSON.stringify(h12));
+       if(!h12.enabled||!h12.time.includes('H+12'))process.exitCode=1;
+      }
      }
      await page.locator('#aromeProductSelect').selectOption('precip_1h');
      await page.waitForTimeout(600);
@@ -135,8 +172,8 @@ const { chromium }=require('playwright-core');
   await mobile.goto('https://matteotidili.github.io/sardegna-meteolive-web/?mobile-arome='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
   await mobile.waitForTimeout(2100);
   // GitHub Pages può pubblicare dopo l'avvio del test: attendi il codice corrente.
-  for(let retry=0;retry<4;retry++){
-   const fresh=await mobile.evaluate(()=>!!document.querySelector('[data-acc="forecast"]'));
+  for(let retry=0;retry<5;retry++){
+   const fresh=await mobile.evaluate(()=>!!document.querySelector('#aromeFlowBtn'));
    if(fresh)break;
    console.log('MOBILE WAIT DEPLOY '+retry);
    await mobile.waitForTimeout(12000);
@@ -170,6 +207,19 @@ const { chromium }=require('playwright-core');
   console.log('MOBILE QUICK AROME',JSON.stringify(quickMobile));
   if(quickMobile.pickerShown==='none'||quickMobile.imageWidth<2700||
     quickMobile.selected!=='wind10'||quickMobile.sidebarValue!=='wind10')process.exitCode=1;
+  try{
+   await mobile.waitForFunction(()=>typeof aromeWindFlow!=='undefined'&&aromeWindFlow.enabled&&
+     aromeWindFlow.data?.length===281*101*2,{timeout:18000});
+   const mobileFlow=await mobile.evaluate(()=>({
+     enabled:aromeWindFlow.enabled,
+     particles:aromeWindFlow.particles.filter(Boolean).length,
+     canvasHeight:aromeWindFlow.canvas.height,
+     flowInfo:document.getElementById('aromeFlowStatus').textContent,
+     flowSettingVisible:!document.getElementById('aromeFlowControls').hidden
+   }));
+   console.log('MOBILE WIND FLOW',JSON.stringify(mobileFlow));
+   if(!mobileFlow.enabled||mobileFlow.particles<5||!mobileFlow.flowSettingVisible)process.exitCode=1;
+  }catch(e){console.log('MOBILE WIND FLOW ERROR',e.message.slice(0,300));process.exitCode=1}
  }catch(e){console.log('MOBILE ERROR',e.message.slice(0,600));process.exitCode=1}
  await mobile.close();
  await browser.close();
