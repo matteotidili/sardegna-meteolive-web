@@ -110,7 +110,7 @@ const { chromium }=require('playwright-core');
        try{
         await page.waitForFunction(()=>typeof aromeWindFlow!=='undefined'&&
           aromeWindFlow.enabled&&aromeWindFlow.data?.length===281*101*2&&
-          aromeWindCurrentKey.endsWith(':1'),{timeout:18000});
+          aromeWindCurrentKey.endsWith(':'+aromeForecast.frames[aromeIndex].lead_hours),{timeout:18000});
        }catch(e){console.log('AROME WIND START TIMEOUT',e.message.slice(0,180));process.exitCode=1}
        await page.waitForTimeout(1800);
        const flow=await page.evaluate(()=>({
