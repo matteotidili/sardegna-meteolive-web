@@ -142,7 +142,9 @@ class AROMEWindFlow{
     }
     let drawn=0;
     for(let n=0;n<this.particles.length;n++){
-      const p=this.particles[n],uv=this.sample(p.lon,p.lat);
+      const p=this.particles[n];
+      if(!p){this.particles[n]=this.spawn();continue}
+      const uv=this.sample(p.lon,p.lat);
       if(!uv||Math.hypot(...uv)<.5||p.age>=p.life){
         this.particles[n]=this.spawn();
         continue
