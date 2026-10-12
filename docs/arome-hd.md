@@ -63,3 +63,15 @@ Rimangono esclusi i prodotti Meteociel per i quali i pacchetti SP1/SP2/SP3 apert
 
 Le immagini aggiuntive vengono generate come WebP RGBA georeferenziati al passo griglia di 0,01°, sotto \`data/arome/products/{parameter}/hNN.webp\`; si conserva trasparenza totale dove il modello non contiene dati. La scelta del parametro non cambia la finestra temporale selezionata. Le colorazioni sono interpretazioni grafiche proprietarie dell'app, mentre i valori fisici vengono dai GRIB originali Météo-France.
 
+
+## Linee di flusso del vento a 10 metri
+
+Quando si selezionano **Vento medio 10 m**, **Raffiche 10 m** oppure **Raffica massima dalla corsa**, la mappa mostra le **linee di corrente animate** ricavate dai vettori di vento **U e V previsti dal modello AROME-France HD** a 10 m.
+
+Le linee rappresentano la direzione del vento e possono essere attivate o disattivate tramite il comando **Linee di flusso vento 10 m**. Il colore del raster continua a rappresentare l'intensità prevista della variabile scelta; anche nei prodotti delle raffiche la direzione del flusso proviene dal vento 10 m istantaneo e **non dalle componenti massime delle raffiche**, che potrebbero non essere simultanee.
+
+**Dati originali:** i file GRIB2 `SP1` contengono le componenti `10u` e `10v` in m/s, con U positivo verso est e V positivo verso nord. Lo script `scripts/update_arome_wind_vectors.py` del repository dati estrae gli stessi 51 orari delle immagini AROME, campionando la griglia originale di 0,01° ogni 10 celle (passo visivo 0,1°). Per ciascuna scadenza è pubblicato un file binario di 113.524 byte, con componenti U/V intercalate in centesimi di m/s (int16 little-endian). Le celle non simulate mantengono un valore sentinella, ignorato dal disegno. Il JSON `data/arome/wind_vectors.json` riporta corsa, dimensioni, riferimenti geografici e scadenze.
+
+**Allineamento e aggiornamento:** il visualizzatore carica i vettori solo se l'orario della corsa coincide esattamente con quello del raster selezionato. Il caricamento segue lo slider fino a H+51, scarta risposte tardive delle precedenti scadenze, mantiene in cache pochi frame e disattiva il flusso se il prodotto AROME non è più visibile. Un workflow dedicato prepara i vettori quando arriva una nuova corsa.
+
+Le particelle avanzano lungo il **campo di vento istantaneo alla scadenza visualizzata**, interpolato bilinearmente fra celle valide e proiettato con Leaflet. La velocità dell'animazione è **puramente illustrativa**, non riproduce il tempo reale di trasporto delle masse d'aria e non va interpretata come una traiettoria lagrangiana o una previsione di spostamento di fenomeni. Le linee sono visibili soltanto nella vista 2D, al di sopra del raster AROME ma sotto le stazioni e le informazioni operative.
