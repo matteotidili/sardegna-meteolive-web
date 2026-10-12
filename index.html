@@ -1669,6 +1669,8 @@ function ensureMap3d(){
 function enter3d(){
   const c=map.getCenter();
   mode3d=true;
+  // Linee di flusso AROME disponibili soltanto sulla proiezione 2D.
+  if(aromeOn)syncAromeWindFlow();
   document.getElementById('map').classList.add('map-hidden');
   map3dEl.classList.add('on');
   map3dEl.setAttribute('aria-hidden','false');
@@ -1699,6 +1701,7 @@ function leave3d(){
   map3dEl.setAttribute('aria-hidden','true');
   document.getElementById('map').classList.remove('map-hidden');
   map.invalidateSize();
+  if(aromeOn)syncAromeWindFlow();
   render()
 }
 const layer=L.layerGroup().addTo(map);
@@ -3571,7 +3574,7 @@ aromeQuickSelect.onchange=()=>aromeChooseProduct(aromeQuickSelect.value);
 // Linee di corrente basate sulle vere componenti U/V a 10 m di AROME SP1.
 // Campionamento 0,1° per il disegno, non interpolazione di una carta pronta.
 function aromeWindRequested(){
-  return aromeOn&&aromeFlowPreference&&AROME_WIND_PRODUCTS.has(aromeProductKey)&&
+  return aromeOn&&!mode3d&&aromeFlowPreference&&AROME_WIND_PRODUCTS.has(aromeProductKey)&&
     !!aromeForecast?.frames?.[aromeIndex]
 }
 function updateAromeFlowControls(){
