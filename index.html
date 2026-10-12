@@ -64,6 +64,12 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .arome-product-select{display:block;width:100%;max-width:100%;border:1px solid #426a80;border-radius:7px;background:#092637;color:#f5fbff;font-weight:750;font-size:11px;padding:9px;margin:7px 0}
 .arome-product-select option,.arome-product-select optgroup{background:#0d2738;color:#eaf5fa}
 .arome-products-count{font-size:10px;font-weight:800;color:#0b6685;padding:0 2px 7px}
+.arome-flow-options{padding:5px 6px 7px;margin:5px 0 9px;border-radius:9px;border:1px solid #b7d6e2;background:#edf7fa;font:10px/1.4 Inter,system-ui,Arial;color:#3d6576}
+.arome-flow-options[hidden]{display:none}
+.arome-flow-options .btn{min-height:37px;border-color:#9fcbdc;font-weight:850;color:#145d7a}
+.arome-flow-options .btn.active{background:#d3f2fa;color:#085879;border-color:#45a9cb}
+#aromeFlowStatus{padding:4px 5px;font-size:9px;line-height:1.4}
+.arome-flow-canvas{pointer-events:none!important}
 .arome-quick-picker{display:none;position:absolute;z-index:1006;top:10px;left:calc(50% + 150px);transform:translateX(-50%);width:min(410px,calc(100% - 330px));gap:9px;align-items:center;background:#071b2af2;border:1px solid #32657b;border-radius:10px;padding:7px 9px;box-shadow:0 8px 23px #0007}
 .arome-quick-picker.on{display:flex}
 .arome-quick-picker label{font:850 10px/1.1 Inter,system-ui,sans-serif;white-space:nowrap;color:#abdeef}
@@ -631,6 +637,10 @@ header .live{margin-left:0}
           <option value="precip_1h">Precipitazioni previste 1 h</option>
         </select>
         <div class="arome-products-count" id="aromeProductsCount" role="status">Caricamento parametri AROME…</div>
+        <div class="arome-flow-options" id="aromeFlowControls" hidden>
+          <button class="btn" id="aromeFlowBtn" type="button">Linee di flusso vento 10 m <span>ON</span></button>
+          <div id="aromeFlowStatus" role="status">Linee animate dai vettori U/V del modello (direzione); velocità indicata dai colori.</div>
+        </div>
         <div class="layer-note" id="aromeProductNote">Seleziona un parametro per visualizzare previsione e legenda.</div>
         <div class="layer-note" id="aromeInfo">
           Modello AROME-France HD 0,01° · scadenze H+1–H+51 · Météo-France. Previsioni simulate, non osservazioni.
@@ -750,6 +760,7 @@ header .live{margin-left:0}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
+<script src="scripts/arome-wind-flow.js"></script>
 <script>
 const P={
  temp:{n:'Temperatura attuale',u:'°C',fmt:v=>v.toFixed(1)+'°',labs:['≤0','10','20','30','40+'],st:[[-10,[70,50,126]],[0,[54,92,186]],[10,[31,161,135]],[20,[160,218,57]],[25,[253,231,37]],[30,[253,174,50]],[35,[244,109,67]],[40,[215,48,39]],[45,[142,27,85]]]},
@@ -1094,6 +1105,8 @@ let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lig
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
 let aromeForecast=null,aromeIndex=0,aromeOverlay=null,aromePlayTimer=null,aromeLoading=false,aromeProductKey='precip_1h';
+let aromeFlowPreference=true,aromeWindManifest=null,aromeWindSerial=0,aromeWindCurrentKey='',aromeWindFailureUntil=0;
+const aromeWindBuffers=new Map();
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
 let base=sat,currentBaseMode='sat';sat.addTo(map);
@@ -3444,6 +3457,12 @@ const aromeProductNote=document.getElementById('aromeProductNote');
 const aromeProductsCount=document.getElementById('aromeProductsCount');
 const aromeQuickPicker=document.getElementById('aromeQuickPicker');
 const aromeQuickSelect=document.getElementById('aromeQuickSelect');
+const aromeFlowControls=document.getElementById('aromeFlowControls');
+const aromeFlowBtn=document.getElementById('aromeFlowBtn');
+const aromeFlowStatus=document.getElementById('aromeFlowStatus');
+const aromeWindFlow=new AROMEWindFlow(map);
+const AROME_WIND_META=AROME_RAW+'data/arome/wind_vectors.json';
+const AROME_WIND_PRODUCTS=new Set(['wind10','gust10','gustmaxrun']);
 const aromeFitBtn=document.getElementById('aromeFitBtn');
 const aromeSardiniaBtn=document.getElementById('aromeSardiniaBtn');
 function fitAromeDomain(){
@@ -3549,6 +3568,92 @@ function aromeLegendHtml(){
 aromeProductSelect.onchange=()=>aromeChooseProduct(aromeProductSelect.value);
 aromeQuickSelect.onchange=()=>aromeChooseProduct(aromeQuickSelect.value);
 
+// Linee di corrente basate sulle vere componenti U/V a 10 m di AROME SP1.
+// Campionamento 0,1° per il disegno, non interpolazione di una carta pronta.
+function aromeWindRequested(){
+  return aromeOn&&aromeFlowPreference&&AROME_WIND_PRODUCTS.has(aromeProductKey)&&
+    !!aromeForecast?.frames?.[aromeIndex]
+}
+function updateAromeFlowControls(){
+  const applicable=aromeOn&&AROME_WIND_PRODUCTS.has(aromeProductKey);
+  aromeFlowControls.hidden=!applicable;
+  aromeFlowBtn.classList.toggle('active',aromeFlowPreference);
+  aromeFlowBtn.lastElementChild.textContent=aromeFlowPreference?'ON':'OFF'
+}
+async function syncAromeWindFlow(){
+  updateAromeFlowControls();
+  const serial=++aromeWindSerial;
+  if(!aromeWindRequested()){
+    aromeWindFlow.setEnabled(false);
+    aromeWindCurrentKey='';
+    return
+  }
+  if(typeof AROMEWindFlow!=='function'){
+    aromeFlowStatus.textContent='Visualizzazione del vento non supportata dal browser.';
+    return
+  }
+  const run=aromeForecast.run_time,frame=aromeForecast.frames[aromeIndex];
+  const key=run+':'+frame.lead_hours;
+  if(aromeWindCurrentKey===key){
+    aromeWindFlow.setEnabled(true);
+    return
+  }
+  aromeWindFlow.setEnabled(false);
+  if(Date.now()<aromeWindFailureUntil){
+    aromeFlowStatus.textContent='Dati vettoriali non disponibili, riprova tra poco.';
+    return
+  }
+  aromeFlowStatus.textContent='Caricamento direzione del vento H+'+frame.lead_hours+'…';
+  try{
+    if(!aromeWindManifest||aromeWindManifest.run_time!==run){
+      const response=await fetch(AROME_WIND_META+'?t='+Date.now(),{
+        cache:'no-store',signal:AbortSignal.timeout(16000)
+      });
+      if(!response.ok)throw new Error('Catalogo vettori HTTP '+response.status);
+      const m=await response.json();
+      if(m.model!=='AROME-France HD'||m.run_time!==run||
+          m.grid?.encoding!=='interleaved_signed_int16_little_endian'||
+          m.grid.width!==281||m.grid.height!==101||!Array.isArray(m.frames)||
+          m.frames.length!==51)throw new Error('Vettori in aggiornamento: corsa non allineata');
+      aromeWindManifest=m;
+      aromeWindBuffers.clear();
+    }
+    if(serial!==aromeWindSerial||!aromeWindRequested())return;
+    let buffer=aromeWindBuffers.get(key);
+    if(!buffer){
+      const found=aromeWindManifest.frames.find(f=>Number(f.lead_hours)===Number(frame.lead_hours));
+      if(!found||!/^data\/arome\/wind_vectors\/h\d{2}\.bin$/.test(found.file))
+        throw new Error('Vettori mancanti per H+'+frame.lead_hours);
+      const url=AROME_RAW+found.file+'?run='+encodeURIComponent(run);
+      const response=await fetch(url,{signal:AbortSignal.timeout(15000)});
+      if(!response.ok)throw new Error('Raster vettoriale HTTP '+response.status);
+      buffer=await response.arrayBuffer();
+      if(buffer.byteLength!==281*101*4)throw new Error('Dimensioni griglia U/V non valide');
+      aromeWindBuffers.set(key,buffer);
+      if(aromeWindBuffers.size>8)aromeWindBuffers.delete(aromeWindBuffers.keys().next().value)
+    }
+    if(serial!==aromeWindSerial||!aromeWindRequested()||
+        run!==aromeForecast.run_time||frame.lead_hours!==aromeForecast.frames[aromeIndex].lead_hours)return;
+    aromeWindFlow.setData(buffer,aromeWindManifest.grid);
+    aromeWindCurrentKey=key;
+    aromeWindFlow.setEnabled(true);
+    aromeFlowStatus.textContent='Direzione vento 10 m · linee animate dal campo U/V AROME H+'+
+      frame.lead_hours+' (0,1° per il flusso). Animazione illustrativa, non tempo di trasporto reale.'
+  }catch(e){
+    if(serial!==aromeWindSerial)return;
+    console.warn('Vettori AROME U/V',e);
+    aromeWindFailureUntil=Date.now()+45000;
+    aromeWindCurrentKey='';
+    aromeWindFlow.setEnabled(false);
+    aromeFlowStatus.textContent='Linee non disponibili: '+e.message+'. Le intensità restano visibili.'
+  }
+}
+aromeFlowBtn.onclick=()=>{
+  aromeFlowPreference=!aromeFlowPreference;
+  aromeWindFailureUntil=0;
+  syncAromeWindFlow();
+  if(window.innerWidth<=800)closeMobilePanels()
+};
 function aromeStop(){
   if(aromePlayTimer){clearInterval(aromePlayTimer);aromePlayTimer=null}
   aromePlay.textContent='▶';aromePlay.classList.remove('active')
@@ -3583,6 +3688,7 @@ function aromeFrame(i){
     aromeOverlay.on('error',()=>{if(aromeOn)aromeInfoStatus.textContent+=' · immagine non raggiungibile'});
     aromeOverlay.addTo(map)
   }
+  syncAromeWindFlow();
   legend()
 }
 async function aromeLoad(force=false){
@@ -3636,7 +3742,8 @@ function setAromeState(on){
   }else{
     aromeStop();aromeTimeline.classList.remove('on');aromeInfo.classList.remove('on');
     if(aromeOverlay&&map.hasLayer(aromeOverlay))map.removeLayer(aromeOverlay);
-    aromeOverlay=null
+    aromeOverlay=null;
+    syncAromeWindFlow()
   }
   aromeBtn.classList.toggle('active',aromeOn);
   aromeBtn.lastElementChild.textContent=aromeOn?'ON':'OFF';
