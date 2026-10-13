@@ -1745,7 +1745,8 @@ function renderStationDirectory(){
     const delta=directorySort==='desc'?b[cur]-a[cur]:a[cur]-b[cur];
     return delta||(a.name||'').localeCompare(b.name||'','it')||stationKey(a).localeCompare(stationKey(b),'it')
   });
-  document.getElementById('directorySummary').textContent=rows.length+' stazioni · '+P[cur].n+' · '+P[cur].u;
+  const timeScope=LIVE_STATION_PARAMS.has(cur)?' · rilevazioni ultimi '+LIVE_STATION_MAX_AGE_MIN+' min':DAILY_STATION_PARAMS.has(cur)?' · oggi (ora italiana)':'';
+  document.getElementById('directorySummary').textContent=rows.length+' stazioni · '+P[cur].n+' · '+P[cur].u+timeScope;
   document.querySelectorAll('[data-station-sort]').forEach(btn=>{
     const active=btn.dataset.stationSort===directorySort;
     btn.classList.toggle('active',active);
@@ -2273,11 +2274,25 @@ function legend(){
   el.classList.toggle('on',!!html);
   syncLegendPosition()
 }
+// Per le variabili istantanee non classifichiamo come attuali dati vecchi di ore.
+// Gli estremi giornalieri, invece, sono valori accumulati dal giorno locale in corso.
+const LIVE_STATION_PARAMS=new Set(['temp','rh','wind_kmh','rain_rate']);
+const DAILY_STATION_PARAMS=new Set(['tmin','tmax','rain_today']);
+const LIVE_STATION_MAX_AGE_MIN=90;
+const stationRomeDate=new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'});
+function stationParameterIsCurrent(s,key){
+  if(!Number.isFinite(s[key]))return false;
+  if(!LIVE_STATION_PARAMS.has(key)&&!DAILY_STATION_PARAMS.has(key))return true;
+  const obs=Date.parse(s.last||'');
+  const now=Date.now();
+  if(!Number.isFinite(obs)||obs>now+5*60000)return false;
+  if(LIVE_STATION_PARAMS.has(key))return now-obs<=LIVE_STATION_MAX_AGE_MIN*60000;
+  return stationRomeDate.format(obs)===stationRomeDate.format(now)
+}
 function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
   const q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);
-  const hasValue=Number.isFinite(s[cur]);
-  return net&&q&&hasValue
+  return net&&q&&stationParameterIsCurrent(s,cur)
 }
 function markerSpacing(){
   const m=markerMetrics();
