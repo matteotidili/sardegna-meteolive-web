@@ -373,7 +373,13 @@ header{background:#fff;color:#19384b;border-color:#dbe5ea}header .brand small{co
 .sidebar-head .search{margin:0;padding:9px 10px;min-width:0;background:#f5f8fa;border:1px solid #dbe5ea;border-radius:8px}.sidebar-head .search input{color:#203947;font-size:13px}.sidebar-head .network-switch{margin-top:10px}.sidebar-head .netbtn{color:#456273;background:#f2f6f8;border-color:#dbe5ea}.sidebar-head .netbtn.active{background:#e0f3fa;color:#086283;border-color:#087ca6}
 .panel.left:not(.directory-open) .sidebar-head .search,.panel.left:not(.directory-open) .sidebar-head>.network-switch{display:none}
 .panel.left:not(.directory-open) .sidebar-tabs{margin-bottom:0}
-.directory-view{display:flex;flex-direction:column;min-height:0;flex:1}.directory-summary{padding:10px 14px;font-size:11px;color:#617986;border-bottom:1px solid #edf1f3}.station-directory{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}.station-row{width:100%;display:flex;gap:10px;align-items:center;padding:12px 14px;text-align:left;background:#fff;border:0;border-bottom:1px solid #e7eef2;color:#213c4c;cursor:pointer}.station-row:hover,.station-row[aria-pressed="true"]{background:#eaf6fb}.station-details{flex:1;min-width:0}.station-name{display:block;font-size:12px;font-weight:750;line-height:1.4}.station-meta{display:block;margin-top:4px;color:#637b89;font-size:10px;line-height:1.4}.station-value{flex:0 0 auto;min-width:46px;padding:9px 6px;border-radius:9px;color:#112b39;text-align:center;font-size:12px;font-weight:800;border:1px solid #00000012}.directory-empty{padding:20px 14px;color:#637b89;font-size:12px}.directory-view[hidden],.control-list[hidden]{display:none}.panel .control-list{overflow-y:auto;min-height:0;flex:1}
+.directory-view{display:flex;flex-direction:column;min-height:0;flex:1}.directory-summary{padding:10px 14px;font-size:11px;color:#617986;border-bottom:1px solid #edf1f3}
+.directory-sort{display:flex;gap:7px;padding:8px 12px;border-bottom:1px solid #e2ebef;background:#f7fafc}
+.directory-sort-btn{flex:1;min-width:0;min-height:36px;padding:7px 5px;border:1px solid #d5e3eb;border-radius:8px;background:#fff;color:#476375;font:700 11px Inter,system-ui,Arial;cursor:pointer}
+.directory-sort-btn:hover{background:#edf6fa}
+.directory-sort-btn.active{background:#087ca6;border-color:#087ca6;color:#fff}
+.directory-sort-btn:focus-visible{outline:2px solid #0e7296;outline-offset:2px}
+.station-directory{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}.station-row{width:100%;display:flex;gap:10px;align-items:center;padding:12px 14px;text-align:left;background:#fff;border:0;border-bottom:1px solid #e7eef2;color:#213c4c;cursor:pointer}.station-row:hover,.station-row[aria-pressed="true"]{background:#eaf6fb}.station-details{flex:1;min-width:0}.station-name{display:block;font-size:12px;font-weight:750;line-height:1.4}.station-meta{display:block;margin-top:4px;color:#637b89;font-size:10px;line-height:1.4}.station-value{flex:0 0 auto;min-width:46px;padding:9px 6px;border-radius:9px;color:#112b39;text-align:center;font-size:12px;font-weight:800;border:1px solid #00000012}.directory-empty{padding:20px 14px;color:#637b89;font-size:12px}.directory-view[hidden],.control-list[hidden]{display:none}.panel .control-list{overflow-y:auto;min-height:0;flex:1}
 /* Il pannello dei controlli segue la grafica chiara dell'elenco stazioni. */
 .panel.left:not(.directory-open),.panel.left:not(.directory-open) .control-list{background:#fff;color:#203947}
 .panel.left:not(.directory-open) .accordion-item{background:#fff;border-color:#dbe5ea}
@@ -591,6 +597,10 @@ header .live{margin-left:0}
   </div>
   <div class="directory-view" id="directoryView" role="tabpanel" aria-labelledby="directoryTab">
     <div class="directory-summary" id="directorySummary" aria-live="polite">Caricamento stazioni…</div>
+    <div class="directory-sort" role="group" aria-label="Ordina stazioni per valore del parametro selezionato">
+      <button type="button" class="directory-sort-btn active" data-station-sort="desc" aria-pressed="true" title="Ordina dal valore più alto al più basso">↓ Dal più alto</button>
+      <button type="button" class="directory-sort-btn" data-station-sort="asc" aria-pressed="false" title="Ordina dal valore più basso al più alto">↑ Dal più basso</button>
+    </div>
     <div class="station-directory" id="stationDirectory"></div>
   </div>
   <div class="list control-list" id="controlsView" role="tabpanel" aria-labelledby="controlsTab" hidden>
@@ -1726,12 +1736,22 @@ controlsTab.onclick=()=>showSidebarTab(false);
   }
 });
 function stationKey(s){return [s.network,s.station_id||s.name,s.lat,s.lon].join('|')}
+let directorySort='desc';
 function renderStationDirectory(){
   const list=document.getElementById('stationDirectory');
   const scroll=list.scrollTop;
   const focused=document.activeElement?.closest('[data-station-key]')?.dataset.stationKey;
-  const rows=stations.filter(baseVisible).sort((a,b)=>(a.name||'').localeCompare(b.name||'','it'));
+  const rows=stations.filter(baseVisible).sort((a,b)=>{
+    const delta=directorySort==='desc'?b[cur]-a[cur]:a[cur]-b[cur];
+    return delta||(a.name||'').localeCompare(b.name||'','it')||stationKey(a).localeCompare(stationKey(b),'it')
+  });
   document.getElementById('directorySummary').textContent=rows.length+' stazioni · '+P[cur].n+' · '+P[cur].u;
+  document.querySelectorAll('[data-station-sort]').forEach(btn=>{
+    const active=btn.dataset.stationSort===directorySort;
+    btn.classList.toggle('active',active);
+    btn.setAttribute('aria-pressed',String(active));
+    btn.setAttribute('aria-label',(active?'Ordinamento attivo: ':'Ordina ')+' '+P[cur].n+(btn.dataset.stationSort==='desc'?' dal più alto al più basso':' dal più basso al più alto'))
+  });
   const fragment=document.createDocumentFragment();
   for(const s of rows){
     const key=stationKey(s),row=document.createElement('button');
@@ -1751,6 +1771,12 @@ function renderStationDirectory(){
   list.replaceChildren(fragment);list.scrollTop=scroll;
   if(focused){Array.from(list.children).find(b=>b.dataset.stationKey===focused)?.focus({preventScroll:true})}
 }
+document.querySelectorAll('[data-station-sort]').forEach(btn=>btn.addEventListener('click',()=>{
+  if(directorySort===btn.dataset.stationSort)return;
+  directorySort=btn.dataset.stationSort;
+  document.getElementById('stationDirectory').scrollTop=0;
+  renderStationDirectory()
+}));
 document.getElementById('stationDirectory').onclick=e=>{
   const button=e.target.closest('[data-station-key]');if(!button)return;
   const item=marks.find(x=>stationKey(x.s)===button.dataset.stationKey);if(!item)return;
