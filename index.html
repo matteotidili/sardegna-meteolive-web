@@ -810,6 +810,9 @@ function syncMapExtent(){
   if(map.getZoom()<min)map.setZoom(min)
 }
 syncMapExtent();
+// Anteprima raster sotto la mappa satellitare: durante pan e zoom i tile
+// dettagliati possono ancora essere in download senza lasciare vuoti.
+map.createPane('sat-fallback');map.getPane('sat-fallback').style.zIndex=195;map.getPane('sat-fallback').style.pointerEvents='none';
 map.createPane('land');map.getPane('land').style.zIndex=220;map.getPane('land').style.pointerEvents='none';
 map.createPane('shade');map.getPane('shade').style.zIndex=230;map.getPane('shade').style.mixBlendMode='screen';map.getPane('shade').style.opacity='.33';
 map.createPane('satshade');map.getPane('satshade').style.zIndex=235;map.getPane('satshade').style.mixBlendMode='multiply';map.getPane('satshade').style.pointerEvents='none';
@@ -849,9 +852,18 @@ const light=(CAN_USE_WEBGL&&typeof L.maplibreGL==='function')
       attribution:'© OpenFreeMap · © OpenMapTiles · © OpenStreetMap contributors'
     })
   : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
-const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+const satelliteTileUrl='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+// Raster di copertura a zoom nativo contenuto: permette di mostrare un'immagine
+// ingrandita, anche se sfocata, nei pochi istanti di caricamento delle tessere fini.
+const satFallback=L.tileLayer(satelliteTileUrl,{
+  pane:'sat-fallback',maxNativeZoom:7,maxZoom:18,
+  keepBuffer:5,updateWhenIdle:false,updateWhenZooming:false,
+  attribution:''
+});
+const sat=L.tileLayer(satelliteTileUrl,{
   maxZoom:18,
-  keepBuffer:5,
+  keepBuffer:6,
+  updateWhenIdle:false,
   updateWhenZooming:false,
   attribution:'Tiles © Esri'
 });
@@ -1122,7 +1134,7 @@ let aromeFlowPreference=true,aromeWindManifest=null,aromeWindSerial=0,aromeWindC
 const aromeWindBuffers=new Map();
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
-let base=sat,currentBaseMode='sat';sat.addTo(map);
+let base=sat,currentBaseMode='sat';satFallback.addTo(map);sat.addTo(map);
 let map3d=null,mode3d=false,statusBefore3d='',map3dStyleReady=false;
 let map3dMouseMode='rotate',map3dRotatePointer=null;
 let station3dMobileMarkers=[];
@@ -2458,9 +2470,14 @@ function setBaseMode(choice){
     enter3d()
   }else{
     if(mode3d)leave3d();
-    if(base&&map.hasLayer(base))map.removeLayer(base);
-    base=BASEMAPS[choice]||operational;
-    currentBaseMode=BASEMAPS[choice]?choice:'operational';
+    const nextBase=BASEMAPS[choice]||operational;
+    const nextMode=BASEMAPS[choice]?choice:'operational';
+    // Non smontare una basemap se la scelta non cambia.
+    if(base!==nextBase&&base&&map.hasLayer(base))map.removeLayer(base);
+    base=nextBase;currentBaseMode=nextMode;
+    if(nextMode==='sat'){
+      if(!map.hasLayer(satFallback))satFallback.addTo(map);
+    }else if(map.hasLayer(satFallback))map.removeLayer(satFallback);
     if(!map.hasLayer(base))base.addTo(map)
   }
   document.querySelectorAll('[data-base]').forEach(x=>x.classList.toggle('active',x.dataset.base===currentBaseMode));
