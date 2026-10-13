@@ -1380,46 +1380,62 @@ function station3dMarkerSize(){
   return Math.round(Math.max(34,Math.min(40,35+(zoom-7)*.7)))
 }
 function renderMobile3dStations(){
-  clearMobile3dStationMarkers();
-  if(!map3d||!mode3d||!map3dStyleReady||!stationsOn)return;
-
+  if(!map3d||!mode3d||!map3dStyleReady||!stationsOn){
+    clearMobile3dStationMarkers();
+    return
+  }
+  // I marker MapLibre già presenti vengono riutilizzati durante gli zoom.
+  // La precedente clear + add per ogni render produceva micro-flash in 3D.
+  const existing=new Map(station3dMobileMarkers.map(m=>[m._stationKey,m]));
+  const retained=[];
   const diameter=station3dMarkerSize();
   const selected=station3dCandidates(diameter+1);
   for(const item of selected){
-    const s=item.s,el=document.createElement('div');
-    el.className='station3d-mobile-marker';
-    el.style.width=diameter+'px';
-    el.style.height=diameter+'px';
-    const bg=col(s[cur],P[cur].st);
+    const s=item.s,key=stationKey(s),bg=col(s[cur],P[cur].st),value=fmtMarker(s[cur],cur);
+    let marker=existing.get(key),el;
+    if(marker){
+      existing.delete(key);
+      el=marker.getElement()
+    }else{
+      el=document.createElement('div');
+      el.className='station3d-mobile-marker';
+      const valueEl=document.createElement('span');
+      valueEl.className='station3d-mobile-value';
+      el.appendChild(valueEl);
+      el.addEventListener('click',e=>{
+        e.stopPropagation();
+        const st=e.currentTarget._stationData;
+        if(!st)return;
+        focusedStationKey=stationKey(st);
+        const net=st.network==='wunderground'?'Weather Underground':st.network==='aeronautica-militare'?'Aeronautica Militare':st.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';
+        const escapeHTML=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        new maplibregl.Popup({closeButton:false,offset:18})
+          .setLngLat([Number(st.lon),Number(st.lat)])
+          .setHTML('<b>'+escapeHTML(st.name||'Stazione')+'</b><br>'+escapeHTML(P[cur].n)+': '+escapeHTML(fmt(st[cur],cur,st))+
+            '<br><span style="opacity:.75">'+escapeHTML(net)+'</span>')
+          .addTo(map3d)
+      });
+      marker=new maplibregl.Marker({element:el,anchor:'center'})
+        .setLngLat([Number(s.lon),Number(s.lat)])
+        .addTo(map3d);
+      marker._stationKey=key
+    }
+    el._stationData=s;
+    const darkInk=markerUseDarkInk(bg),label=el.querySelector('.station3d-mobile-value');
+    el.style.width=diameter+'px';el.style.height=diameter+'px';
     el.style.background=bg;
-    const valueEl=document.createElement('span');
-    valueEl.className='station3d-mobile-value';
-    const darkInk=markerUseDarkInk(bg);
-    valueEl.style.color=darkInk?'#10202b':'#ffffff';
-    valueEl.style.textShadow=darkInk?'0 1px 0 #ffffffba':'0 1px 2px #000,0 0 2px #000';
-    const value=fmtMarker(s[cur],cur);
-    valueEl.textContent=value;
-    valueEl.style.fontSize=stationMarkerFontSize(diameter,value)+'px';
-    el.appendChild(valueEl);
+    label.style.color=darkInk?'#10202b':'#ffffff';
+    label.style.textShadow=darkInk?'0 1px 0 #ffffffba':'0 1px 2px #000,0 0 2px #000';
+    if(label.textContent!==value)label.textContent=value;
+    label.style.fontSize=stationMarkerFontSize(diameter,value)+'px';
     el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+fmt(s[cur],cur,s);
     el.setAttribute('aria-label',el.title);
-    el.addEventListener('click',e=>{
-      e.stopPropagation();
-      focusedStationKey=stationKey(s);
-      new maplibregl.Popup({closeButton:false,offset:18})
-        .setLngLat([Number(s.lon),Number(s.lat)])
-        .setHTML('<b>'+String(s.name||'Stazione')+'</b><br>'+P[cur].n+': '+fmt(s[cur],cur,s)+
-          '<br><span style="opacity:.75">'+
-          (s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna')+
-          '</span>')
-        .addTo(map3d)
-    });
-    const marker=new maplibregl.Marker({element:el,anchor:'center'})
-      .setLngLat([Number(s.lon),Number(s.lat)])
-      .addTo(map3d);
-    station3dMobileMarkers.push(marker)
+    const p=marker.getLngLat();
+    if(p.lng!==Number(s.lon)||p.lat!==Number(s.lat))marker.setLngLat([Number(s.lon),Number(s.lat)]);
+    retained.push(marker)
   }
-
+  for(const marker of existing.values())marker.remove();
+  station3dMobileMarkers=retained;
   const status=document.getElementById('status');
   if(status)status.textContent='Vista 3D · '+selected.length+' stazioni visibili · '+P[cur].n+' · '+stations.filter(baseVisible).length+' con dato'
 }
