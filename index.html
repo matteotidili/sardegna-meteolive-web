@@ -801,7 +801,7 @@ const MOBILE_MAP=()=>window.innerWidth<=800;
 const SARDINIA_BOUNDS=L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25);
 const MED_BOUNDS=L.latLngBounds([29.0,-10.5],[48.5,38.0]);
 const OPERA_BOUNDS=L.latLngBounds([30,-15],[55,28]);
-const map=L.map('map',{minZoom:MOBILE_MAP()?6:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true,zoomAnimation:false,markerZoomAnimation:false,fadeAnimation:false}).setView([40.02,9.02],8);
+const map=L.map('map',{minZoom:MOBILE_MAP()?6:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true,zoomAnimation:true,markerZoomAnimation:true,fadeAnimation:true}).setView([40.02,9.02],8);
 function syncMapExtent(){
   const mobile=MOBILE_MAP();
   const min=meteoalarmOn?3:aromeOn?3:operaMapWide?5:(mobile?6:7);
@@ -851,6 +851,8 @@ const light=(CAN_USE_WEBGL&&typeof L.maplibreGL==='function')
   : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
 const sat=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
   maxZoom:18,
+  keepBuffer:5,
+  updateWhenZooming:false,
   attribution:'Tiles © Esri'
 });
 const relief=(CAN_USE_WEBGL&&typeof L.maplibreGL==='function')
@@ -2357,9 +2359,42 @@ function applyFilters(){
   });
   return selected.size
 }
-function render(){
-  marks.forEach(x=>{x.m.setIcon(ico(x.s));x.m.setTooltipContent(tooltipHtml(x.s))});
+// I badge delle stazioni sono aggiornati in-place per evitare un flash
+// dovuto alla ricostruzione del DOM durante zoom e refresh.
+function syncStationMarker(x){
+  const s=x.s,m=markerMetrics(),v=fmtMarker(s[cur],cur),bg=col(s[cur],P[cur].st);
+  const suspect=s.network==='wunderground'&&s.qc_status===0;
+  const ink=markerUseDarkInk(bg)?'light-ink':'dark-ink';
+  const stamp=[cur,m.d,v,bg,suspect,ink].join('|');
+  if(x.iconStamp!==stamp){
+    const icon=ico(s);
+    x.m.options.icon=icon;
+    const node=x.m._icon;
+    if(node){
+      const badge=node.querySelector('.badge');
+      const number=badge?.querySelector('.station-marker-number');
+      if(badge&&number){
+        node.style.width=m.d+'px';node.style.height=m.d+'px';
+        node.style.marginLeft=(-m.d/2)+'px';node.style.marginTop=(-m.d/2)+'px';
+        badge.style.width=m.d+'px';badge.style.height=m.d+'px';
+        badge.style.background=bg;
+        badge.className='badge '+ink+(suspect?' suspect':'');
+        number.textContent=v;
+        number.style.fontSize=stationMarkerFontSize(m.d,v)+'px'
+      }else x.m.setIcon(icon)
+    }
+    x.iconStamp=stamp
+  }
+  const tipStamp=[cur,s.name,s[cur]].join('|');
+  if(x.tooltipStamp!==tipStamp){
+    x.m.setTooltipContent(tooltipHtml(s));
+    x.tooltipStamp=tipStamp
+  }
+}
+function render(zoomOnly=false){
+  marks.forEach(syncStationMarker);
   const shown=applyFilters();
+  if(zoomOnly)return;
   const eligible=stations.filter(baseVisible).length;
   document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n+(mode3d?' · vista 3D':'');
   legend();
@@ -2367,11 +2402,28 @@ function render(){
   renderStationDirectory()
 }
 function build(){
-  layer.clearLayers();marks=[];
-  stations.forEach(s=>{let m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(popup(s)).bindTooltip(tooltipHtml(s),{direction:'top',offset:[0,-10],opacity:1,className:'station-tip',sticky:true});marks.push({m,s,n:(s.name||'').toLowerCase()})});
+  // Conserviamo i marker invariati tra due cicli di polling.
+  const previous=new Map(marks.map(x=>[stationKey(x.s),x]));
+  const next=[];
+  for(const s of stations){
+    const key=stationKey(s),old=previous.get(key);
+    if(old){
+      previous.delete(key);
+      old.s=s;old.n=(s.name||'').toLowerCase();
+      if(old.m.getLatLng().lat!==s.lat||old.m.getLatLng().lng!==s.lon)old.m.setLatLng([s.lat,s.lon]);
+      const content=popup(s);
+      if(old.popupStamp!==content){old.m.setPopupContent(content);old.popupStamp=content}
+      next.push(old)
+    }else{
+      const content=popup(s),m=L.marker([s.lat,s.lon],{icon:ico(s)}).bindPopup(content).bindTooltip(tooltipHtml(s),{direction:'top',offset:[0,-10],opacity:1,className:'station-tip',sticky:true});
+      next.push({m,s,n:(s.name||'').toLowerCase(),popupStamp:content,iconStamp:null,tooltipStamp:null})
+    }
+  }
+  for(const x of previous.values())if(layer.hasLayer(x.m))layer.removeLayer(x.m);
+  marks=next;
   render()
 }
-map.on('zoomend',()=>{if(marks.length)render()})
+map.on('zoomend',()=>{if(marks.length)render(true)})
 const PARAM_LABELS={temp:'Temp',tmin:'Tmin',tmax:'Tmax',rh:'UR',wind_kmh:'Vento',gust_kmh:'Raffica',rain_today:'Pioggia',rain_rate:'Rain rate'};
 const params=document.getElementById('params');
 params.innerHTML=Object.entries(PARAM_LABELS).map(([k,label])=>'<button type="button" class="param-btn'+(k===cur?' active':'')+'" data-k="'+k+'" aria-pressed="'+(k===cur)+'" aria-label="'+P[k].n+' ('+P[k].u+')" title="'+P[k].n+' · '+P[k].u+'">'+label+' <small>'+P[k].u+'</small></button>').join('');
@@ -4440,7 +4492,7 @@ async function loadObservations(){
   const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,wl=lastWlData;
   const ds=(dpcn?.stations||[]).map(s=>({...s,network:s.network||'dpcn-sardegna'}));
   const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare'}));
-  const ws=(wu?.stations||[]).map(s=>({...s,network:'wunderground'}));
+  const ws=(wu?.stations||[]).filter(s=>s.station_id!=='ISERRA56').map(s=>({...s,network:'wunderground'}));
   const wls=(wl?.stations||[]).map(s=>({...s,network:'weatherlink'}));
   stations=[...as,...ds,...ws,...wls];
   const wlButton=document.getElementById('wlNetBtn');
