@@ -593,6 +593,7 @@ header .live{margin-left:0}
       <button class="netbtn" data-net="dpcn-sardegna">DPCN</button>
       <button class="netbtn" data-net="aeronautica-militare">AM</button>
       <button class="netbtn" data-net="wunderground">WU</button>
+      <button class="netbtn" data-net="weatherlink" id="wlNetBtn" hidden>WL</button>
     </div>
   </div>
   <div class="directory-view" id="directoryView" role="tabpanel" aria-labelledby="directoryTab">
@@ -1761,7 +1762,7 @@ function renderStationDirectory(){
     const details=document.createElement('span');details.className='station-details';
     const name=document.createElement('span');name.className='station-name';name.textContent=s.name||s.station_id||'Stazione';
     const meta=document.createElement('span');meta.className='station-meta';
-    const net=s.network==='wunderground'?'WU':s.network==='aeronautica-militare'?'AM':'DPCN';
+    const net=s.network==='wunderground'?'WU':s.network==='aeronautica-militare'?'AM':s.network==='weatherlink'?'WL':'DPCN';
     const date=s.last?new Date(s.last):null;
     const time=date&&Number.isFinite(date.getTime())?date.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'orario non disponibile';
     meta.textContent=net+(Number.isFinite(s.elev)?' · '+Math.round(s.elev)+' m':'')+' · '+time;
@@ -1910,8 +1911,8 @@ function ico(s){
     iconAnchor:[m.d/2,m.d/2]
   })
 }
-function popup(s){let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
-function tooltipHtml(s){const net=s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
+function popup(s){let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
+function tooltipHtml(s){const net=s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':s.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
 function stationLegendHtml(){
   if(!stationsOn)return '';
   const p=P[cur];
@@ -4415,7 +4416,7 @@ setInterval(()=>{if(hydroOn&&!document.hidden)loadHydroData(true)},5*60*1000);
 
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
-let lastDpcnData=null,lastAmData=null,lastWuData=null,observationsLoading=false;
+let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,observationsLoading=false;
 function dataStampLabel(d,label){
   if(!d?.generated_at)return label+' —';
   const t=new Date(d.generated_at),age=(Date.now()-t.getTime())/60000;
@@ -4429,17 +4430,26 @@ async function loadObservations(){
   const results=await Promise.allSettled([
     fetch(DATA+'stations.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('DPCN '+r.status);return r.json()}),
     fetch(DATA+'am.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('AM '+r.status);return r.json()}),
-    fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()})
+    fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()}),
+    fetch(DATA+'weatherlink.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WL '+r.status);return r.json()})
   ]);
   if(results[0].status==='fulfilled')lastDpcnData=results[0].value;
   if(results[1].status==='fulfilled')lastAmData=results[1].value;
   if(results[2].status==='fulfilled')lastWuData=results[2].value;
-  const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData;
+  if(results[3].status==='fulfilled')lastWlData=results[3].value;
+  const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,wl=lastWlData;
   const ds=(dpcn?.stations||[]).map(s=>({...s,network:s.network||'dpcn-sardegna'}));
   const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare'}));
   const ws=(wu?.stations||[]).map(s=>({...s,network:'wunderground'}));
-  stations=[...as,...ds,...ws];
-  const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));if(wu)parts.push(dataStampLabel(wu,'WU'));
+  const wls=(wl?.stations||[]).map(s=>({...s,network:'weatherlink'}));
+  stations=[...as,...ds,...ws,...wls];
+  const wlButton=document.getElementById('wlNetBtn');
+  wlButton.hidden=wls.length===0;
+  if(wls.length===0&&netFilter==='weatherlink'){
+    netFilter='all';
+    document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'))
+  }
+  const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));if(wu)parts.push(dataStampLabel(wu,'WU'));if(wls.length)parts.push(dataStampLabel(wl,'WL'));
   document.getElementById('counter').textContent=parts.length?parts.join(' · '):'Nessuna rete disponibile';
   if(stations.length)build();else document.getElementById('status').textContent='Errore caricamento dati stazioni';
   }finally{observationsLoading=false}
