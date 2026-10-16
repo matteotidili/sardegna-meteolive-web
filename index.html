@@ -562,6 +562,34 @@ header .live{margin-left:0}
   text-shadow:0 1px 2px #000;box-shadow:0 2px 5px #0006;
   padding:3px 5px;white-space:nowrap;text-align:center;pointer-events:none}
 @media(max-width:800px){.subregions-note{font-size:10px}}
+
+/* Visualizzatore UniCA: pagina radar originale incorporata, non un layer georiferito. */
+.unica-radar-panel{
+  position:absolute;top:14px;right:14px;z-index:1205;
+  display:flex;flex-direction:column;
+  width:min(450px,calc(100% - 28px));height:min(690px,calc(100% - 28px));
+  background:#071421f7;border:1px solid #36536b;border-radius:14px;
+  box-shadow:0 15px 46px #000c;overflow:hidden;backdrop-filter:blur(14px)
+}
+.unica-radar-panel[hidden]{display:none!important}
+.unica-radar-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:11px 12px;background:#0b1d2c;border-bottom:1px solid #294055}
+.unica-radar-title{font-size:13px;font-weight:850;flex:1;min-width:130px}
+.unica-radar-head button,.unica-radar-footer a{
+  border:1px solid #3a5670;background:#10283a;color:#e7f6ff;
+  border-radius:7px;padding:7px 9px;font:700 11px Inter,system-ui,Arial;
+  text-decoration:none;cursor:pointer
+}
+.unica-radar-head button:hover,.unica-radar-footer a:hover{background:#194157}
+.unica-radar-frame{flex:1;min-height:0;position:relative;background:#0d1822}
+.unica-radar-frame iframe{display:block;width:100%;height:100%;border:0;background:#fff}
+.unica-radar-footer{font-size:10px;line-height:1.5;color:#a9bdce;padding:9px 12px;border-top:1px solid #294055}
+.unica-radar-footer a{display:inline-block;margin-top:6px;font-size:10px;padding:6px 8px}
+@media(max-width:800px){
+  .unica-radar-panel{z-index:1400;top:auto;bottom:10px;left:10px;right:10px;
+    width:auto;height:min(58dvh,520px);border-radius:13px}
+  .unica-radar-head{padding:8px 10px}
+  .unica-radar-footer{padding:7px 10px;font-size:9px}
+}
 </style>
 </head>
 <body>
@@ -571,6 +599,21 @@ header .live{margin-left:0}
 <main>
 <div id="map"></div>
 <div id="map3d" aria-hidden="true"></div>
+<section class="unica-radar-panel" id="unicaRadarPanel" aria-label="Radar meteorologico UniCA Cagliari" hidden>
+  <div class="unica-radar-head">
+    <strong class="unica-radar-title">Radar UniCA · Cagliari</strong>
+    <button type="button" id="unicaRadarCenter" title="Centra la mappa su Cagliari">⌖ Cagliari</button>
+    <button type="button" id="unicaRadarReload" title="Ricarica il visualizzatore">↻</button>
+    <button type="button" id="unicaRadarClose" aria-label="Chiudi radar UniCA">×</button>
+  </div>
+  <div class="unica-radar-frame">
+    <iframe id="unicaRadarFrame" title="UniCA radar X-band Doppler, immagini e animazione delle precipitazioni" referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe>
+  </div>
+  <div class="unica-radar-footer">
+    Fonte: Università di Cagliari · contenuto ospitato da UniCA. Il sito potrebbe non consentire l'incorporamento; l'aggiornamento e l'orario delle scansioni dipendono dalla fonte.
+    <div><a href="https://meteoradar.unica.it/R_xB_DP_Dop_Unica.php" target="_blank" rel="noopener noreferrer">Apri il radar originale ↗</a></div>
+  </div>
+</section>
 <div class="map3d-mouse-tools" id="map3dMouseTools" aria-label="Navigazione della mappa 3D" hidden>
   <div class="map3d-mouse-modes" role="group" aria-label="Modalità del mouse in 3D">
     <button type="button" class="map3d-mouse-btn active" id="map3dMouseRotate" aria-pressed="true" title="Trascina per ruotare e inclinare la mappa">⟳ Ruota</button>
@@ -620,6 +663,8 @@ header .live{margin-left:0}
       <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
         <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
+        <button type="button" class="btn" id="unicaRadarBtn" aria-expanded="false" aria-controls="unicaRadarPanel">Radar UniCA · Cagliari <span>APRI</span></button>
+        <div class="layer-note">Radar in banda X · VMI e sequenza UniCA · visualizzatore originale, non layer cartografico</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
         <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
@@ -1862,7 +1907,7 @@ function setAccState(id,text,on=false){
 function syncAccordionStates(){
   const baseNames={operational:'Operativa',light:'Chiara',sat:'Satellite',relief:'Rilievo','3d':'3D'};
   setAccState('accBaseState',baseNames[currentBaseMode]||'Operativa',true);
-  const precipOn=radarOn||operaOn||!!cumActive;
+  const precipOn=radarOn||operaOn||!!cumActive||!document.getElementById('unicaRadarPanel').hidden;
   setAccState('accPrecipState',precipOn?'ATTIVO':'OFF',precipOn);
   setAccState('accAromeState',aromeOn?'ATTIVO':'OFF',aromeOn);
   setAccState('accLightningState',lightningOn?'ATTIVO':'OFF',lightningOn);
@@ -3506,6 +3551,51 @@ stationsBtn.onclick=()=>{
   legend();
   syncAccordionStates()
 };
+
+/* Radar UniCA. La sorgente pubblica non fornisce qui un endpoint georeferenziato
+   verificato: visualizziamo la pagina di origine in un pannello interno, senza
+   sovrapporla impropriamente ai layer radar DPC su Leaflet. */
+const UNICA_RADAR_URL='https://meteoradar.unica.it/R_xB_DP_Dop_Unica.php';
+const unicaRadarPanel=document.getElementById('unicaRadarPanel');
+const unicaRadarFrame=document.getElementById('unicaRadarFrame');
+const unicaRadarBtn=document.getElementById('unicaRadarBtn');
+function focusUnicaRadarCagliari(){
+  const center=[39.2238,9.1217];
+  if(mode3d&&map3d){
+    map3d.flyTo({center:[center[1],center[0]],zoom:10,pitch:42,duration:900,essential:true})
+  }else{
+    map.flyTo(center,10,{duration:1.0})
+  }
+}
+function setUnicaRadarOpen(open){
+  if(open){
+    closeMobilePanels();
+    unicaRadarPanel.hidden=false;
+    unicaRadarBtn.classList.add('active');
+    unicaRadarBtn.setAttribute('aria-expanded','true');
+    unicaRadarBtn.lastElementChild.textContent='APERTO';
+    if(unicaRadarFrame.getAttribute('src')!==UNICA_RADAR_URL)unicaRadarFrame.src=UNICA_RADAR_URL;
+    focusUnicaRadarCagliari()
+  }else{
+    unicaRadarPanel.hidden=true;
+    unicaRadarBtn.classList.remove('active');
+    unicaRadarBtn.setAttribute('aria-expanded','false');
+    unicaRadarBtn.lastElementChild.textContent='APRI';
+    // Sospendiamo il contenuto remoto e i suoi eventuali loop quando è chiuso.
+    unicaRadarFrame.removeAttribute('src')
+  }
+  syncAccordionStates()
+}
+unicaRadarBtn.addEventListener('click',()=>setUnicaRadarOpen(unicaRadarPanel.hidden));
+document.getElementById('unicaRadarClose').addEventListener('click',()=>setUnicaRadarOpen(false));
+document.getElementById('unicaRadarCenter').addEventListener('click',focusUnicaRadarCagliari);
+document.getElementById('unicaRadarReload').addEventListener('click',()=>{
+  if(!unicaRadarPanel.hidden)unicaRadarFrame.src=UNICA_RADAR_URL
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&!unicaRadarPanel.hidden)setUnicaRadarOpen(false)
+});
+
 const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
 const radarTimeline=document.getElementById('radarTimeline'),radarRange=document.getElementById('radarRange'),radarTime=document.getElementById('radarTime'),radarPlay=document.getElementById('radarPlay');
 const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo'),cumStamp=document.getElementById('cumStamp');
