@@ -563,8 +563,6 @@ header .live{margin-left:0}
   padding:3px 5px;white-space:nowrap;text-align:center;pointer-events:none}
 @media(max-width:800px){.subregions-note{font-size:10px}}
 
-.unica-radar-status{font-size:10px;line-height:1.4}
-#unicaRadarBtn:disabled{opacity:.65;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -623,8 +621,6 @@ header .live{margin-left:0}
       <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
         <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
-        <button type="button" class="btn" id="unicaRadarBtn" aria-pressed="false" disabled title="In attesa di raster radar georeferenziato">Radar UniCA · Cagliari <span>OFF</span></button>
-        <div class="layer-note unica-radar-status" id="unicaRadarInfo" role="status">UniCA: in attesa di un flusso radar georeferenziato verificato.</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
         <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
@@ -1134,7 +1130,6 @@ let lightningOn=false,lightningSocket=null,lightningReconnectTimer=null,lightnin
 let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lightningLastIdBySrc={},lightningFeedLoops=0;
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
-let unicaRadarOn=false,unicaRadarOverlay=null,unicaRadarMetadata=null,unicaRadarLoading=false;
 let aromeForecast=null,aromeIndex=0,aromeOverlay=null,aromePlayTimer=null,aromeLoading=false,aromeProductKey='precip_1h';
 let aromeFlowPreference=true,aromeWindManifest=null,aromeWindSerial=0,aromeWindCurrentKey='',aromeWindFailureUntil=0;
 const aromeWindBuffers=new Map();
@@ -1868,7 +1863,7 @@ function setAccState(id,text,on=false){
 function syncAccordionStates(){
   const baseNames={operational:'Operativa',light:'Chiara',sat:'Satellite',relief:'Rilievo','3d':'3D'};
   setAccState('accBaseState',baseNames[currentBaseMode]||'Operativa',true);
-  const precipOn=radarOn||operaOn||!!cumActive||unicaRadarOn;
+  const precipOn=radarOn||operaOn||!!cumActive;
   setAccState('accPrecipState',precipOn?'ATTIVO':'OFF',precipOn);
   setAccState('accAromeState',aromeOn?'ATTIVO':'OFF',aromeOn);
   setAccState('accLightningState',lightningOn?'ATTIVO':'OFF',lightningOn);
@@ -2296,7 +2291,7 @@ function legend(){
   if(!el||!stationEl)return;
   const stationHtml=stationLegendHtml();
   // Scala precipitazioni sopra la scala delle stazioni, nello stesso riquadro.
-  const precipHtml=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+aromeLegendHtml()+(unicaRadarOn?'<div class="map-legend-row"><div class="map-legend-title">UniCA · VMI X-band · Cagliari</div><div class="map-legend-note">Riflettività massima verticale · Università di Cagliari</div></div>':'');
+  const precipHtml=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+aromeLegendHtml();
   const html=hydroLegendHtml()+frpLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
   const mobile=window.innerWidth<=800;
   const hasTimeline=activeTimelineElements().length>0;
@@ -3513,104 +3508,6 @@ stationsBtn.onclick=()=>{
   syncAccordionStates()
 };
 
-/* UniCA X-band. Solo immagini raster trasparenti già georeferenziate.
-   Non usiamo il PHP UniCA come overlay: non espone un WMS/XYZ verificato. */
-const UNICA_RADAR_MANIFEST='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/unica_radar.json';
-const unicaRadarBtn=document.getElementById('unicaRadarBtn');
-const unicaRadarInfo=document.getElementById('unicaRadarInfo');
-function unicaRadarMetaIsValid(m){
-  if(!m||m.enabled!==true||typeof m.image_url!=='string'||!m.image_url.startsWith('https://')||!Array.isArray(m.bounds)||m.bounds.length!==2)return false;
-  const [[south,west],[north,east]]=m.bounds;
-  if(![south,west,north,east].every(Number.isFinite)||south>=north||west>=east||
-     south<38||north>42||west<7||east>11)return false;
-  if(m.transparent!==true)return false;
-  const date=Date.parse(m.observed_at);
-  const age=Date.now()-date;
-  return Number.isFinite(date)&&age>=-5*60000&&age<=45*60000
-}
-function syncUnicaRadarUi(){
-  const available=unicaRadarMetaIsValid(unicaRadarMetadata);
-  unicaRadarBtn.disabled=!available||unicaRadarLoading;
-  unicaRadarBtn.classList.toggle('active',unicaRadarOn);
-  unicaRadarBtn.setAttribute('aria-pressed',String(unicaRadarOn));
-  unicaRadarBtn.lastElementChild.textContent=unicaRadarOn?'ON':unicaRadarLoading?'VERIFICA':available?'OFF':'NON DISP.';
-  if(available){
-    const time=new Date(unicaRadarMetadata.observed_at).toLocaleString('it-IT',{
-      timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
-    });
-    unicaRadarInfo.textContent='VMI X-band UniCA · osservazione '+time+' · layer geografico'+(unicaRadarOn?' attivo':' pronto');
-  }else{
-    unicaRadarInfo.textContent='Dati UniCA non disponibili come raster trasparente georeferenziato: nessuna sovrapposizione non verificata.';
-  }
-}
-function removeUnicaRadarLayer(){
-  unicaRadarOn=false;
-  if(unicaRadarOverlay&&map.hasLayer(unicaRadarOverlay))map.removeLayer(unicaRadarOverlay);
-  unicaRadarOverlay=null;
-  syncUnicaRadarUi();
-  legend();syncAccordionStates()
-}
-async function loadUnicaRadarMetadata(){
-  if(unicaRadarLoading)return;
-  unicaRadarLoading=true;syncUnicaRadarUi();
-  try{
-    const response=await fetch(UNICA_RADAR_MANIFEST+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)});
-    if(!response.ok)throw new Error('manifest '+response.status);
-    const data=await response.json();
-    unicaRadarMetadata=unicaRadarMetaIsValid(data)?data:null;
-    if(!unicaRadarMetadata&&unicaRadarOn)removeUnicaRadarLayer();
-    else if(unicaRadarMetadata&&unicaRadarOn&&unicaRadarOverlay){
-      const url=unicaRadarMetadata.image_url,b=unicaRadarMetadata.bounds;
-      if(unicaRadarOverlay._url!==url)unicaRadarOverlay.setUrl(url);
-      unicaRadarOverlay.setBounds(b)
-    }
-  }catch(error){
-    // Non cancelliamo un'immagine valida per un singolo guasto di rete:
-    // la rimuoviamo appena supera la soglia temporale.
-    if(!unicaRadarMetaIsValid(unicaRadarMetadata)){
-      unicaRadarMetadata=null;
-      if(unicaRadarOn)removeUnicaRadarLayer()
-    }
-  }finally{unicaRadarLoading=false;syncUnicaRadarUi()}
-}
-async function setUnicaRadarState(on){
-  if(!on){removeUnicaRadarLayer();return}
-  if(!unicaRadarMetaIsValid(unicaRadarMetadata)){syncUnicaRadarUi();return}
-  const data=unicaRadarMetadata;
-  unicaRadarLoading=true;syncUnicaRadarUi();
-  // Prima verifichiamo che l'immagine esista. Se è assente, non spegniamo
-  // i prodotti DPC/OPERA già attivi.
-  const usable=await new Promise(resolve=>{
-    const img=new Image();
-    img.onload=()=>resolve(img.naturalWidth>0&&img.naturalHeight>0);
-    img.onerror=()=>resolve(false);
-    img.src=data.image_url
-  });
-  unicaRadarLoading=false;
-  if(!usable||!unicaRadarMetaIsValid(data)){syncUnicaRadarUi();return}
-  if(mode3d)setBaseMode('sat'); // imageOverlay Leaflet: solo vista 2D
-  if(aromeOn)setAromeState(false);
-  if(radarOn)setRadarState(false);
-  if(operaOn)setOperaState(false);
-  if(cumActive)setCumState(null);
-  unicaRadarOverlay=L.imageOverlay(data.image_url,data.bounds,{
-    pane:'weather',opacity:.86,interactive:false,
-    attribution:'© Università degli Studi di Cagliari · Radar UniCA'
-  }).addTo(map);
-  unicaRadarOverlay.on('error',()=>{
-    removeUnicaRadarLayer();
-    unicaRadarInfo.textContent='Radar UniCA: impossibile caricare il raster georeferenziato.'
-  });
-  unicaRadarOn=true;
-  map.flyTo([39.2238,9.1217],10,{duration:1});
-  closeMobilePanels();
-  syncUnicaRadarUi();
-  legend();syncAccordionStates()
-}
-unicaRadarBtn.addEventListener('click',()=>setUnicaRadarState(!unicaRadarOn));
-loadUnicaRadarMetadata();
-setInterval(()=>{if(!document.hidden)loadUnicaRadarMetadata()},5*60*1000);
-
 const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
 const radarTimeline=document.getElementById('radarTimeline'),radarRange=document.getElementById('radarRange'),radarTime=document.getElementById('radarTime'),radarPlay=document.getElementById('radarPlay');
 const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo'),cumStamp=document.getElementById('cumStamp');
@@ -3650,7 +3547,6 @@ function startRadarAnimation(){
   radarPlay.textContent='Ⅱ';radarPlay.classList.add('active');radarPlay.title='Pausa'
 }
 function setRadarState(on){
-  if(on&&unicaRadarOn)removeUnicaRadarLayer();
   if(on&&aromeOn)setAromeState(false);
   if(on&&operaOn)setOperaState(false);
   radarOn=on;
@@ -4142,7 +4038,6 @@ async function loadOperaTimeline(forceLatest=true){
   }else if(forceLatest&&operaFrames.length)setOperaFrame(operaFrames.length-1)
 }
 function setOperaState(on){
-  if(on&&unicaRadarOn)removeUnicaRadarLayer();
   if(on&&aromeOn)setAromeState(false);
   if(on&&radarOn)setRadarState(false);
   operaOn=on;
@@ -4579,7 +4474,6 @@ async function setCumState(code){
     if(aromeOn)setAromeState(false);
     if(radarOn)setRadarState(false);
     if(operaOn)setOperaState(false);
-    if(unicaRadarOn)removeUnicaRadarLayer();
     cumStamp.textContent='Ricerca ultimo '+code.toUpperCase()+'…';
     const t=await latestProductTime(product.api);
     if(!t){cumStamp.textContent=code.toUpperCase()+' · dato non disponibile';return}
