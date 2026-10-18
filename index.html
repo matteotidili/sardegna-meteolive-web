@@ -594,8 +594,8 @@ header .live{margin-left:0}
         <span class="acc-title">Radar</span><span class="acc-state" id="accPrecipState">OFF</span><span class="acc-chevron">⌄</span>
       </button>
       <div class="accordion-body"><div class="accordion-inner">
-        <button class="btn" id="radarBtn">Radar DPC <span>OFF</span></button>
-        <div class="layer-note" id="radarInfo">SRI · intensità di precipitazione · Radar-DPC v2</div>
+        <button class="btn" id="radarBtn">Radar DPC · VMI <span>OFF</span></button>
+        <div class="layer-note" id="radarInfo">VMI · massima riflettività verticale (dBZ) · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
         <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
@@ -1013,6 +1013,7 @@ async function findLatestSatTime(force=false){
 const RADAR_API='https://radar-api.protezionecivile.it';
 const RADAR_V2_TILES='https://s3-prod-dpc-radar-webp-cache.s3.eu-south-1.amazonaws.com';
 const DPC_PRODUCTS={
+  VMI:{path:'VMI',file:'vmi',min:0,max:80,palette:'vmi'},
   SRI:{path:'SRI',file:'sri',min:0,max:100,palette:'sri'},
   SRT1:{path:'SRT1',file:'srt1',min:0,max:200,palette:'acc'},
   CUM3:{path:'CUM3',file:'cum3',min:0,max:200,palette:'acc'},
@@ -1047,7 +1048,9 @@ function colorStops(value,stops){
   }
   const last=stops.at(-1);return [...last[1],last[2]]
 }
+const VMI_STOPS=[[0,[0,0,0],0],[5,[40,145,240],150],[15,[0,195,240],205],[20,[0,185,160],228],[25,[30,185,80],235],[30,[155,210,35],242],[35,[255,220,25],246],[40,[255,155,20],250],[45,[255,82,22],253],[50,[235,28,35],255],[55,[191,18,67],255],[60,[165,20,160],255],[65,[225,70,224],255],[70,[250,190,240],255],[80,[255,255,255],255]];
 function dpcColor(productKey,value){
+  if(productKey==='VMI')return colorStops(value,VMI_STOPS);
   if(productKey==='SRI'){
     return colorStops(value,[
       [0,[190,225,125],0],[0.1,[0,205,250],85],[2,[0,205,250],150],
@@ -1082,7 +1085,7 @@ const DpcV2Layer=L.GridLayer.extend({
         for(let i=0;i<px.length;i+=4){
           if(px[i+3]<2){px[i+3]=0;continue}
           const value=p.min+(px[i]/255)*(p.max-p.min),col=dpcColor(productKey,value);
-          px[i]=col[0];px[i+1]=col[1];px[i+2]=col[2];px[i+3]=Math.min(px[i+3],col[3])
+          const originalAlpha=px[i+3];px[i]=col[0];px[i+1]=col[1];px[i+2]=col[2];px[i+3]=productKey==='VMI'?(originalAlpha<2?0:col[3]):Math.min(originalAlpha,col[3])
         }
         ox.putImageData(data,0,0);
         const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
@@ -1096,7 +1099,7 @@ const DpcV2Layer=L.GridLayer.extend({
     return canvas
   }
 });
-const radarLayer=new DpcV2Layer({pane:'weather',opacity:.92,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
+const radarLayer=new DpcV2Layer({pane:'weather',opacity:.98,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
 const cumLayer=new DpcV2Layer({pane:'weather',opacity:.88,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
 const lightningRenderer=L.canvas({pane:'lightning',padding:.7});
 const lightningLayer=L.layerGroup();
@@ -1171,7 +1174,7 @@ async function colorizeDpcTile3d(productKey,time,z,x,y){
     for(let i=0;i<px.length;i+=4){
       if(px[i+3]<2){px[i+3]=0;continue}
       const value=p.min+(px[i]/255)*(p.max-p.min),col=dpcColor(productKey,value);
-      px[i]=col[0];px[i+1]=col[1];px[i+2]=col[2];px[i+3]=Math.min(px[i+3],col[3])
+      const originalAlpha=px[i+3];px[i]=col[0];px[i+1]=col[1];px[i+2]=col[2];px[i+3]=productKey==='VMI'?(originalAlpha<2?0:col[3]):Math.min(originalAlpha,col[3])
     }
     ctx.putImageData(data,0,0);
     return canvas
@@ -1302,7 +1305,7 @@ function sync3dPrecipLayers(){
     return
   }
   if(radarOn&&radarFrames[radarIndex]){
-    update3dDpcLayer('SRI',radarFrames[radarIndex],.28);
+    update3dDpcLayer('VMI',radarFrames[radarIndex],.85);
     raise3dOperationalLayers();
     return
   }
@@ -1878,7 +1881,13 @@ function stationLegendHtml(){
 }
 function radarLegendHtml(){
   if(!radarOn)return '';
-  return '<div class="map-legend-row"><div class="map-legend-title">Radar DPC · intensità precipitazione · mm/h</div><div class="map-legend-bar radar-legend-bar"></div><div class="map-legend-labels"><span>0,1</span><span>2</span><span>10</span><span>25</span><span>40</span><span>70</span><span>100+</span></div></div>'
+  const grad=VMI_STOPS.filter(x=>x[0]>=5).map(([v,c])=>
+    'rgb('+c.join(',')+') '+(100*(v-5)/75).toFixed(1)+'%'
+  ).join(',');
+  return '<div class="map-legend-row"><div class="map-legend-title">Radar DPC · VMI · riflettività massima · dBZ</div>'+
+    '<div class="map-legend-bar" style="background:linear-gradient(90deg,'+grad+')"></div>'+
+    '<div class="map-legend-labels"><span>5</span><span>15</span><span>25</span><span>35</span><span>45</span><span>55</span><span>65</span><span>80</span></div>'+
+    '<div class="map-legend-note">Riflettività massima sulla verticale, non intensità al suolo</div></div>'
 }
 function operaLegendHtml(){
   if(!operaOn)return '';
@@ -3452,12 +3461,12 @@ function setRadarFrame(i){
   radarIndex=Math.max(0,Math.min(radarFrames.length-1,i));
   radarRange.value=String(radarIndex);
   const d=radarFrames[radarIndex];
-  radarLayer.setProductFrame('SRI',d);
+  radarLayer.setProductFrame('VMI',d);
   radarTime.textContent=radarLabel(d);
   schedule3dPrecipSync(60)
 }
 async function loadRadarTimeline(){
-  const apiLatest=await latestProductTime('SRI');
+  const apiLatest=await latestProductTime('VMI');
   const latest=apiLatest||fallbackRadarLatest();
   buildRadarFrames(latest);
   setRadarFrame(radarFrames.length-1)
