@@ -3600,6 +3600,28 @@ function aromeLegendHtml(){
   if(meta.scale==='phase'){
     bar='<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;font-size:9px">'+
      '<span>🟦 Pioggia</span><span>⬜ Neve</span><span>🟧 Graupel</span><span>🟪 Mista</span></div>'
+  }else if(aromeProductKey==='rain_acc'&&meta.scale==='precip_total'&&Number(entries.at(-1)?.[0])>=500){
+    // Gli accumuli fino a H+51 hanno intervalli non lineari:
+    // ogni soglia dichiarata qui occupa lo stesso spazio nella legenda.
+    // Anche il gradiente è riposizionato per mantenere colori/soglie fedeli ai raster.
+    const breakpoints=[0.1,5,20,50,100,200,350,500];
+    const positionOf=value=>{
+      for(let j=1;j<breakpoints.length;j++){
+        if(value<=breakpoints[j]){
+          const a=breakpoints[j-1],b=breakpoints[j];
+          return 100*((j-1)+(value-a)/(b-a))/(breakpoints.length-1)
+        }
+      }
+      return 100
+    };
+    const gradient=entries.map(([value,color])=>
+      'rgb('+color.map(c=>Math.max(0,Math.min(255,Number(c)||0))).join(',')+') '+
+      positionOf(Number(value)).toFixed(3)+'%'
+    );
+    const labels=breakpoints.map(v=>'<span>'+v.toLocaleString('it-IT',{maximumFractionDigits:v<10?1:0})+'</span>').join('');
+    bar='<div class="arome-legend-bar" style="background:linear-gradient(90deg,'+gradient.join(',')+')"></div>'+
+      '<div class="map-legend-labels arome-total-legend-labels">'+labels+'</div>'+
+      '<div class="map-legend-note">Scala non lineare · accumulo progressivo da H0 · massimo scala 500 mm</div>'
   }else{
     const range=entries[entries.length-1][0]-entries[0][0]||1;
     const colors=entries.map(item=>{const value=Number(item[0]),c=item[1];const pos=100*(value-entries[0][0])/range;
