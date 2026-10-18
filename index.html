@@ -1102,6 +1102,7 @@ const lightningRenderer=L.canvas({pane:'lightning',padding:.7});
 const lightningLayer=L.layerGroup();
 const lightningPulseLayer=L.layerGroup();
 let lightningOn=false,lightningSocket=null,lightningReconnectTimer=null,lightningRenderTimer=null,lightningReconnectDelay=2500,lightningSubscriptionTimer=null;
+let lightningBatchCount=0,lightningLiveLastBatchAt=0;
 let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lightningLastIdBySrc={},lightningFeedLoops=0;
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
@@ -1576,7 +1577,12 @@ function ensureMap3d(){
   map3d.touchZoomRotate.disableRotation();
   map3d.dragPan.enable();
   map3d.addControl(new maplibregl.NavigationControl({showCompass:false,showZoom:true}),'bottom-right');
-  map3d.on('moveend',()=>{if(mode3d)scheduleMobile3dStations(40)});
+  map3d.on('moveend',()=>{
+    if(mode3d){
+      scheduleMobile3dStations(40);
+      if(lightningOn&&lightningMode==='live')scheduleLightningSubscription('u')
+    }
+  });
   map3d.on('zoomend',()=>{if(mode3d)scheduleMobile3dStations(40)});
 
   map3d.on('load',()=>{
@@ -4147,7 +4153,10 @@ function renderLightning(){
   }
   update3dLightning();
   const last=lightningLastStrikeTime?new Date(lightningLastStrikeTime).toLocaleTimeString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
-  lightningMeta.textContent='LIVE · '+total+' scariche / 60 min · '+visible+' visibili · ultima '+last
+  const conn=lightningSocket?.readyState===WebSocket.OPEN?
+    (lightningBatchCount?'sorgente collegata':'connesso, in attesa dati'):
+    lightningSocket?.readyState===WebSocket.CONNECTING?'collegamento in corso':'sorgente non collegata';
+  lightningMeta.textContent='LIVE Blitzortung · '+conn+' · '+total+' scariche ricevute / 60 min · '+visible+' visibili · ultima '+last
 }
 function addLightningStrokes(strokes){
   if(!Array.isArray(strokes)||!strokes.length)return;
@@ -4205,18 +4214,27 @@ function scheduleLightningReconnect(){
   lightningReconnectDelay=Math.min(30000,Math.round(lightningReconnectDelay*1.6))
 }
 function lightningViewport(){
-  const b=map.getBounds(),round=v=>Math.round(v*10)/10;
+  // Il feed filtra le scariche lato server sul bbox sottoscritto.
+  // In 3D Leaflet è nascosto: il suo bbox non segue gli spostamenti MapLibre.
+  const b=mode3d&&map3d?map3d.getBounds():map.getBounds();
+  const round=v=>Math.round(v*10)/10;
   return [round(b.getNorth()),round(b.getEast()),round(b.getSouth()),round(b.getWest())]
 }
 function sendLightningSubscription(reason='u'){
   const ws=lightningSocket;
   if(!ws||ws.readyState!==WebSocket.OPEN)return false;
   lightningFeedLoops++;
+  // Il protocollo pubblico osservato usa r='A' e t=1. 'r' non è
+  // un campo libero per le etichette interne (open/move): inviarle
+  // può impedire la sottoscrizione geografica corretta.
+  // A ogni nuova socket richiediamo il breve backlog, poi usiamo i cursor.
   const sub={
-    v:24,i:{...lightningLastIdBySrc},s:false,x:0,w:0,tx:0,tw:1,a:4,
-    z:map.getZoom(),b:!document.hidden,h:window.location.hash||'',
-    l:lightningFeedLoops,t:Math.floor(Date.now()/1000),
-    from_lightningmaps_org:true,p:lightningViewport(),r:reason
+    v:24,i:lightningFeedLoops===1?{}:{...lightningLastIdBySrc},
+    s:false,x:0,w:0,tx:0,tw:1,a:4,
+    z:mode3d&&map3d?Math.round(map3d.getZoom()):map.getZoom(),
+    b:!document.hidden,h:'',
+    l:lightningFeedLoops,t:1,from_lightningmaps_org:true,
+    p:lightningViewport(),r:'A'
   };
   try{ws.send(JSON.stringify(sub));return true}catch(e){return false}
 }
@@ -4234,25 +4252,39 @@ function connectLightningLive(){
   let ws;
   try{ws=new WebSocket(LIGHTNING_WS)}catch(e){scheduleLightningReconnect();return}
   lightningSocket=ws;
+  lightningFeedLoops=0;
+  lightningBatchCount=0;
+  lightningLiveLastBatchAt=0;
   ws.onopen=()=>{
+    if(lightningSocket!==ws)return;
     lightningReconnectDelay=2500;
     sendLightningSubscription('open');
-    if(lightningMode==='live')lightningMeta.textContent='LIVE · connesso · ricezione scariche…'
+    if(lightningMode==='live')renderLightning()
   };
   ws.onmessage=e=>{
+    if(lightningSocket!==ws)return;
     let d;
     try{d=JSON.parse(e.data)}catch(_){return}
-    // Keepalive coerente con il client pubblico LightningMaps.
-    if(Number.isFinite(Number(d?.k))){
-      const reply=((Number(d.k)*3604)%7081*Date.now()/100);
-      try{ws.send(JSON.stringify({k:reply}))}catch(_){}
+    // La trasformazione del token k non è documentata: non inviare
+    // risposte arbitrarie che potrebbero invalidare la sessione.
+    if(Array.isArray(d?.strokes)){
+      lightningBatchCount++;
+      lightningLiveLastBatchAt=Date.now();
+      if(d.strokes.length)addLightningStrokes(d.strokes);
+      else if(lightningMode==='live')renderLightning()
     }
-    if(Array.isArray(d?.strokes))addLightningStrokes(d.strokes)
   };
-  ws.onerror=()=>{};
+  ws.onerror=()=>{
+    if(lightningSocket===ws){
+      try{ws.close()}catch(_){}
+    }
+  };
   ws.onclose=()=>{
-    if(lightningSocket===ws)lightningSocket=null;
-    scheduleLightningReconnect()
+    if(lightningSocket===ws){
+      lightningSocket=null;
+      if(lightningOn&&lightningMode==='live')renderLightning();
+      scheduleLightningReconnect()
+    }
   }
 }
 function liProbeUrl(d){
