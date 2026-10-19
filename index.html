@@ -808,6 +808,7 @@ map.createPane('hydro');map.getPane('hydro').style.zIndex=415;
 map.createPane('fires');map.getPane('fires').style.zIndex=425;
 map.createPane('lightning');map.getPane('lightning').style.zIndex=445;map.getPane('lightning').style.pointerEvents='none';
 map.createPane('labels');map.getPane('labels').style.zIndex=460;
+map.createPane('cedoc');map.getPane('cedoc').style.zIndex=675;
 // Mantiene attiva la mappa Leaflet anche sui dispositivi senza WebGL2.
 const CAN_USE_WEBGL=(()=>{
   try{
@@ -2342,7 +2343,7 @@ function renderCedocLayer(){
       const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge" style="background:'+cedocColor(value)+'">'+cedocNumber(value)+'</span>',iconSize:[40,27],iconAnchor:[20,13]});
       const stamp=new Date(p.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
       const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
-      L.marker([p.lat,p.lon],{pane:'hydro',icon,zIndexOffset:80})
+      L.marker([p.lat,p.lon],{pane:'cedoc',icon,zIndexOffset:80})
         .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div><b>'+cedocNumber(value)+' mm</b> nelle ultime 48 ore</div><div>Rilevamento: '+stamp+'</div><div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
         .addTo(cedocLayer)
     }
