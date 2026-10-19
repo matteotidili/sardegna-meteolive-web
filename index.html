@@ -4933,7 +4933,7 @@ setInterval(()=>{if(hydroOn&&!document.hidden)loadHydroData(true)},5*60*1000);
 
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
-let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,observationsLoading=false;
+let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,lastRain48Data=null,observationsLoading=false;
 function dataStampLabel(d,label){
   if(!d?.generated_at)return label+' —';
   const t=new Date(d.generated_at),age=(Date.now()-t.getTime())/60000;
@@ -4948,17 +4948,35 @@ async function loadObservations(){
     fetch(DATA+'stations.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('DPCN '+r.status);return r.json()}),
     fetch(DATA+'am.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('AM '+r.status);return r.json()}),
     fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()}),
-    fetch(DATA+'weatherlink.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WL '+r.status);return r.json()})
+    fetch(DATA+'weatherlink.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WL '+r.status);return r.json()}),
+    fetch(DATA+'rain_48h.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('RAIN48 '+r.status);return r.json()})
   ]);
   if(results[0].status==='fulfilled')lastDpcnData=results[0].value;
   if(results[1].status==='fulfilled')lastAmData=results[1].value;
   if(results[2].status==='fulfilled')lastWuData=results[2].value;
   if(results[3].status==='fulfilled')lastWlData=results[3].value;
+  if(results[4].status==='fulfilled')lastRain48Data=results[4].value;
   const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,wl=lastWlData;
-  const ds=(dpcn?.stations||[]).map(s=>({...s,network:s.network||'dpcn-sardegna'}));
-  const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare'}));
-  const ws=(wu?.stations||[]).filter(s=>s.station_id!=='ISERRA56').map(s=>({...s,network:'wunderground'}));
-  const wls=(wl?.stations||[]).map(s=>({...s,network:'weatherlink'}));
+  const r48=lastRain48Data;
+  const now=Date.now(),generated=Date.parse(r48?.generated_at||'');
+  const rain48Fresh=Number.isFinite(generated)&&generated<=now+300000&&now-generated<=90*60000;
+  const estimated48=new Map(rain48Fresh?(r48?.stations||[]).filter(v=>
+    v&&Number.isFinite(v.rain_48h)&&v.rain_48h>=0&&v.rain_48h<=1800&&
+    v.method==='estimated_from_daily_counters'&&
+    Number.isFinite(Date.parse(v.last||''))&&now-Date.parse(v.last)<=95*60000
+  ).map(v=>[v.network+'|'+v.station_id,v]):[]);
+  const append48=(s,network)=>{
+    const id=String(s.station_id||s.name||'');
+    const record=estimated48.get(network+'|'+id);
+    return {...s,network,
+      rain_48h:record?record.rain_48h:null,
+      rain_48h_last:record?record.last:null,
+      rain_48h_source:record?record.method:null}
+  };
+  const ds=(dpcn?.stations||[]).map(s=>append48(s,s.network||'dpcn-sardegna'));
+  const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare',rain_48h:null}));
+  const ws=(wu?.stations||[]).filter(s=>s.station_id!=='ISERRA56').map(s=>append48(s,'wunderground'));
+  const wls=(wl?.stations||[]).map(s=>append48(s,'weatherlink'));
   stations=[...as,...ds,...ws,...wls,...cedocAsStandardStations()];
   const wlButton=document.getElementById('wlNetBtn');
   wlButton.hidden=wls.length===0;
