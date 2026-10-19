@@ -2623,7 +2623,9 @@ function render(zoomOnly=false){
   const shown=applyFilters();
   if(zoomOnly)return;
   const eligible=stations.filter(baseVisible).length;
-  document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n+(mode3d?' · vista 3D':'');
+  document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n+
+    (cur==='rain_48h'&&eligible===0?' · CEDOC in acquisizione; altre reti richiedono 48 ore di archivio':'')+
+    (mode3d?' · vista 3D':'');
   legend();
   update3dStations();
   renderStationDirectory()
