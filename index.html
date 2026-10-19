@@ -1074,14 +1074,36 @@ function dpcSourceTile(coords){
   const scale=2**(coords.z-maxNative);
   return {z:maxNative,x:Math.floor(coords.x/scale),y:Math.floor(coords.y/scale),scale,ox:coords.x%scale,oy:coords.y%scale}
 }
+// Cache LRU delle tile DPC già scaricate. VMI, SRI e le animazioni
+// possono riutilizzare subito i fotogrammi vicini senza nuove richieste HTTP.
+const dpcImageCache=new Map(),DPC_IMAGE_CACHE_LIMIT=128;
+function cachedDpcImage(url){
+  if(dpcImageCache.has(url)){
+    const entry=dpcImageCache.get(url);
+    dpcImageCache.delete(url);dpcImageCache.set(url,entry);
+    return entry
+  }
+  const promise=new Promise(resolve=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';
+    img.onload=()=>resolve(img);
+    img.onerror=()=>{dpcImageCache.delete(url);resolve(null)};
+    img.src=url
+  });
+  dpcImageCache.set(url,promise);
+  while(dpcImageCache.size>DPC_IMAGE_CACHE_LIMIT)
+    dpcImageCache.delete(dpcImageCache.keys().next().value);
+  return promise
+}
 const DpcV2Layer=L.GridLayer.extend({
   setProductFrame:function(productKey,time){this._productKey=productKey;this._frame=time?new Date(time):null;this.redraw();return this},
   createTile:function(coords,done){
     const canvas=L.DomUtil.create('canvas','leaflet-tile');canvas.width=256;canvas.height=256;
     const productKey=this._productKey,frame=this._frame,p=DPC_PRODUCTS[productKey];
     if(!p||!frame){setTimeout(()=>done(null,canvas),0);return canvas}
-    const src=dpcSourceTile(coords),img=new Image();img.crossOrigin='anonymous';
-    img.onload=()=>{
+    const src=dpcSourceTile(coords);
+    cachedDpcImage(dpcTileUrl(productKey,frame,src.z,src.x,src.y)).then(img=>{
+      if(!img){done(null,canvas);return}
       try{
         const off=document.createElement('canvas');off.width=256;off.height=256;
         const ox=off.getContext('2d',{willReadFrequently:true});ox.drawImage(img,0,0,256,256);
@@ -1101,9 +1123,7 @@ const DpcV2Layer=L.GridLayer.extend({
           this._successfulTiles=(this._successfulTiles||0)+1
       }catch(e){}
       done(null,canvas)
-    };
-    img.onerror=()=>done(null,canvas);
-    img.src=dpcTileUrl(productKey,frame,src.z,src.x,src.y);
+    }).catch(()=>done(null,canvas));
     return canvas
   }
 });
@@ -3518,10 +3538,39 @@ function buildRadarFrames(latest){
 function radarLabel(d){
   return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' ·')
 }
+function prefetchNearbyRadarFrames(){
+  if(!radarOn||mode3d||!radarFrames.length)return;
+  const z=map.getZoom(),bounds=map.getPixelBounds();
+  if(!Number.isFinite(z)||!bounds)return;
+  const scale=256,tiles=new Map();
+  const x0=Math.floor(bounds.min.x/scale),x1=Math.floor(bounds.max.x/scale);
+  const y0=Math.floor(bounds.min.y/scale),y1=Math.floor(bounds.max.y/scale);
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const tile=dpcSourceTile({z,x,y});
+    const id=tile.z+'/'+tile.x+'/'+tile.y;
+    if(!tiles.has(id))tiles.set(id,tile);
+    if(tiles.size>=16)break
+  }
+  // Prefetch limitato: due frame successivi e uno precedente, max 48 tile.
+  const indexes=[radarIndex+1,radarIndex+2,radarIndex-1]
+    .filter(i=>i>=0&&i<radarFrames.length);
+  for(const i of indexes)for(const t of tiles.values()){
+    cachedDpcImage(dpcTileUrl(radarProductKey,radarFrames[i],t.z,t.x,t.y))
+  }
+}
+let radarPrefetchTimer=null;
+function scheduleRadarPrefetch(){
+  if(radarPrefetchTimer)clearTimeout(radarPrefetchTimer);
+  radarPrefetchTimer=setTimeout(()=>{
+    radarPrefetchTimer=null;
+    prefetchNearbyRadarFrames()
+  },100)
+}
 function cancelRadarFrameLoad(){
   ++radarRenderToken;
   if(radarFrameDebounce){clearTimeout(radarFrameDebounce);radarFrameDebounce=null}
   if(radarFrameTimeout){clearTimeout(radarFrameTimeout);radarFrameTimeout=null}
+  if(radarPrefetchTimer){clearTimeout(radarPrefetchTimer);radarPrefetchTimer=null}
   if(radarPendingFrameLayer&&radarPendingLoadHandler)
     radarPendingFrameLayer.off('load',radarPendingLoadHandler);
   radarPendingFrameLayer=null;
@@ -3559,6 +3608,7 @@ function prepareRadarFrame(productKey,time,key,token){
     radarVisibleLayer=candidate;
     radarShownFrameKey=key;
     radarTime.textContent=radarLabel(time);
+    scheduleRadarPrefetch();
     if(previous&&previous!==candidate&&map.hasLayer(previous))
       map.removeLayer(previous);
     if(radarPlayback)scheduleRadarPlayback()
