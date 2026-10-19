@@ -3464,6 +3464,28 @@ stationsBtn.onclick=()=>{
 
 const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
 const radarSriBtn=document.getElementById('radarSriBtn'),radarSriInfo=document.getElementById('radarSriInfo');
+const radarOpacityInput=document.getElementById('radarOpacity');
+const radarOpacityValue=document.getElementById('radarOpacityValue');
+function applyRadarOpacity(){
+  radarLayer.setOpacity(radarOpacity);
+  // Gli altri frame OPERA precaricati devono restare completamente invisibili.
+  operaFrameLayers.forEach((layer,i)=>layer.setOpacity(operaOn&&i===operaIndex?radarOpacity:0));
+  // Il radar in 3D è volutamente ancora più trasparente, senza rifare i raster.
+  if(map3d&&map3dStyleReady){
+    if(radarOn&&map3d.getLayer('dpc-precip-3d-layer'))
+      map3d.setPaintProperty('dpc-precip-3d-layer','raster-opacity',radar3dOpacity());
+    if(operaOn&&map3d.getLayer('opera-radar-3d-layer'))
+      map3d.setPaintProperty('opera-radar-3d-layer','raster-opacity',radar3dOpacity())
+  }
+}
+radarOpacityInput.value=String(Math.round(radarOpacity*100));
+radarOpacityValue.textContent=Math.round(radarOpacity*100)+'%';
+radarOpacityInput.addEventListener('input',()=>{
+  radarOpacity=Math.max(.3,Math.min(.9,Number(radarOpacityInput.value)/100));
+  radarOpacityValue.textContent=Math.round(radarOpacity*100)+'%';
+  try{localStorage.setItem(RADAR_OPACITY_STORAGE,String(radarOpacity))}catch(e){}
+  applyRadarOpacity()
+});
 const radarTimeline=document.getElementById('radarTimeline'),radarRange=document.getElementById('radarRange'),radarTime=document.getElementById('radarTime'),radarPlay=document.getElementById('radarPlay');
 const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo'),cumStamp=document.getElementById('cumStamp');
 function iso5(d){return new Date(Math.floor(d.getTime()/300000)*300000).toISOString().replace('.000Z','.000Z')}
@@ -3969,7 +3991,7 @@ function prepareOperaFrameLayers(){
   const order=[operaIndex,...operaFrameLayers.map((_,i)=>i).filter(i=>i!==operaIndex)];
   order.forEach(i=>{
     const layer=operaFrameLayers[i];
-    layer.setOpacity(i===operaIndex?.72:0);
+    layer.setOpacity(i===operaIndex?radarOpacity:0);
     layer.addTo(map)
   });
   operaLayer=operaFrameLayers[operaIndex]||null
@@ -3986,7 +4008,7 @@ function setOperaFrame(i){
     operaLayer=operaFrameLayers[operaIndex];
     if(operaLayer){
       if(operaOn&&!map.hasLayer(operaLayer))operaLayer.addTo(map);
-      operaLayer.setOpacity(.72);
+      operaLayer.setOpacity(radarOpacity);
       if(operaLayer.bringToFront)operaLayer.bringToFront()
     }
   }
