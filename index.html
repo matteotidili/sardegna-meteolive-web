@@ -2388,7 +2388,7 @@ function update3dCedoc(){
   raise3dOperationalLayers()
 }
 async function loadCedocData(force=false){
-  if(!cedocOn||cedocLoading||(!force&&Date.now()-cedocLastLoad<15*60000))return;
+  if(cedocLoading||(!force&&Date.now()-cedocLastLoad<15*60000))return;
   cedocLoading=true;
   try{
     const response=await fetch(CEDOC_META+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)});
@@ -2400,11 +2400,14 @@ async function loadCedocData(force=false){
     if(cedocStations.length){
       const ts=new Date(data.source_time).toLocaleString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
       cedocCounter.textContent='CEDOC · '+cedocStations.length+' pluviometri verificati · riferimento '+ts+' · accumuli giornalieri';
+      cedocBtn.firstChild.textContent='Pluviometri CEDOC · oggi ('+cedocStations.length+') ';
       cedocStatusHelp.style.display='none';
     }else{
       const published=data.generated_at&&Number.isFinite(Date.parse(data.generated_at))?
         new Date(data.generated_at).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'non disponibile';
-      const reason=data.warning?String(data.warning).slice(0,170):'dati giornalieri non disponibili o scaduti';
+      const reason=data.status==='ok'?
+        'Il dataset non è più recente oppure è cambiato il giorno locale.':
+        data.warning?String(data.warning).slice(0,170):'dati giornalieri non disponibili o scaduti';
       cedocCounter.textContent='CEDOC · 0 misure recenti · '+reason+' · ultimo dataset '+published;
       cedocCounter.classList.add('cedoc-status-stale');
       cedocStatusHelp.style.display='block'
@@ -2434,7 +2437,10 @@ function setCedocState(on){
   }
 }
 cedocBtn.onclick=()=>setCedocState(!cedocOn);
-setInterval(()=>{if(cedocOn&&!document.hidden)loadCedocData(true)},15*60*1000);
+// Leggi metadati e conteggio fin dall'apertura dell'app; il layer resta OFF
+// finché l'utente non lo attiva, per non sovrapporre reti pluviometriche.
+loadCedocData(true);
+setInterval(()=>{if(!document.hidden)loadCedocData(true)},30*60*1000);
 
 function legend(){
   const el=document.getElementById('mapLegends');
