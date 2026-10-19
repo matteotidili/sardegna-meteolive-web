@@ -1313,11 +1313,11 @@ function ensure3dOperaLayer(time){
 }
 function sync3dPrecipLayers(){
   if(!mode3d||!map3d||!map3dStyleReady)return;
-  dpc3dRequestSeq++;
-  hide3dPrecipLayer('dpc-precip-3d-layer');
-  hide3dPrecipLayer('opera-radar-3d-layer');
-
+  // Non nascondere il layer radar prima che il raster successivo sia pronto:
+  // l'ImageSource aggiornato manterrà l'immagine precedente durante il caricamento.
   if(operaOn&&operaFrames[operaIndex]){
+    dpc3dRequestSeq++;
+    hide3dPrecipLayer('dpc-precip-3d-layer');
     if(ensure3dOperaLayer(operaFrames[operaIndex])){
       map3d.setPaintProperty('opera-radar-3d-layer','raster-opacity',radar3dOpacity());
       map3d.setLayoutProperty('opera-radar-3d-layer','visibility','visible')
@@ -1326,13 +1326,20 @@ function sync3dPrecipLayers(){
     return
   }
   if(radarOn&&radarFrames[radarIndex]){
+    hide3dPrecipLayer('opera-radar-3d-layer');
     update3dDpcLayer(radarProductKey,radarFrames[radarIndex],radar3dOpacity());
     raise3dOperationalLayers();
     return
   }
   if(cumActive&&cumLayer?._productKey&&cumLayer?._frame){
-    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.22)
+    hide3dPrecipLayer('opera-radar-3d-layer');
+    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.22);
+    raise3dOperationalLayers();
+    return
   }
+  dpc3dRequestSeq++;
+  hide3dPrecipLayer('dpc-precip-3d-layer');
+  hide3dPrecipLayer('opera-radar-3d-layer');
   raise3dOperationalLayers()
 }
 function schedule3dPrecipSync(delay=70){
