@@ -570,6 +570,7 @@ header .live{margin-left:0}
     <div class="network-switch" aria-label="Filtra rete">
       <button class="netbtn active" data-net="all">Tutte</button>
       <button class="netbtn" data-net="dpcn-sardegna">DPCN</button>
+      <button class="netbtn" data-net="cedoc">CEDOC</button>
       <button class="netbtn" data-net="aeronautica-militare">AM</button>
       <button class="netbtn" data-net="wunderground">WU</button>
       <button class="netbtn" data-net="weatherlink" id="wlNetBtn" hidden>WL</button>
@@ -1785,7 +1786,7 @@ function renderStationDirectory(){
     const details=document.createElement('span');details.className='station-details';
     const name=document.createElement('span');name.className='station-name';name.textContent=s.name||s.station_id||'Stazione';
     const meta=document.createElement('span');meta.className='station-meta';
-    const net=s.network==='wunderground'?'WU':s.network==='aeronautica-militare'?'AM':s.network==='weatherlink'?'WL':'DPCN';
+    const net=s.network==='wunderground'?'WU':s.network==='aeronautica-militare'?'AM':s.network==='weatherlink'?'WL':s.network==='cedoc'?'CEDOC':'DPCN';
     const date=s.last?new Date(s.last):null;
     const time=date&&Number.isFinite(date.getTime())?date.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'orario non disponibile';
     meta.textContent=net+(Number.isFinite(s.elev)?' · '+Math.round(s.elev)+' m':'')+' · '+time;
@@ -1934,8 +1935,16 @@ function ico(s){
     iconAnchor:[m.d/2,m.d/2]
   })
 }
-function popup(s){let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
-function tooltipHtml(s){const net=s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':s.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
+function popup(s){
+  if(s.network==='cedoc'){
+    const ts=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+    const url='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(s.station_id||''));
+    return '<div class="popup"><b>'+cedocEscape(s.name)+'</b><br><span style="color:#9fb4c6">CEDOC / Regione Sardegna · pluviometro</span><br>Pioggia oggi: <b>'+
+      cedocNumber(s.rain_today)+' mm</b><br>Osservazione: '+ts+
+      '<br><small>Misura automatica non validata ARPAS</small><br><a href="'+url+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>'
+  }
+  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
+function tooltipHtml(s){const net=s.network==='cedoc'?'CEDOC Sardegna':s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':s.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
 function stationLegendHtml(){
   if(!stationsOn)return '';
   const p=P[cur];
@@ -2387,6 +2396,18 @@ function update3dCedoc(){
   map3d.getSource('cedoc-3d').setData(fc(features));
   raise3dOperationalLayers()
 }
+function cedocAsStandardStations(){
+  return cedocStations.map(s=>({
+    station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,
+    rain_today:s.rain_today,last:s.last,network:'cedoc',
+    source_url:s.source_url,observed_day:s.observed_day
+  }))
+}
+function syncCedocStationNetwork(){
+  stations=stations.filter(s=>s.network!=='cedoc').concat(cedocAsStandardStations());
+  if(stations.length)build();
+  else render()
+}
 async function loadCedocData(force=false){
   if(cedocLoading||(!force&&Date.now()-cedocLastLoad<15*60000))return;
   cedocLoading=true;
@@ -2420,7 +2441,8 @@ async function loadCedocData(force=false){
   }finally{
     cedocLoading=false;
     if(cedocStations.length)cedocCounter.classList.remove('cedoc-status-stale');
-    renderCedocLayer()
+    renderCedocLayer();
+    syncCedocStationNetwork()
   }
 }
 function setCedocState(on){
@@ -2488,6 +2510,7 @@ function markerSpacing(){
   return {x:m.sx,y:m.sy}
 }
 function priority(s){
+  if(s.network==='cedoc'&&cur==='rain_today')return .5;
   if(s.network==='aeronautica-militare')return 0;
   if(s.network==='dpcn-sardegna')return 1;
   if(s.network==='wunderground'&&s.qc_status===1)return 2;
@@ -2645,7 +2668,15 @@ document.querySelectorAll('[data-base]').forEach(b=>{
   if(b.dataset.base==='3d'&&!CAN_USE_WEBGL){b.disabled=true;b.title='Vista 3D non disponibile su questo dispositivo'}
   b.onclick=()=>setBaseMode(b.dataset.base)
 });
-document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{netFilter=b.dataset.net;document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x.dataset.net===netFilter));render()});
+document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{
+  netFilter=b.dataset.net;
+  document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x.dataset.net===netFilter));
+  if(netFilter==='cedoc'&&cur!=='rain_today'){
+    const rainButton=document.querySelector('[data-k="rain_today"]');
+    if(rainButton){rainButton.click();return}
+  }
+  render()
+});
 const boundariesBtn=document.getElementById('boundariesBtn');
 let boundariesPreference=false,boundariesLoaded=false,boundariesLoading=false;
 const boundariesLayer=L.layerGroup();
@@ -4909,7 +4940,7 @@ async function loadObservations(){
   const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare'}));
   const ws=(wu?.stations||[]).filter(s=>s.station_id!=='ISERRA56').map(s=>({...s,network:'wunderground'}));
   const wls=(wl?.stations||[]).map(s=>({...s,network:'weatherlink'}));
-  stations=[...as,...ds,...ws,...wls];
+  stations=[...as,...ds,...ws,...wls,...cedocAsStandardStations()];
   const wlButton=document.getElementById('wlNetBtn');
   wlButton.hidden=wls.length===0;
   if(wls.length===0&&netFilter==='weatherlink'){
