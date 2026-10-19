@@ -545,6 +545,15 @@ header .live{margin-left:0}
   padding:3px 5px;white-space:nowrap;text-align:center;pointer-events:none}
 @media(max-width:800px){.subregions-note{font-size:10px}}
 
+
+.radar-archive{margin:7px 0 10px;padding:8px;border:1px solid #2f5067;border-radius:9px;background:#071e2c}
+.radar-archive-actions{display:flex;gap:6px}
+.radar-period{flex:1;min-width:0;padding:7px 5px;background:#102c3d;color:#dfedf8;border:1px solid #416079;border-radius:7px;font:750 11px Inter,system-ui,Arial;cursor:pointer}
+.radar-period.active{background:#087ca6;border-color:#58ccee;color:#fff}
+.radar-period:disabled{opacity:.45;cursor:not-allowed}
+.radar-date-label{display:block;margin:9px 0 4px;font-size:10px;color:#cadbe7}
+.radar-date-input{display:block;width:100%;min-height:33px;border:1px solid #47627a;border-radius:6px;background:#0b2738;color:#f4f9ff;padding:5px 8px;color-scheme:dark;font:600 12px Inter,system-ui,Arial}
+.radar-archive-status{margin-top:6px;color:#a9c6d8;font-size:10px;line-height:1.45}
 </style>
 </head>
 <body>
@@ -596,6 +605,15 @@ header .live{margin-left:0}
       <div class="accordion-body"><div class="accordion-inner">
         <button class="btn" id="radarBtn">Radar DPC · VMI <span>OFF</span></button>
         <div class="layer-note" id="radarInfo">VMI · massima riflettività verticale (dBZ) · Radar-DPC v2</div>
+        <div class="radar-archive">
+          <div class="radar-archive-actions" role="group" aria-label="Intervallo temporale del radar DPC">
+            <button type="button" class="radar-period active" id="radarRecentBtn" aria-pressed="true">Ultime 3 ore</button>
+            <button type="button" class="radar-period" id="radarNightBtn" aria-pressed="false">Notte 20–08 ▶</button>
+          </div>
+          <label class="radar-date-label" for="radarNightDate">Data del mattino finale (ora italiana)</label>
+          <input type="date" class="radar-date-input" id="radarNightDate" aria-label="Seleziona la data della mattina, per esempio 19 ottobre per la notte 18–19">
+          <div id="radarArchiveStatus" class="radar-archive-status" role="status">VMI · storico DPC consultabile fino a 14 giorni</div>
+        </div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
         <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
@@ -1109,6 +1127,7 @@ let lightningBatchCount=0,lightningLiveLastBatchAt=0;
 let lightningStrikes=[],lightningSeen=new Map(),lightningLastStrikeTime=null,lightningLastIdBySrc={},lightningFeedLoops=0;
 let lightningHistoryLayer=null,lightningHistoryFrames=[],lightningIndex=24,lightningMode='live',lightningAnimTimer=null,lightningHistoryLatest=null,lightningCacheSaveTimer=null;
 let radarOn=false,radarFrames=[],radarIndex=36,radarTimer=null,cumActive=null,stationsOn=true;
+let radarMode='recent',radarTimelineRequest=0;
 let aromeForecast=null,aromeIndex=0,aromeOverlay=null,aromePlayTimer=null,aromeLoading=false,aromeProductKey='precip_1h';
 let aromeFlowPreference=true,aromeWindManifest=null,aromeWindSerial=0,aromeWindCurrentKey='',aromeWindFailureUntil=0;
 const aromeWindBuffers=new Map();
@@ -3446,6 +3465,86 @@ stationsBtn.onclick=()=>{
 const radarBtn=document.getElementById('radarBtn'),radarInfo=document.getElementById('radarInfo');
 const radarTimeline=document.getElementById('radarTimeline'),radarRange=document.getElementById('radarRange'),radarTime=document.getElementById('radarTime'),radarPlay=document.getElementById('radarPlay');
 const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo'),cumStamp=document.getElementById('cumStamp');
+const radarRecentBtn=document.getElementById('radarRecentBtn');
+const radarNightBtn=document.getElementById('radarNightBtn');
+const radarNightDate=document.getElementById('radarNightDate');
+const radarArchiveStatus=document.getElementById('radarArchiveStatus');
+const radarTimeKind=radarTimeline.querySelector('.time-kind');
+const romeDayFormatter=new Intl.DateTimeFormat('en-GB',{
+  timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'
+});
+function romeDayISO(date){
+  const parts=Object.fromEntries(romeDayFormatter.formatToParts(date)
+    .filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+  return parts.year+'-'+parts.month+'-'+parts.day
+}
+function romeLocalToUTC(day,hour){
+  // Calcolo offset reale Europe/Rome, inclusi i cambi di ora legale/solare.
+  const naive=Date.parse(day+'T'+String(hour).padStart(2,'0')+':00:00Z');
+  const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{
+    timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit',
+    hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+  }).formatToParts(new Date(naive)).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+  const localAsUTC=Date.UTC(+parts.year,+parts.month-1,+parts.day,+parts.hour,+parts.minute);
+  return new Date(naive-(localAsUTC-naive))
+}
+function precedingISO(day){
+  return new Date(Date.parse(day+'T12:00:00Z')-86400000).toISOString().slice(0,10)
+}
+function updateRadarPeriodButtons(){
+  const night=radarMode==='night';
+  radarRecentBtn.classList.toggle('active',!night);
+  radarNightBtn.classList.toggle('active',night);
+  radarRecentBtn.setAttribute('aria-pressed',String(!night));
+  radarNightBtn.setAttribute('aria-pressed',String(night));
+  radarTimeKind.textContent=night?'VMI NOTTE':'VMI LIVE';
+}
+function loadRadarNight(){
+  const day=radarNightDate.value;
+  const oldest=radarNightDate.min,newest=radarNightDate.max;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||day<oldest||day>newest){
+    radarArchiveStatus.textContent='Scegli una data compresa negli ultimi 14 giorni.';
+    return false
+  }
+  const start=romeLocalToUTC(precedingISO(day),20);
+  const end=romeLocalToUTC(day,8);
+  if(end.getTime()>Date.now()||Date.now()-start.getTime()>14*86400000){
+    radarArchiveStatus.textContent='Intervallo non disponibile: archivio DPC fino a 14 giorni.';
+    return false
+  }
+  const frames=[];
+  for(let t=start.getTime();t<=end.getTime();t+=5*60000)frames.push(new Date(t));
+  if(frames.length<2||frames.length>170)return false;
+  stopRadarAnimation();
+  radarFrames=frames;radarIndex=0;
+  radarRange.min='0';radarRange.max=String(frames.length-1);radarRange.value='0';
+  radarArchiveStatus.textContent='Notte '+precedingISO(day)+' / '+day+
+    ' · 20:00–08:00 ora italiana · '+frames.length+
+    ' scansioni previste; eventuali dati mancanti dipendono dal DPC.';
+  if(mode3d)setBaseMode('sat'); // La sequenza lunga viene riprodotta sulla carta 2D.
+  setRadarFrame(0);
+  updateRadarPeriodButtons();
+  if(radarOn)startRadarAnimation();
+  return true
+}
+radarNightDate.value=romeDayISO(new Date());
+radarNightDate.max=romeDayISO(new Date());
+radarNightDate.min=romeDayISO(new Date(Date.now()-13*86400000));
+radarRecentBtn.addEventListener('click',()=>{
+  radarMode='recent';stopRadarAnimation();updateRadarPeriodButtons();
+  radarArchiveStatus.textContent='VMI live · ultime 3 ore · scansioni ogni 5 minuti.';
+  if(!radarOn)setRadarState(true);else loadRadarTimeline()
+});
+radarNightBtn.addEventListener('click',()=>{
+  radarMode='night';updateRadarPeriodButtons();
+  if(!radarOn)setRadarState(true);else loadRadarNight();
+});
+radarNightDate.addEventListener('change',()=>{
+  if(radarMode==='night'){
+    if(!radarOn)setRadarState(true);else loadRadarNight()
+  }
+});
+updateRadarPeriodButtons();
 function iso5(d){return new Date(Math.floor(d.getTime()/300000)*300000).toISOString().replace('.000Z','.000Z')}
 function fallbackRadarLatest(){return new Date(Math.floor((Date.now()-10*60000)/300000)*300000)}
 function buildRadarFrames(latest){
@@ -3466,7 +3565,9 @@ function setRadarFrame(i){
   schedule3dPrecipSync(60)
 }
 async function loadRadarTimeline(){
+  const request=++radarTimelineRequest;
   const apiLatest=await latestProductTime('VMI');
+  if(request!==radarTimelineRequest||!radarOn||radarMode!=='recent')return;
   const latest=apiLatest||fallbackRadarLatest();
   buildRadarFrames(latest);
   setRadarFrame(radarFrames.length-1)
@@ -3478,7 +3579,9 @@ function stopRadarAnimation(){
 function startRadarAnimation(){
   if(!radarFrames.length)return;
   if(radarIndex>=radarFrames.length-1)setRadarFrame(0);
-  radarTimer=setInterval(()=>{setRadarFrame(radarIndex>=radarFrames.length-1?0:radarIndex+1)},900);
+  radarTimer=setInterval(()=>{
+    setRadarFrame(radarIndex>=radarFrames.length-1?0:radarIndex+1)
+  },radarMode==='night'?750:900);
   radarPlay.textContent='Ⅱ';radarPlay.classList.add('active');radarPlay.title='Pausa'
 }
 function setRadarState(on){
@@ -3489,9 +3592,10 @@ function setRadarState(on){
     setCumState(null);
     radarLayer.addTo(map);
     radarTimeline.classList.add('on');
-    loadRadarTimeline()
+    if(radarMode==='night')loadRadarNight();else loadRadarTimeline()
   }else{
     stopRadarAnimation();
+    ++radarTimelineRequest;
     if(map.hasLayer(radarLayer))map.removeLayer(radarLayer);
     radarTimeline.classList.remove('on')
   }
@@ -4478,7 +4582,7 @@ syncAccordionStates();
 cumBtn.onclick=()=>cumInfo.classList.toggle('on');
 document.querySelectorAll('[data-cum]').forEach(b=>b.onclick=()=>{const code=b.dataset.cum==='off'?null:b.dataset.cum;setCumState(code)});
 setInterval(()=>{
-  if(radarOn&&!radarTimer&&radarIndex===radarFrames.length-1)loadRadarTimeline();
+  if(radarOn&&radarMode==='recent'&&!radarTimer&&radarIndex===radarFrames.length-1)loadRadarTimeline();
   if(operaOn&&!operaTimer&&operaIndex===operaFrames.length-1)loadOperaTimeline(false);
   if(cumActive)setCumState(cumActive)
 },5*60*1000);
