@@ -592,7 +592,8 @@ header .live{margin-left:0}
     <button class="btn direct-layer-toggle" id="hydroBtn">Idrometri ARPAS <span>OFF</span></button>
     <div id="hydroCounter" class="counter direct-layer-counter">Rete fiduciaria · soft real time</div>
     <button class="btn direct-layer-toggle" id="cedocBtn" aria-pressed="false">Pluviometri CEDOC · oggi <span>OFF</span></button>
-    <div id="cedocCounter" class="counter direct-layer-counter">Regione Sardegna · accumulo giornaliero · aggiornamento circa ogni 30 min · <a href="https://www.sardegnacedoc.it/idrografico/temporeale" target="_blank" rel="noopener noreferrer">Fonte CEDOC</a></div>
+    <div id="cedocCounter" class="counter direct-layer-counter">Rete CEDOC · accumuli giornalieri · aggiornamento previsto ogni 30 minuti</div>
+    <div id="cedocStatusHelp" class="counter direct-layer-counter" style="display:none"><a href="https://github.com/matteotidili/sardegna-meteolive-data/actions/workflows/update-cedoc.yml" target="_blank" rel="noopener noreferrer">Verifica acquisizione automatica</a> · <a href="https://www.sardegnacedoc.it/idrografico/temporeale" target="_blank" rel="noopener noreferrer">Fonte CEDOC</a></div>
 
     <div class="accordion-item" data-acc-item="precip">
       <button class="accordion-head" type="button" data-acc="precip" aria-expanded="false">
@@ -2299,6 +2300,7 @@ const CEDOC_ATTR='Pluviometria giornaliera © Regione Autonoma della Sardegna �
 const cedocLayer=L.layerGroup();
 const cedocBtn=document.getElementById('cedocBtn');
 const cedocCounter=document.getElementById('cedocCounter');
+const cedocStatusHelp=document.getElementById('cedocStatusHelp');
 let cedocOn=false,cedocStations=[],cedocLastLoad=0,cedocLoading=false,cedocStatus='unavailable',cedocAttribution=false;
 function cedocColor(mm){
   if(mm>=150)return '#b02dab';
@@ -2398,14 +2400,20 @@ async function loadCedocData(force=false){
     if(cedocStations.length){
       const ts=new Date(data.source_time).toLocaleString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
       cedocCounter.textContent='CEDOC · '+cedocStations.length+' pluviometri verificati · riferimento '+ts+' · accumuli giornalieri';
+      cedocStatusHelp.style.display='none';
     }else{
-      cedocCounter.textContent='CEDOC · dati non aggiornati o non disponibili: nessun valore mostrato';
-      cedocCounter.classList.add('cedoc-status-stale')
+      const published=data.generated_at&&Number.isFinite(Date.parse(data.generated_at))?
+        new Date(data.generated_at).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'non disponibile';
+      const reason=data.warning?String(data.warning).slice(0,170):'dati giornalieri non disponibili o scaduti';
+      cedocCounter.textContent='CEDOC · 0 misure recenti · '+reason+' · ultimo dataset '+published;
+      cedocCounter.classList.add('cedoc-status-stale');
+      cedocStatusHelp.style.display='block'
     }
   }catch(e){
     cedocStations=[];
     cedocStatus='unavailable';
-    cedocCounter.textContent='CEDOC · collegamento non disponibile, dati nascosti';
+    cedocCounter.textContent='CEDOC · impossibile leggere il dataset automatico; controllare il workflow di raccolta.';
+    cedocStatusHelp.style.display='block';
   }finally{
     cedocLoading=false;
     if(cedocStations.length)cedocCounter.classList.remove('cedoc-status-stale');
