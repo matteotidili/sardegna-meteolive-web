@@ -4147,8 +4147,13 @@ function prepareOperaFrameLayers(){
   operaFrameLayers=operaFrames.map(d=>{
     const layer=L.tileLayer(operaFrameUrl(d),opts);
     layer._radarReady=false;
+    layer._radarValidTiles=0;
+    layer.on('tileload',()=>{layer._radarValidTiles++});
     layer.on('load',()=>{
-      if(!layer._radarReady){layer._radarReady=true;operaPreloadReady++}
+      // Non mostrare una carta vuota se il server non restituisce immagini.
+      if(layer._radarValidTiles>0&&!layer._radarReady){
+        layer._radarReady=true;operaPreloadReady++
+      }
     });
     return layer
   });
@@ -4174,7 +4179,10 @@ function setOperaFrame(i){
   if(!requested){schedule3dPrecipSync(20);return}
   const show=()=>{
     if(token!==operaSwapToken||!operaOn||requested!==operaFrameLayers[operaIndex])return;
-    if(!requested._radarReady)return;
+    if(!requested._radarReady){
+      operaTime.textContent=operaLabel(d)+' · immagini non disponibili';
+      return
+    }
     const old=operaDisplayedLayer;
     requested.bringToFront();
     requested.setOpacity(radarOpacity);
