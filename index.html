@@ -1942,10 +1942,13 @@ function popup(s){
     const ts=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
     const url='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(s.station_id||''));
     return '<div class="popup"><b>'+cedocEscape(s.name)+'</b><br><span style="color:#9fb4c6">CEDOC / Regione Sardegna · pluviometro</span><br>Pioggia oggi: <b>'+
-      cedocNumber(s.rain_today)+' mm</b><br>Osservazione: '+ts+
+      cedocNumber(s.rain_today)+' mm</b><br>Ultime 48 ore: <b>'+
+      (Number.isFinite(s.rain_48h)?cedocNumber(s.rain_48h)+' mm':'—')+'</b> (dato CEDOC)<br>Osservazione: '+ts+
       '<br><small>Misura automatica non validata ARPAS</small><br><a href="'+url+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>'
   }
-  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+extra+quality+'</div>'}
+  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+
+'<br>Ultime 48 ore: '+(Number.isFinite(s.rain_48h)?s.rain_48h.toFixed(1)+' mm'+(s.rain_48h_source==='estimated_from_daily_counters'?' (stima da storico)':''):'—')+
+extra+quality+'</div>'}
 function tooltipHtml(s){const net=s.network==='cedoc'?'CEDOC Sardegna':s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':s.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
 function stationLegendHtml(){
   if(!stationsOn)return '';
@@ -2352,21 +2355,22 @@ function cedocLiveStations(raw){
 function cedocLegendHtml(){
   if(!cedocOn||!cedocStations.length)return '';
   const stops=[['0','#667789'],['0–15','#248dc2'],['15–30','#3baa81'],['30–60','#d1aa17'],['60–100','#f27927'],['100–150','#d13142'],['150+','#b02dab']];
-  return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · pioggia cumulata oggi · mm</div>'+
+  return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+(cur==='rain_48h'?'accumulo ultime 48 ore':'pioggia cumulata oggi')+' · mm</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:9px">'+
     stops.map(([v,c])=>'<span style="display:flex;align-items:center;gap:3px"><i style="background:'+c+';width:9px;height:9px;border-radius:50%;display:inline-block"></i>'+v+'</span>').join('')+
-    '</div><div class="map-legend-note">Cumulato da inizio giornata (ora italiana), aggiornato circa ogni 30 min. Non validato ARPAS.</div></div>'
+    '</div><div class="map-legend-note">'+(cur==='rain_48h'?'Totale mobile delle ultime 48 ore, dato CEDOC.':'Cumulato da inizio giornata (ora italiana).')+' Aggiornamento circa ogni 30 min; non validato ARPAS.</div></div>'
 }
 function renderCedocLayer(){
   cedocLayer.clearLayers();
   if(cedocOn){
     for(const p of cedocStations){
-      const value=p.rain_today;
+      const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
+      if(!Number.isFinite(value))continue;
       const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge" style="background:'+cedocColor(value)+'">'+cedocNumber(value)+'</span>',iconSize:[40,27],iconAnchor:[20,13]});
       const stamp=new Date(p.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
       const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
       L.marker([p.lat,p.lon],{pane:'cedoc',icon,zIndexOffset:80})
-        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div><b>'+cedocNumber(value)+' mm</b> accumulati oggi</div><div>Rilevamento: '+stamp+'</div><div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
+        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div><b>'+cedocNumber(value)+' mm</b> '+(cur==='rain_48h'?'nelle ultime 48 ore':'accumulati oggi')+'</div><div>Rilevamento: '+stamp+'</div><div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
         .addTo(cedocLayer)
     }
     if(!map.hasLayer(cedocLayer))cedocLayer.addTo(map)
@@ -2389,21 +2393,27 @@ function update3dCedoc(){
       const feature=e.features&&e.features[0];if(!feature)return;
       const p=feature.properties;
       new maplibregl.Popup({closeButton:true,offset:20}).setLngLat(feature.geometry.coordinates)
-        .setText(String(p.name)+' – '+String(p.label)+' mm oggi – CEDOC').addTo(map3d)
+        .setText(String(p.name)+' – '+String(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' – CEDOC').addTo(map3d)
     })
   }
-  const features=cedocOn?cedocStations.map(p=>({
-    type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-    properties:{name:p.name,label:cedocNumber(p.rain_today),color:cedocColor(p.rain_today)}
-  })):[];
+  const features=cedocOn?cedocStations.map(p=>{
+    const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
+    if(!Number.isFinite(value))return null;
+    return {
+      type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
+      properties:{name:p.name,label:cedocNumber(value),color:cedocColor(value)}
+    }
+  }).filter(Boolean):[];
   map3d.getSource('cedoc-3d').setData(fc(features));
   raise3dOperationalLayers()
 }
 function cedocAsStandardStations(){
   return cedocStations.map(s=>({
     station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,
-    rain_today:s.rain_today,last:s.last,network:'cedoc',
-    source_url:s.source_url,observed_day:s.observed_day
+    rain_today:s.rain_today,rain_48h:Number.isFinite(s.rain_48h)?s.rain_48h:null,
+    rain_48h_last:Number.isFinite(s.rain_48h)?s.last:null,
+    rain_48h_source:s.rain_48h_source,
+    last:s.last,network:'cedoc',source_url:s.source_url,observed_day:s.observed_day
   }))
 }
 function syncCedocStationNetwork(){
@@ -2649,6 +2659,7 @@ params.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
   params.querySelectorAll('[data-k]').forEach(x=>{const selected=x===b;x.classList.toggle('active',selected);x.setAttribute('aria-pressed',String(selected))});
   if(!stationsOn)document.getElementById('stationsBtn').click();
   b.scrollIntoView({block:'nearest',inline:'nearest'});
+  if(cedocOn)renderCedocLayer();
   render()
 });
 const BASEMAPS={operational,light,sat,relief};
