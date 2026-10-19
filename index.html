@@ -768,6 +768,7 @@ const P={
  rain_today:{n:'Pioggia accumulata',u:'mm',fmt:v=>v.toFixed(1),labs:['0','20','50','100','150+'],st:[[0,[130,145,155]],[.1,[80,180,225]],[10,[45,130,220]],[30,[70,190,120]],[60,[235,220,70]],[100,[245,135,50]],[160,[190,45,90]]]},
  rh:{n:'Umidità relativa',u:'%',fmt:v=>v.toFixed(0)+'%',labs:['0','25','50','75','100'],st:[[0,[180,150,90]],[30,[215,200,110]],[50,[115,190,170]],[70,[65,150,205]],[90,[65,90,185]],[100,[80,55,155]]]}
 }; P.tmin.st=P.temp.st;P.tmax.st=P.temp.st;P.tmin.labs=P.temp.labs;P.tmax.labs=P.temp.labs;P.gust_kmh.st=P.wind_kmh.st;P.gust_kmh.labs=P.wind_kmh.labs;
+P.rain_48h={...P.rain_today,n:'Pioggia ultime 48 ore',u:'mm',fmt:v=>v.toFixed(1)};
 let stations=[],cur='temp',marks=[],netFilter='all',query='',operaMapWide=false,focusedStationKey='';
 let meteoalarmOn=false,meteoalarmData=null,meteoalarmMapData=null,meteoalarmLoading=false;
 let aromeOn=false; // Serve anche a syncMapExtent() durante il bootstrap della mappa.
@@ -1770,7 +1771,7 @@ function renderStationDirectory(){
     const delta=directorySort==='desc'?b[cur]-a[cur]:a[cur]-b[cur];
     return delta||(a.name||'').localeCompare(b.name||'','it')||stationKey(a).localeCompare(stationKey(b),'it')
   });
-  const timeScope=LIVE_STATION_PARAMS.has(cur)?' · rilevazioni ultimi '+LIVE_STATION_MAX_AGE_MIN+' min':DAILY_STATION_PARAMS.has(cur)?' · oggi (ora italiana)':'';
+  const timeScope=cur==='rain_48h'?' · ultime 48 ore (CEDOC dato diretto; altre reti stima campionata)':LIVE_STATION_PARAMS.has(cur)?' · rilevazioni ultimi '+LIVE_STATION_MAX_AGE_MIN+' min':DAILY_STATION_PARAMS.has(cur)?' · oggi (ora italiana)':'';
   document.getElementById('directorySummary').textContent=rows.length+' stazioni · '+P[cur].n+' · '+P[cur].u+timeScope;
   document.querySelectorAll('[data-station-sort]').forEach(btn=>{
     const active=btn.dataset.stationSort===directorySort;
@@ -1901,7 +1902,7 @@ function fmtMarker(v,k=cur){
   if(!Number.isFinite(v))return'—';
   if(k==='temp'||k==='tmin'||k==='tmax')return v.toFixed(1);
   if(k==='rh'||k==='wind_kmh'||k==='gust_kmh')return Math.round(v).toString();
-  if(k==='rain_today')return v.toFixed(1);
+  if(k==='rain_today'||k==='rain_48h')return v.toFixed(1);
   if(k==='rain_rate')return v<10?v.toFixed(1):Math.round(v).toString();
   return String(Math.round(v))
 }
@@ -1950,7 +1951,7 @@ function stationLegendHtml(){
   if(!stationsOn)return '';
   const p=P[cur];
   const grad='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')';
-  return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div></div>'
+  return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div>'+(cur==='rain_48h'?'<div class="map-legend-note">CEDOC: dato ufficiale su 48h; altre reti: stima da cumulati giornalieri, solo con storico sufficiente. AM: non disponibile.</div>':'')+'</div>'
 }
 function radarLegendHtml(){
   if(!radarOn)return '';
@@ -2491,14 +2492,19 @@ function legend(){
 // Gli estremi giornalieri, invece, sono valori accumulati dal giorno locale in corso.
 const LIVE_STATION_PARAMS=new Set(['temp','rh','wind_kmh','rain_rate']);
 const DAILY_STATION_PARAMS=new Set(['tmin','tmax','rain_today']);
+const ROLLING_STATION_PARAMS=new Set(['rain_48h']);
 const LIVE_STATION_MAX_AGE_MIN=90;
 const stationRomeDate=new Intl.DateTimeFormat('it-IT',{timeZone:'Europe/Rome',year:'numeric',month:'2-digit',day:'2-digit'});
 function stationParameterIsCurrent(s,key){
   if(!Number.isFinite(s[key]))return false;
-  if(!LIVE_STATION_PARAMS.has(key)&&!DAILY_STATION_PARAMS.has(key))return true;
-  const obs=Date.parse(s.last||'');
+  if(!LIVE_STATION_PARAMS.has(key)&&!DAILY_STATION_PARAMS.has(key)&&!ROLLING_STATION_PARAMS.has(key))return true;
   const now=Date.now();
+  const obs=Date.parse(key==='rain_48h'?(s.rain_48h_last||s.last||''):(s.last||''));
   if(!Number.isFinite(obs)||obs>now+5*60000)return false;
+  if(ROLLING_STATION_PARAMS.has(key)){
+    const maxAge=s.network==='cedoc'?180:95;
+    return now-obs<=maxAge*60000
+  }
   if(LIVE_STATION_PARAMS.has(key))return now-obs<=LIVE_STATION_MAX_AGE_MIN*60000;
   return stationRomeDate.format(obs)===stationRomeDate.format(now)
 }
@@ -2512,7 +2518,7 @@ function markerSpacing(){
   return {x:m.sx,y:m.sy}
 }
 function priority(s){
-  if(s.network==='cedoc'&&cur==='rain_today')return .5;
+  if(s.network==='cedoc'&&(cur==='rain_today'||cur==='rain_48h'))return .5;
   if(s.network==='aeronautica-militare')return 0;
   if(s.network==='dpcn-sardegna')return 1;
   if(s.network==='wunderground'&&s.qc_status===1)return 2;
@@ -2635,7 +2641,7 @@ function build(){
   render()
 }
 map.on('zoomend',()=>{if(marks.length)render(true)})
-const PARAM_LABELS={temp:'Temp',tmin:'Tmin',tmax:'Tmax',rh:'UR',wind_kmh:'Vento',gust_kmh:'Raffica',rain_today:'Pioggia',rain_rate:'Rain rate'};
+const PARAM_LABELS={temp:'Temp',tmin:'Tmin',tmax:'Tmax',rh:'UR',wind_kmh:'Vento',gust_kmh:'Raffica',rain_today:'Pioggia',rain_48h:'48 ore',rain_rate:'Rain rate'};
 const params=document.getElementById('params');
 params.innerHTML=Object.entries(PARAM_LABELS).map(([k,label])=>'<button type="button" class="param-btn'+(k===cur?' active':'')+'" data-k="'+k+'" aria-pressed="'+(k===cur)+'" aria-label="'+P[k].n+' ('+P[k].u+')" title="'+P[k].n+' · '+P[k].u+'">'+label+' <small>'+P[k].u+'</small></button>').join('');
 params.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
@@ -2673,7 +2679,7 @@ document.querySelectorAll('[data-base]').forEach(b=>{
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{
   netFilter=b.dataset.net;
   document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x.dataset.net===netFilter));
-  if(netFilter==='cedoc'&&cur!=='rain_today'){
+  if(netFilter==='cedoc'&&cur!=='rain_today'&&cur!=='rain_48h'){
     const rainButton=document.querySelector('[data-k="rain_today"]');
     if(rainButton){rainButton.click();return}
   }
