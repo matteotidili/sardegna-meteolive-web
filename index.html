@@ -1255,7 +1255,7 @@ function ensure3dDpcLayer(){
       type:'raster',
       source:'dpc-precip-3d',
       paint:{
-        'raster-opacity':.92,
+        'raster-opacity':radar3dOpacity(),
         'raster-fade-duration':0,
         'raster-resampling':'nearest'
       },
@@ -1275,7 +1275,8 @@ async function update3dDpcLayer(productKey,time,opacity=.28){
   try{
     // MapLibre 5.6.1 accetta `url`, non `image`, in ImageSource.updateImage().
     source.updateImage({url:canvas.toDataURL('image/png'),coordinates:DPC3D_GRID.coordinates});
-    map3d.setPaintProperty('dpc-precip-3d-layer','raster-opacity',opacity);
+    map3d.setPaintProperty('dpc-precip-3d-layer','raster-opacity',
+      radarOn&&productKey===radarProductKey?radar3dOpacity():opacity);
     map3d.setLayoutProperty('dpc-precip-3d-layer','visibility','visible')
   }catch(e){console.warn('DPC radar 3D',e)}
 }
@@ -1294,7 +1295,7 @@ function ensure3dOperaLayer(time){
   if(!map3d.getLayer('opera-radar-3d-layer')){
     map3d.addLayer({
       id:'opera-radar-3d-layer',type:'raster',source:'opera-radar-3d',
-      paint:{'raster-opacity':.46,'raster-fade-duration':0},
+      paint:{'raster-opacity':radar3dOpacity(),'raster-fade-duration':0},
       layout:{visibility:'none'}
     },first3dSymbolLayer())
   }
@@ -1308,13 +1309,14 @@ function sync3dPrecipLayers(){
 
   if(operaOn&&operaFrames[operaIndex]){
     if(ensure3dOperaLayer(operaFrames[operaIndex])){
+      map3d.setPaintProperty('opera-radar-3d-layer','raster-opacity',radar3dOpacity());
       map3d.setLayoutProperty('opera-radar-3d-layer','visibility','visible')
     }
     raise3dOperationalLayers();
     return
   }
   if(radarOn&&radarFrames[radarIndex]){
-    update3dDpcLayer(radarProductKey,radarFrames[radarIndex],.85);
+    update3dDpcLayer(radarProductKey,radarFrames[radarIndex],radar3dOpacity());
     raise3dOperationalLayers();
     return
   }
