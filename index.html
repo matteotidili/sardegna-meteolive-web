@@ -4712,7 +4712,7 @@ syncAccordionStates();
 cumBtn.onclick=()=>cumInfo.classList.toggle('on');
 document.querySelectorAll('[data-cum]').forEach(b=>b.onclick=()=>{const code=b.dataset.cum==='off'?null:b.dataset.cum;setCumState(code)});
 setInterval(()=>{
-  if(radarOn&&!radarTimer&&radarIndex===radarFrames.length-1)loadRadarTimeline();
+  if(radarOn&&!radarPlayback&&radarIndex===radarFrames.length-1)loadRadarTimeline();
   if(operaOn&&!operaTimer&&operaIndex===operaFrames.length-1)loadOperaTimeline(false);
   if(cumActive)setCumState(cumActive)
 },5*60*1000);
