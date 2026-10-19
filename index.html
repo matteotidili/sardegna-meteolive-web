@@ -1460,12 +1460,12 @@ function renderMobile3dStations(){
         const st=e.currentTarget._stationData;
         if(!st)return;
         focusedStationKey=stationKey(st);
-        const net=st.network==='wunderground'?'Weather Underground':st.network==='aeronautica-militare'?'Aeronautica Militare':st.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';
+        const net=st.network==='cedoc'?'CEDOC Sardegna':st.network==='wunderground'?'Weather Underground':st.network==='aeronautica-militare'?'Aeronautica Militare':st.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';
         const escapeHTML=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         new maplibregl.Popup({closeButton:false,offset:18})
           .setLngLat([Number(st.lon),Number(st.lat)])
           .setHTML('<b>'+escapeHTML(st.name||'Stazione')+'</b><br>'+escapeHTML(P[cur].n)+': '+escapeHTML(fmt(st[cur],cur,st))+
-            '<br><span style="opacity:.75">'+escapeHTML(net)+'</span>')
+            '<br><span style="opacity:.75">'+escapeHTML(net)+(cur==='rain_48h'?(st.rain_48h_source==='estimated_from_daily_counters'?' · stima da storico':' · dato diretto CEDOC'):'')+'</span>')
           .addTo(map3d)
       });
       marker=new maplibregl.Marker({element:el,anchor:'center'})
