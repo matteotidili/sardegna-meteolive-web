@@ -1153,6 +1153,7 @@ let aromeFlowPreference=true,aromeWindManifest=null,aromeWindSerial=0,aromeWindC
 const aromeWindBuffers=new Map();
 let operaOn=false,operaFrames=[],operaIndex=11,operaTimer=null,operaLayer=null,operaLatestTime=null;
 let operaFrameLayers=[],operaPreloadReady=0,operaSliderRAF=null,operaPendingIndex=null;
+let operaDisplayedLayer=null,operaSwapToken=0;
 let base=sat,currentBaseMode='sat';satFallback.addTo(map);sat.addTo(map);
 let map3d=null,mode3d=false,statusBefore3d='',map3dStyleReady=false;
 let station3dMobileMarkers=[];
@@ -3517,7 +3518,7 @@ function applyRadarOpacity(){
   for(const layer of [radarLayer,radarBufferLayer])
     layer.setOpacity(radarOn&&layer===radarVisibleLayer?radarOpacity:0);
   // Gli altri frame OPERA precaricati devono restare completamente invisibili.
-  operaFrameLayers.forEach((layer,i)=>layer.setOpacity(operaOn&&i===operaIndex?radarOpacity:0));
+  operaFrameLayers.forEach(layer=>layer.setOpacity(operaOn&&layer===operaDisplayedLayer?radarOpacity:0));
   // Il radar in 3D è volutamente ancora più trasparente, senza rifare i raster.
   if(map3d&&map3dStyleReady){
     if(radarOn&&map3d.getLayer('dpc-precip-3d-layer'))
@@ -4128,62 +4129,66 @@ function operaLabel(d){
   return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' ·')
 }
 function clearOperaFrameLayers(){
+  ++operaSwapToken;
   operaFrameLayers.forEach(l=>{if(map.hasLayer(l))map.removeLayer(l)});
   operaFrameLayers=[];
   operaLayer=null;
+  operaDisplayedLayer=null;
   operaPreloadReady=0
 }
 function prepareOperaFrameLayers(){
   clearOperaFrameLayers();
   if(!operaFrames.length)return;
   const opts={
-    pane:'weather',opacity:0,tileSize:256,minNativeZoom:0,maxNativeZoom:7,maxZoom:15,
-    updateWhenZooming:false,updateWhenIdle:true,keepBuffer:2,
+    pane:'weather',opacity:0,tileSize:256,minNativeZoom:0,maxNativeZoom:7,
+    maxZoom:15,updateWhenZooming:false,updateWhenIdle:true,keepBuffer:2,
     attribution:'Radar: EUMETNET OPERA NIMBUS · CC BY 4.0 · rain rate · mm/h'
   };
-  operaFrameLayers=operaFrames.map((d,idx)=>{
+  operaFrameLayers=operaFrames.map(d=>{
     const layer=L.tileLayer(operaFrameUrl(d),opts);
-    let counted=false;
+    layer._radarReady=false;
     layer.on('load',()=>{
-      if(counted)return;
-      counted=true;
-      operaPreloadReady++;
-      if(operaOn){
-        operaMeta.innerHTML='OPERA NIMBUS · '+operaLabel(operaFrames[operaIndex])+
-          '<br>EUMETNET CC BY 4.0 · rain rate · mm/h'
-      }
+      if(!layer._radarReady){layer._radarReady=true;operaPreloadReady++}
     });
     return layer
   });
   if(!operaOn)return;
-  const order=[operaIndex,...operaFrameLayers.map((_,i)=>i).filter(i=>i!==operaIndex)];
-  order.forEach(i=>{
-    const layer=operaFrameLayers[i];
-    layer.setOpacity(i===operaIndex?radarOpacity:0);
+  // Tutti i frame si caricano in trasparenza. Nessun frame incompleto
+  // può coprire quello che l'utente sta già osservando.
+  for(const layer of operaFrameLayers){
+    layer.setOpacity(0);
     layer.addTo(map)
-  });
-  operaLayer=operaFrameLayers[operaIndex]||null
+  }
 }
 function setOperaFrame(i){
   if(!operaFrames.length)return;
-  const next=Math.max(0,Math.min(operaFrames.length-1,i));
+  const next=Math.max(0,Math.min(operaFrames.length-1,Number(i)||0));
   if(operaFrameLayers.length!==operaFrames.length)prepareOperaFrameLayers();
-  const prev=operaIndex;
   operaIndex=next;
   operaRange.value=String(operaIndex);
-  if(operaFrameLayers.length){
-    if(prev!==operaIndex&&operaFrameLayers[prev])operaFrameLayers[prev].setOpacity(0);
-    operaLayer=operaFrameLayers[operaIndex];
-    if(operaLayer){
-      if(operaOn&&!map.hasLayer(operaLayer))operaLayer.addTo(map);
-      operaLayer.setOpacity(radarOpacity);
-      if(operaLayer.bringToFront)operaLayer.bringToFront()
-    }
-  }
+  const requested=operaFrameLayers[operaIndex],token=++operaSwapToken;
   const d=operaFrames[operaIndex];
   operaTime.textContent=operaLabel(d);
   operaMeta.innerHTML='OPERA NIMBUS · '+operaLabel(d)+
     '<br>EUMETNET CC BY 4.0 · rain rate · mm/h';
+  if(!requested){schedule3dPrecipSync(20);return}
+  const show=()=>{
+    if(token!==operaSwapToken||!operaOn||requested!==operaFrameLayers[operaIndex])return;
+    if(!requested._radarReady)return;
+    const old=operaDisplayedLayer;
+    requested.bringToFront();
+    requested.setOpacity(radarOpacity);
+    operaDisplayedLayer=requested;
+    operaLayer=requested;
+    if(old&&old!==requested)old.setOpacity(0);
+    operaTime.textContent=operaLabel(d)
+  };
+  if(requested._radarReady)show();
+  else{
+    operaTime.textContent=operaLabel(d)+' · caricamento…';
+    requested.once('load',show);
+    if(operaOn&&!map.hasLayer(requested))requested.addTo(map)
+  }
   schedule3dPrecipSync(20)
 }
 function queueOperaFrame(i){
