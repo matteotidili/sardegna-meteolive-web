@@ -1094,7 +1094,11 @@ const DpcV2Layer=L.GridLayer.extend({
         ox.putImageData(data,0,0);
         const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;
         const crop=256/src.scale,sx=src.ox*crop,sy=src.oy*crop;
-        ctx.drawImage(off,sx,sy,crop,crop,0,0,256,256)
+        ctx.drawImage(off,sx,sy,crop,crop,0,0,256,256);
+        // Conta solo le tile realmente decodificate per il frame corrente.
+        // Una risposta 404 non deve sostituire la carta precedente con trasparenza.
+        if(this._productKey===productKey&&this._frame?.getTime()===frame.getTime())
+          this._successfulTiles=(this._successfulTiles||0)+1
       }catch(e){}
       done(null,canvas)
     };
@@ -1107,7 +1111,13 @@ const RADAR_OPACITY_STORAGE='sardegna-meteolive-radar-opacity-v1';
 function initialRadarOpacity(){try{const v=Number(localStorage.getItem(RADAR_OPACITY_STORAGE));if(Number.isFinite(v)&&v>=.3&&v<=.9)return v}catch(e){}return .65}
 let radarOpacity=initialRadarOpacity();
 function radar3dOpacity(){return Math.round(radarOpacity*.7*100)/100}
-const radarLayer=new DpcV2Layer({pane:'weather',opacity:radarOpacity,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
+const RADAR_LAYER_OPTIONS={pane:'weather',opacity:0,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'};
+const radarLayer=new DpcV2Layer(RADAR_LAYER_OPTIONS);
+const radarBufferLayer=new DpcV2Layer(RADAR_LAYER_OPTIONS);
+// Doppio buffer: non si svuota mai l'immagine che l'utente sta guardando.
+let radarVisibleLayer=null,radarShownFrameKey='',radarPendingFrameLayer=null;
+let radarRenderToken=0,radarFrameDebounce=null,radarFrameTimeout=null,radarPendingLoadHandler=null;
+let radarPlayback=false;
 const cumLayer=new DpcV2Layer({pane:'weather',opacity:.88,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
 const lightningRenderer=L.canvas({pane:'lightning',padding:.7});
 const lightningLayer=L.layerGroup();
@@ -3469,7 +3479,8 @@ const radarSriBtn=document.getElementById('radarSriBtn'),radarSriInfo=document.g
 const radarOpacityInput=document.getElementById('radarOpacity');
 const radarOpacityValue=document.getElementById('radarOpacityValue');
 function applyRadarOpacity(){
-  radarLayer.setOpacity(radarOpacity);
+  for(const layer of [radarLayer,radarBufferLayer])
+    layer.setOpacity(radarOn&&layer===radarVisibleLayer?radarOpacity:0);
   // Gli altri frame OPERA precaricati devono restare completamente invisibili.
   operaFrameLayers.forEach((layer,i)=>layer.setOpacity(operaOn&&i===operaIndex?radarOpacity:0));
   // Il radar in 3D è volutamente ancora più trasparente, senza rifare i raster.
@@ -3500,34 +3511,109 @@ function buildRadarFrames(latest){
 function radarLabel(d){
   return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' ·')
 }
+function cancelRadarFrameLoad(){
+  ++radarRenderToken;
+  if(radarFrameDebounce){clearTimeout(radarFrameDebounce);radarFrameDebounce=null}
+  if(radarFrameTimeout){clearTimeout(radarFrameTimeout);radarFrameTimeout=null}
+  if(radarPendingFrameLayer&&radarPendingLoadHandler)
+    radarPendingFrameLayer.off('load',radarPendingLoadHandler);
+  radarPendingFrameLayer=null;
+  radarPendingLoadHandler=null
+}
+function scheduleRadarPlayback(){
+  if(!radarPlayback||!radarOn)return;
+  if(radarTimer)clearTimeout(radarTimer);
+  radarTimer=setTimeout(()=>{
+    radarTimer=null;
+    if(radarPlayback&&radarOn)setRadarFrame(radarIndex>=radarFrames.length-1?0:radarIndex+1)
+  },750)
+}
+function prepareRadarFrame(productKey,time,key,token){
+  if(!radarOn||token!==radarRenderToken)return;
+  const candidate=radarVisibleLayer===radarLayer?radarBufferLayer:radarLayer;
+  radarPendingFrameLayer=candidate;
+  candidate.setOpacity(0);
+  candidate._successfulTiles=0;
+  const complete=()=>{
+    if(!radarOn||token!==radarRenderToken||radarPendingFrameLayer!==candidate)return;
+    if(radarFrameTimeout){clearTimeout(radarFrameTimeout);radarFrameTimeout=null}
+    candidate.off('load',complete);
+    radarPendingLoadHandler=null;
+    radarPendingFrameLayer=null;
+    if(candidate._successfulTiles<1){
+      radarTime.textContent=radarLabel(time)+' · dati non disponibili';
+      if(radarPlayback)scheduleRadarPlayback();
+      return
+    }
+    // Solo ORA che il frame è pronto sostituiamo la mappa corrente.
+    candidate.bringToFront();
+    candidate.setOpacity(radarOpacity);
+    const previous=radarVisibleLayer;
+    radarVisibleLayer=candidate;
+    radarShownFrameKey=key;
+    radarTime.textContent=radarLabel(time);
+    if(previous&&previous!==candidate&&map.hasLayer(previous))
+      map.removeLayer(previous);
+    if(radarPlayback)scheduleRadarPlayback()
+  };
+  radarPendingLoadHandler=complete;
+  candidate.on('load',complete);
+  candidate.setProductFrame(productKey,time);
+  if(!map.hasLayer(candidate))candidate.addTo(map);
+  radarFrameTimeout=setTimeout(()=>{
+    if(token!==radarRenderToken||radarPendingFrameLayer!==candidate)return;
+    candidate.off('load',complete);
+    radarPendingLoadHandler=null;
+    radarPendingFrameLayer=null;
+    radarFrameTimeout=null;
+    radarTime.textContent=radarLabel(time)+' · caricamento non completato';
+    if(radarPlayback)scheduleRadarPlayback()
+  },8000)
+}
 function setRadarFrame(i){
-  if(!radarFrames.length)return;
-  radarIndex=Math.max(0,Math.min(radarFrames.length-1,i));
+  if(!radarFrames.length||!radarOn)return;
+  radarIndex=Math.max(0,Math.min(radarFrames.length-1,Number(i)||0));
   radarRange.value=String(radarIndex);
-  const d=radarFrames[radarIndex];
-  radarLayer.setProductFrame(radarProductKey,d);
-  radarTime.textContent=radarLabel(d);
+  const d=radarFrames[radarIndex],key=radarProductKey+'|'+d.getTime();
+  cancelRadarFrameLoad();
+  if(radarShownFrameKey===key){
+    radarTime.textContent=radarLabel(d);
+    if(radarPlayback)scheduleRadarPlayback()
+  }else{
+    radarTime.textContent=radarLabel(d)+' · caricamento…';
+    const token=radarRenderToken,productKey=radarProductKey;
+    // Durante lo scrub rapido carichiamo solo l'ultima richiesta.
+    radarFrameDebounce=setTimeout(()=>{
+      radarFrameDebounce=null;
+      prepareRadarFrame(productKey,d,key,token)
+    },55)
+  }
   schedule3dPrecipSync(60)
 }
 async function loadRadarTimeline(){
   if(!radarOn)return;
   const token=++radarLoadToken,requestedProduct=radarProductKey;
   const apiLatest=await latestProductTime(requestedProduct);
-  // Una richiesta precedente non deve sostituire la timeline di un altro prodotto.
+  // Una risposta in ritardo non deve sovrascrivere un altro prodotto.
   if(token!==radarLoadToken||!radarOn||radarProductKey!==requestedProduct)return;
   const latest=apiLatest||fallbackRadarLatest();
   buildRadarFrames(latest);
   setRadarFrame(radarFrames.length-1)
 }
 function stopRadarAnimation(){
-  if(radarTimer){clearInterval(radarTimer);radarTimer=null}
+  radarPlayback=false;
+  if(radarTimer){clearTimeout(radarTimer);radarTimer=null}
   radarPlay.textContent='▶';radarPlay.classList.remove('active');radarPlay.title='Riproduci'
 }
 function startRadarAnimation(){
-  if(!radarFrames.length)return;
-  if(radarIndex>=radarFrames.length-1)setRadarFrame(0);
-  radarTimer=setInterval(()=>{setRadarFrame(radarIndex>=radarFrames.length-1?0:radarIndex+1)},900);
-  radarPlay.textContent='Ⅱ';radarPlay.classList.add('active');radarPlay.title='Pausa'
+  if(!radarFrames.length||!radarOn)return;
+  stopRadarAnimation();
+  radarPlayback=true;
+  radarPlay.textContent='Ⅱ';radarPlay.classList.add('active');radarPlay.title='Pausa';
+  if(radarIndex>=radarFrames.length-1)
+    setRadarFrame(0);
+  else if(!radarPendingFrameLayer&&!radarFrameDebounce)
+    scheduleRadarPlayback()
 }
 function setRadarState(on,productKey=radarProductKey){
   const nextProduct=productKey==='SRI'?'SRI':'VMI';
@@ -3540,15 +3626,18 @@ function setRadarState(on,productKey=radarProductKey){
   radarOn=on;
   if(on){
     if(productChanged)stopRadarAnimation();
-    // Aggiorna il tipo del raster immediatamente: non lasciare sullo schermo
-    // un VMI precedente etichettato per errore come SRI (o viceversa).
-    radarLayer.setProductFrame(radarProductKey,radarFrames[radarIndex]||fallbackRadarLatest());
-    if(!map.hasLayer(radarLayer))radarLayer.addTo(map);
+    cancelRadarFrameLoad();
     radarTimeline.classList.add('on');
     loadRadarTimeline()
   }else{
     stopRadarAnimation();
-    if(map.hasLayer(radarLayer))map.removeLayer(radarLayer);
+    cancelRadarFrameLoad();
+    for(const layer of [radarLayer,radarBufferLayer]){
+      if(map.hasLayer(layer))map.removeLayer(layer);
+      layer.setOpacity(0)
+    }
+    radarVisibleLayer=null;
+    radarShownFrameKey='';
     radarTimeline.classList.remove('on')
   }
   for(const [button,active] of [[radarBtn,on&&radarProductKey==='VMI'],[radarSriBtn,on&&radarProductKey==='SRI']]){
@@ -3568,7 +3657,7 @@ radarBtn.onclick=()=>setRadarState(!(radarOn&&radarProductKey==='VMI'),'VMI');
 radarSriBtn.onclick=()=>setRadarState(!(radarOn&&radarProductKey==='SRI'),'SRI');
 document.getElementById('radarPrev').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex-1)};
 document.getElementById('radarNext').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex+1)};
-radarPlay.onclick=()=>radarTimer?stopRadarAnimation():startRadarAnimation();
+radarPlay.onclick=()=>radarPlayback?stopRadarAnimation():startRadarAnimation();
 radarRange.oninput=()=>{stopRadarAnimation();setRadarFrame(Number(radarRange.value))};
 // Precipitazione oraria AROME HD 0,01° da GRIB2 ufficiali Météo-France.
 // Gli accumuli da H0 sono differenziati tra scadenze consecutive nel collector.
