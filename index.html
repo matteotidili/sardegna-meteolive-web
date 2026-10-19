@@ -102,6 +102,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
 .badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1;border:0;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;font-variant-numeric:tabular-nums}.badge.suspect{opacity:.7}
+.cedoc-badge{display:flex;justify-content:center;align-items:center;box-sizing:border-box;min-width:35px;height:27px;padding:2px 4px;border:2px solid #f6faff;border-radius:12px;color:#fff;font:900 12px Inter,Arial,sans-serif;text-shadow:0 1px 2px #000b;box-shadow:0 1px 6px #001e2bae;white-space:nowrap}.cedoc-icon{background:none;border:0}.cedoc-popup{font:12px/1.6 Inter,Arial,sans-serif}.cedoc-popup strong{font-weight:850}.cedoc-popup .cedoc-source{color:#496b83;font-size:10px}.cedoc-popup a{color:#076a9e}.cedoc-status-stale{color:#f0c176}
 .station-marker-number{position:absolute;left:50%;top:50%;display:block;white-space:nowrap;font:950 16px/1 "Arial Narrow",Arial,Inter,system-ui,sans-serif;letter-spacing:-.05em;font-variant-numeric:tabular-nums;transform:translate(-50%,-50%) scaleX(.81);transform-origin:center;pointer-events:none}
 .badge.light-ink{color:#10202b;text-shadow:0 1px 0 #ffffff9c}
 .badge.dark-ink{color:#fff;text-shadow:0 1px 2px #000e,0 0 2px #000c}
@@ -590,6 +591,8 @@ header .live{margin-left:0}
 
     <button class="btn direct-layer-toggle" id="hydroBtn">Idrometri ARPAS <span>OFF</span></button>
     <div id="hydroCounter" class="counter direct-layer-counter">Rete fiduciaria · soft real time</div>
+    <button class="btn direct-layer-toggle" id="cedocBtn" aria-pressed="false">Pluviometri CEDOC · 48h <span>OFF</span></button>
+    <div id="cedocCounter" class="counter direct-layer-counter">Regione Sardegna · accumulo sulle 48 ore · <a href="https://www.sardegnacedoc.it/idrografico/temporeale" target="_blank" rel="noopener noreferrer">Fonte CEDOC</a></div>
 
     <div class="accordion-item" data-acc-item="precip">
       <button class="accordion-head" type="button" data-acc="precip" aria-expanded="false">
@@ -1264,7 +1267,7 @@ function hide3dPrecipLayer(id){
 }
 function raise3dOperationalLayers(){
   if(!map3d||!map3dStyleReady)return;
-  for(const id of ['hydro-3d-points','stations-3d-points','stations-3d-labels','lightning-3d-points']){
+  for(const id of ['hydro-3d-points','cedoc-3d-points','cedoc-3d-labels','stations-3d-points','stations-3d-labels','lightning-3d-points']){
     if(map3d.getLayer(id)){
       try{map3d.moveLayer(id)}catch(e){}
     }
@@ -1574,6 +1577,7 @@ function ensure3dDataLayers(){
   update3dStations();
   update3dLightning();
   update3dHydro();
+  update3dCedoc();
   sync3dPrecipLayers();
   syncHistoricSubregions3d()
 }
@@ -2287,6 +2291,134 @@ function setHydroState(on){
 }
 document.getElementById('hydroBtn').onclick=()=>setHydroState(!hydroOn);
 
+// CEDOC è una rete georeferenziata distinta: il totale 48h NON si somma
+// né si confonde con il cumulato giornaliero DPCN/WeatherLink.
+const CEDOC_META='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/cedoc.json';
+const CEDOC_ATTR='Pluviometria 48h © Regione Autonoma della Sardegna – CEDOC / ADIS · dati automatici non validati ARPAS';
+const cedocLayer=L.layerGroup();
+const cedocBtn=document.getElementById('cedocBtn');
+const cedocCounter=document.getElementById('cedocCounter');
+let cedocOn=false,cedocStations=[],cedocLastLoad=0,cedocLoading=false,cedocStatus='unavailable',cedocAttribution=false;
+function cedocColor(mm){
+  if(mm>=150)return '#b02dab';
+  if(mm>=100)return '#d13142';
+  if(mm>=60)return '#f27927';
+  if(mm>=30)return '#d1aa17';
+  if(mm>=15)return '#3baa81';
+  if(mm>0)return '#248dc2';
+  return '#667789'
+}
+function cedocNumber(v){
+  return v<10?v.toFixed(1):Math.round(v).toString()
+}
+function cedocEscape(value){
+  return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+}
+function cedocLiveStations(raw){
+  if(!raw||raw.status!=='ok'||!Array.isArray(raw.stations))return [];
+  const now=Date.now(),source=Date.parse(raw.source_time||'');
+  if(!Number.isFinite(source)||source>now+360000||now-source>4*3600000)return [];
+  return raw.stations.filter(s=>{
+    const t=Date.parse(s.last||'');
+    return Number.isFinite(t)&&t<=now+360000&&now-t<=4*3600000&&
+      Number.isFinite(s.lat)&&Number.isFinite(s.lon)&&
+      s.lat>=38.6&&s.lat<=41.5&&s.lon>=7.5&&s.lon<=10.4&&
+      Number.isFinite(s.rain_48h)&&s.rain_48h>=0&&s.rain_48h<=1800
+  })
+}
+function cedocLegendHtml(){
+  if(!cedocOn||!cedocStations.length)return '';
+  const stops=[['0','#667789'],['0–15','#248dc2'],['15–30','#3baa81'],['30–60','#d1aa17'],['60–100','#f27927'],['100–150','#d13142'],['150+','#b02dab']];
+  return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · pioggia cumulata 48h · mm</div>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:9px">'+
+    stops.map(([v,c])=>'<span style="display:flex;align-items:center;gap:3px"><i style="background:'+c+';width:9px;height:9px;border-radius:50%;display:inline-block"></i>'+v+'</span>').join('')+
+    '</div><div class="map-legend-note">Accumulo 48 ore; diverso dalla pioggia giornaliera. Non validato ARPAS.</div></div>'
+}
+function renderCedocLayer(){
+  cedocLayer.clearLayers();
+  if(cedocOn){
+    for(const p of cedocStations){
+      const value=p.rain_48h;
+      const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge" style="background:'+cedocColor(value)+'">'+cedocNumber(value)+'</span>',iconSize:[40,27],iconAnchor:[20,13]});
+      const stamp=new Date(p.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
+      L.marker([p.lat,p.lon],{pane:'hydro',icon,zIndexOffset:80})
+        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div><b>'+cedocNumber(value)+' mm</b> nelle ultime 48 ore</div><div>Rilevamento: '+stamp+'</div><div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
+        .addTo(cedocLayer)
+    }
+    if(!map.hasLayer(cedocLayer))cedocLayer.addTo(map)
+  }else if(map.hasLayer(cedocLayer))map.removeLayer(cedocLayer);
+  update3dCedoc();
+  legend()
+}
+function update3dCedoc(){
+  if(!map3d||!map3dStyleReady)return;
+  if(!map3d.getSource('cedoc-3d')){
+    map3d.addSource('cedoc-3d',{type:'geojson',data:fc()});
+    map3d.addLayer({id:'cedoc-3d-points',type:'circle',source:'cedoc-3d',
+      paint:{'circle-radius':18,'circle-color':['get','color'],
+        'circle-stroke-color':'#ffffff','circle-stroke-width':1.5,'circle-opacity':.95}});
+    map3d.addLayer({id:'cedoc-3d-labels',type:'symbol',source:'cedoc-3d',
+      layout:{'text-field':['get','label'],'text-size':11,'text-allow-overlap':true,'text-ignore-placement':true,
+        'text-pitch-alignment':'viewport'},
+      paint:{'text-color':'#ffffff','text-halo-color':'#142735','text-halo-width':1.5}});
+    map3d.on('click','cedoc-3d-points',e=>{
+      const feature=e.features&&e.features[0];if(!feature)return;
+      const p=feature.properties;
+      new maplibregl.Popup({closeButton:true,offset:20}).setLngLat(feature.geometry.coordinates)
+        .setText(String(p.name)+' – '+String(p.label)+' mm / 48h – CEDOC').addTo(map3d)
+    })
+  }
+  const features=cedocOn?cedocStations.map(p=>({
+    type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
+    properties:{name:p.name,label:cedocNumber(p.rain_48h),color:cedocColor(p.rain_48h)}
+  })):[];
+  map3d.getSource('cedoc-3d').setData(fc(features));
+  raise3dOperationalLayers()
+}
+async function loadCedocData(force=false){
+  if(!cedocOn||cedocLoading||(!force&&Date.now()-cedocLastLoad<15*60000))return;
+  cedocLoading=true;
+  try{
+    const response=await fetch(CEDOC_META+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)});
+    if(!response.ok)throw Error('HTTP '+response.status);
+    const data=await response.json();
+    cedocStatus=data.status||'unavailable';
+    cedocStations=cedocLiveStations(data);
+    cedocLastLoad=Date.now();
+    if(cedocStations.length){
+      const ts=new Date(data.source_time).toLocaleString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+      cedocCounter.textContent='CEDOC · '+cedocStations.length+' pluviometri verificati · riferimento '+ts+' · accumuli 48h';
+    }else{
+      cedocCounter.textContent='CEDOC · dati non aggiornati o non disponibili: nessun valore mostrato';
+      cedocCounter.classList.add('cedoc-status-stale')
+    }
+  }catch(e){
+    cedocStations=[];
+    cedocStatus='unavailable';
+    cedocCounter.textContent='CEDOC · collegamento non disponibile, dati nascosti';
+  }finally{
+    cedocLoading=false;
+    if(cedocStations.length)cedocCounter.classList.remove('cedoc-status-stale');
+    renderCedocLayer()
+  }
+}
+function setCedocState(on){
+  cedocOn=!!on;
+  cedocBtn.classList.toggle('active',cedocOn);
+  cedocBtn.setAttribute('aria-pressed',String(cedocOn));
+  cedocBtn.lastElementChild.textContent=cedocOn?'ON':'OFF';
+  if(cedocOn){
+    if(!cedocAttribution){map.attributionControl.addAttribution(CEDOC_ATTR);cedocAttribution=true}
+    loadCedocData(true)
+  }else{
+    if(cedocAttribution){map.attributionControl.removeAttribution(CEDOC_ATTR);cedocAttribution=false}
+    renderCedocLayer()
+  }
+}
+cedocBtn.onclick=()=>setCedocState(!cedocOn);
+setInterval(()=>{if(cedocOn&&!document.hidden)loadCedocData(true)},15*60*1000);
+
 function legend(){
   const el=document.getElementById('mapLegends');
   const stationEl=document.getElementById('stationMapLegend');
@@ -2294,7 +2426,7 @@ function legend(){
   const stationHtml=stationLegendHtml();
   // Scala precipitazioni sopra la scala delle stazioni, nello stesso riquadro.
   const precipHtml=radarLegendHtml()+operaLegendHtml()+cumLegendHtml()+aromeLegendHtml();
-  const html=hydroLegendHtml()+frpLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
+  const html=cedocLegendHtml()+hydroLegendHtml()+frpLegendHtml()+meteoalarmLegendHtml()+lightningLegendHtml();
   const mobile=window.innerWidth<=800;
   const hasTimeline=activeTimelineElements().length>0;
 
