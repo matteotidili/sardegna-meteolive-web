@@ -103,7 +103,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
 .badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1;border:0;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;font-variant-numeric:tabular-nums}.badge.suspect{opacity:.7}
-.cedoc-badge{display:flex;justify-content:center;align-items:center;box-sizing:border-box;min-width:35px;height:27px;padding:2px 4px;border:2px solid #f6faff;border-radius:12px;color:#fff;font:900 12px Inter,Arial,sans-serif;text-shadow:0 1px 2px #000b;box-shadow:0 1px 6px #001e2bae;white-space:nowrap}.cedoc-icon{background:none;border:0}.cedoc-popup{font:12px/1.6 Inter,Arial,sans-serif}.cedoc-popup strong{font-weight:850}.cedoc-popup .cedoc-source{color:#496b83;font-size:10px}.cedoc-popup a{color:#076a9e}.cedoc-status-stale{color:#f0c176}
+.cedoc-badge{display:flex;justify-content:center;align-items:center;box-sizing:border-box;min-width:35px;height:27px;padding:2px 4px;border:2px solid #f6faff;border-radius:12px;color:#fff;font:900 12px Inter,Arial,sans-serif;text-shadow:0 1px 2px #000b;box-shadow:0 1px 6px #001e2bae;white-space:nowrap}.cedoc-icon{background:none;border:0}.cedoc-popup{font:12px/1.6 Inter,Arial,sans-serif}.cedoc-popup strong{font-weight:850}.cedoc-popup .cedoc-source{color:#496b83;font-size:10px}.cedoc-popup a{color:#076a9e}.cedoc-status-stale{color:#f0c176}.cedoc-badge.cedoc-delayed{border-color:#ffc068;border-style:dashed;opacity:.7}
 .station-marker-number{position:absolute;left:50%;top:50%;display:block;white-space:nowrap;font:950 16px/1 "Arial Narrow",Arial,Inter,system-ui,sans-serif;letter-spacing:-.05em;font-variant-numeric:tabular-nums;transform:translate(-50%,-50%) scaleX(.81);transform-origin:center;pointer-events:none}
 .badge.light-ink{color:#10202b;text-shadow:0 1px 0 #ffffff9c}
 .badge.dark-ink{color:#fff;text-shadow:0 1px 2px #000e,0 0 2px #000c}
@@ -2425,11 +2425,12 @@ function renderCedocLayer(){
     for(const p of cedocStations){
       const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
       if(!Number.isFinite(value))continue;
-      const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge" style="background:'+cedocColor(value)+'">'+cedocNumber(value)+'</span>',iconSize:[40,27],iconAnchor:[20,13]});
+      const ageMin=(Date.now()-Date.parse(p.last))/60000,delayed=ageMin>90;
       const stamp=new Date(p.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge'+(delayed?' cedoc-delayed':'')+'" style="background:'+cedocColor(value)+'" title="Rilevamento: '+stamp+'">'+cedocNumber(value)+'</span>',iconSize:[40,27],iconAnchor:[20,13]});
       const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
       L.marker([p.lat,p.lon],{pane:'cedoc',icon,zIndexOffset:80})
-        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div><b>'+cedocNumber(value)+' mm</b> '+(cur==='rain_48h'?'nelle ultime 48 ore':'accumulati oggi')+'</div><div>Rilevamento: '+stamp+'</div><div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
+        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div><b>'+cedocNumber(value)+' mm</b> '+(cur==='rain_48h'?'nelle ultime 48 ore':'accumulati oggi')+'</div><div>Rilevamento: '+stamp+'</div>'+(delayed?'<div style="color:#b16a10;font-weight:800">Attenzione: misura vecchia di oltre 90 minuti</div>':'')+'<div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
         .addTo(cedocLayer)
     }
     if(!map.hasLayer(cedocLayer))cedocLayer.addTo(map)
@@ -2443,7 +2444,8 @@ function update3dCedoc(){
     map3d.addSource('cedoc-3d',{type:'geojson',data:fc()});
     map3d.addLayer({id:'cedoc-3d-points',type:'circle',source:'cedoc-3d',
       paint:{'circle-radius':18,'circle-color':['get','color'],
-        'circle-stroke-color':'#ffffff','circle-stroke-width':1.5,'circle-opacity':.95}});
+        'circle-stroke-color':['case',['==',['get','delayed'],1],'#ffbf57','#ffffff'],
+        'circle-stroke-width':1.5,'circle-opacity':['case',['==',['get','delayed'],1],.55,.95]}});
     map3d.addLayer({id:'cedoc-3d-labels',type:'symbol',source:'cedoc-3d',
       layout:{'text-field':['get','label'],'text-size':11,'text-allow-overlap':true,'text-ignore-placement':true,
         'text-pitch-alignment':'viewport'},
@@ -2460,7 +2462,8 @@ function update3dCedoc(){
     if(!Number.isFinite(value))return null;
     return {
       type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-      properties:{name:p.name,label:cedocNumber(value),color:cedocColor(value)}
+      properties:{name:p.name,label:cedocNumber(value),color:cedocColor(value),
+        delayed:Date.now()-Date.parse(p.last)>90*60000?1:0}
     }
   }).filter(Boolean):[];
   map3d.getSource('cedoc-3d').setData(fc(features));
@@ -2492,7 +2495,10 @@ async function loadCedocData(force=false){
     cedocLastLoad=Date.now();
     if(cedocStations.length){
       const ts=new Date(data.source_time).toLocaleString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
-      cedocCounter.textContent='CEDOC · '+cedocStations.length+' pluviometri verificati · riferimento '+ts+' · accumuli giornalieri';
+      const recent=cedocStations.filter(st=>Date.now()-Date.parse(st.last)<=90*60000).length;
+      const delayed=cedocStations.length-recent;
+      const acquired=new Date(data.generated_at).toLocaleTimeString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit'});
+      cedocCounter.textContent='CEDOC · '+cedocStations.length+' pluviometri · '+recent+' recenti, '+delayed+' con rilevamento oltre 90 min · ultimo rilevamento '+ts+' · acquisiti '+acquired;
       cedocBtn.firstChild.textContent='Pluviometri CEDOC · oggi ('+cedocStations.length+') ';
       cedocStatusHelp.style.display='none';
     }else{
@@ -2534,7 +2540,8 @@ cedocBtn.onclick=()=>setCedocState(!cedocOn);
 // Leggi metadati e conteggio fin dall'apertura dell'app; il layer resta OFF
 // finché l'utente non lo attiva, per non sovrapporre reti pluviometriche.
 loadCedocData(true);
-setInterval(()=>{if(!document.hidden)loadCedocData(true)},30*60*1000);
+setInterval(()=>{if(!document.hidden)loadCedocData(true)},5*60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCedocData(true)});
 
 function legend(){
   const el=document.getElementById('mapLegends');
