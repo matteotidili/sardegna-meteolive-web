@@ -630,7 +630,7 @@ header .live{margin-left:0}
         <div class="layer-note" id="radarSriInfo">SRI · intensità di precipitazione stimata al suolo (mm/h) · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
-        <div class="radar-opacity-control"><label class="radar-opacity-label" for="radarOpacity">Opacità radar <output id="radarOpacityValue" for="radarOpacity">100%</output></label><input type="range" id="radarOpacity" min="30" max="100" step="5" value="100" aria-label="Opacità radar DPC VMI, SRI, cumulate ed Europa"><div class="radar-opacity-help">I prodotti Radar-DPC sono visualizzati direttamente dalle tile ufficiali, senza ricolorazione. Ridurre l'opacità modifica l'aspetto dei colori per effetto dello sfondo.</div><button type="button" class="radar-restore-btn" id="radarOfficialOpacity">Ripristina visualizzazione originale DPC · 100%</button></div>
+        <div class="radar-opacity-control"><label class="radar-opacity-label" for="radarOpacity">Opacità radar <output id="radarOpacityValue" for="radarOpacity">100%</output></label><input type="range" id="radarOpacity" min="30" max="100" step="5" value="100" aria-label="Opacità radar DPC VMI, SRI, cumulate ed Europa"><div class="radar-opacity-help">Palette radar originale: il nero di fondo (assenza di eco) è trasparente per non coprire la cartografia. Ridurre l'opacità attenua i colori degli echi.</div><button type="button" class="radar-restore-btn" id="radarOfficialOpacity">Ripristina visualizzazione originale DPC · 100%</button></div>
         <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
         <div class="layer-note" id="cumInfo">Accumulo precipitazione
           <div class="cum-switch">
@@ -1069,9 +1069,38 @@ function dpcTileUrl(productKey,time,z,x,y){
   const hh=String(d.getUTCHours()).padStart(2,'0'),mi=String(d.getUTCMinutes()).padStart(2,'0');
   return RADAR_V2_TILES+'/'+p.path+'/'+yy+'/'+mo+'/'+da+'/'+hh+mi+'/'+z+'/'+x+'/'+y+'/'+p.file+'.webp'
 }
-// Radar-DPC v2: i WebP del bucket ufficiale contengono già l'immagine
-// resa con la simbologia DPC. Non trattare il canale rosso come dBZ o mm/h.
-// Qualsiasi ricolorazione locale creerebbe una rappresentazione non ufficiale.
+// I WebP DPC sono già rappresentati nella palette pubblicata: NON convertire
+// il canale rosso in dBZ/mm/h e NON ricolorare il prodotto.
+// Nel raster WebP il fondo senza eco radar può essere nero opaco: la
+// visualizzazione nativa sul sito DPC tratta tale area come fondo mappa.
+// Quando si usa drawImage su un canvas Leaflet/MapLibre, il nero diventa
+// invece uno strato pieno che nasconde la cartografia (bug evidente su iOS).
+// Qui correggiamo ESCLUSIVAMENTE la trasparenza dei pixel neri/neutri,
+// lasciando INVARIATI RGB e intensità di ogni pixel colorato.
+function dpcRemoveNoEchoBackground(ctx,w=256,h=256){
+  const image=ctx.getImageData(0,0,w,h);
+  const p=image.data;
+  let changed=false,visible=false;
+  for(let i=0;i<p.length;i+=4){
+    if(p[i+3]===0)continue;
+    const r=p[i],g=p[i+1],b=p[i+2];
+    const max=Math.max(r,g,b),min=Math.min(r,g,b);
+    // Nero netto (con piccoli errori di compressione WebP).
+    if(max<=9){
+      p[i+3]=0;
+      changed=true;
+    }else if(max<=22&&max-min<=8){
+      // Bordo antialias di nero quasi neutro; evita un alone nero.
+      p[i+3]=Math.round(p[i+3]*(max-9)/13);
+      changed=true;
+      if(p[i+3]>0)visible=true
+    }else{
+      visible=true
+    }
+  }
+  if(changed)ctx.putImageData(image,0,0);
+  return visible
+}
 function dpcSourceTile(coords){
   const maxNative=7;
   if(coords.z<=maxNative)return {z:coords.z,x:coords.x,y:coords.y,scale:1,ox:0,oy:0};
@@ -1112,10 +1141,11 @@ const DpcV2Layer=L.GridLayer.extend({
         const ctx=canvas.getContext('2d');
         ctx.imageSmoothingEnabled=false;
         const crop=256/src.scale,sx=src.ox*crop,sy=src.oy*crop;
-        // Il canvas conserva esattamente RGB + alfa della tile ufficiale.
+        // Il canvas conserva i colori originali e rimuove soltanto il fondo
+        // nero (no echo) che altrimenti oscura tutta la Sardegna.
         ctx.drawImage(img,sx,sy,crop,crop,0,0,256,256);
-        // Conta solo le tile realmente decodificate per il frame corrente.
-        // Una risposta 404 non deve sostituire la carta precedente con trasparenza.
+        dpcRemoveNoEchoBackground(ctx,256,256);
+        // Il successo indica decodifica, anche se la tile è priva di eco.
         if(this._productKey===productKey&&this._frame?.getTime()===frame.getTime())
           this._successfulTiles=(this._successfulTiles||0)+1
       }catch(e){}
@@ -1209,8 +1239,9 @@ async function colorizeDpcTile3d(productKey,time,z,x,y){
   canvas.width=256;canvas.height=256;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   try{
-    // VMI, SRI e cumulate: immagine WebP originale, senza color map locale.
+    // Stessa maschera no-echo della mappa 2D, senza color map locale.
     ctx.drawImage(img,0,0,256,256);
+    dpcRemoveNoEchoBackground(ctx,256,256);
     return canvas
   }catch(e){
     return null
@@ -1950,8 +1981,8 @@ function radarLegendHtml(){
     'Radar DPC · VMI · riflettività massima (dBZ)':
     'Radar DPC · SRI · intensità al suolo (mm/h)';
   return '<div class="map-legend-row"><div class="map-legend-title">'+title+'</div>'+
-    '<div class="map-legend-note">Colori delle tile originali della Protezione Civile, senza ricolorazione o intensificazione. '+
-    'Per confrontarli con il sito ufficiale usare opacità radar al 100%. '+
+    '<div class="map-legend-note">Colori RGB originali delle tile Radar-DPC senza intensificazione; il fondo nero senza echi è reso trasparente. '+
+    'Per confrontare i colori con il sito ufficiale usare opacità radar al 100%. '+
     '<a href="https://radar.protezionecivile.it/" target="_blank" rel="noopener noreferrer">Legenda e mappa ufficiale Radar-DPC</a>.</div></div>'
 }
 function operaLegendHtml(){
