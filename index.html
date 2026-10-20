@@ -5015,8 +5015,13 @@ const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-da
 let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,lastRain48Data=null,observationsLoading=false;
 function dataStampLabel(d,label){
   if(!d?.generated_at)return label+' —';
-  const t=new Date(d.generated_at),age=(Date.now()-t.getTime())/60000;
+  const t=new Date(d.generated_at),age=Math.max(0,(Date.now()-t.getTime())/60000);
   const stamp=t.toLocaleTimeString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit'});
+  // DPCN: evidenziamo già 30 minuti di ritardo, non dopo 90.
+  // Questo orario è quello dell'osservazione più recente, NON del download.
+  if(label==='DPCN')
+    return label+' '+(d.stations?.length||0)+' · '+stamp+
+      (age>=30?' · '+Math.floor(age)+' min fa ⚠':'');
   return label+' '+(d.stations?.length||0)+' · '+stamp+(age>90?' ⚠':'')
 }
 async function loadObservations(){
@@ -5064,7 +5069,15 @@ async function loadObservations(){
     document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'))
   }
   const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));if(wu)parts.push(dataStampLabel(wu,'WU'));if(wls.length)parts.push(dataStampLabel(wl,'WL'));
-  document.getElementById('counter').textContent=parts.length?parts.join(' · '):'Nessuna rete disponibile';
+  const counter=document.getElementById('counter');
+  counter.textContent=parts.length?parts.join(' · '):'Nessuna rete disponibile';
+  // La sorgente può essere in ritardo anche quando il JSON è stato acquisito oggi.
+  // Separiamo perciò l'ora della misura dalla verifica MeteoHub.
+  if(dpcn?.generated_at){
+    const clock=ts=>new Date(ts).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    counter.title='DPCN · ultima osservazione: '+clock(dpcn.generated_at)+
+      (dpcn.checked_at?' · ultima acquisizione MeteoHub: '+clock(dpcn.checked_at):'');
+  }else counter.removeAttribute('title');
   if(stations.length)build();else document.getElementById('status').textContent='Errore caricamento dati stazioni';
   }finally{observationsLoading=false}
 }
