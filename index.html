@@ -630,7 +630,7 @@ header .live{margin-left:0}
         <div class="layer-note" id="radarSriInfo">SRI · intensità di precipitazione stimata al suolo (mm/h) · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
-        <div class="radar-opacity-control"><label class="radar-opacity-label" for="radarOpacity">Opacità radar <output id="radarOpacityValue" for="radarOpacity">100%</output></label><input type="range" id="radarOpacity" min="30" max="100" step="5" value="100" aria-label="Opacità radar DPC VMI, SRI, cumulate ed Europa"><div class="radar-opacity-help">Palette radar originale: il nero di fondo (assenza di eco) è trasparente per non coprire la cartografia. Ridurre l'opacità attenua i colori degli echi.</div><button type="button" class="radar-restore-btn" id="radarOfficialOpacity">Ripristina visualizzazione originale DPC · 100%</button></div>
+        <div class="radar-opacity-control"><label class="radar-opacity-label" for="radarOpacity">Opacità radar <output id="radarOpacityValue" for="radarOpacity">100%</output></label><input type="range" id="radarOpacity" min="30" max="100" step="5" value="100" aria-label="Opacità radar DPC VMI, SRI, cumulate ed Europa"><div class="radar-opacity-help">Decodifica cromatica VMI/SRI e nero senza eco trasparente. Per la scala numerica originale fare riferimento al Radar-DPC ufficiale.</div><button type="button" class="radar-restore-btn" id="radarOfficialOpacity">Opacità radar 100%</button></div>
         <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
         <div class="layer-note" id="cumInfo">Accumulo precipitazione
           <div class="cum-switch">
@@ -1069,36 +1069,65 @@ function dpcTileUrl(productKey,time,z,x,y){
   const hh=String(d.getUTCHours()).padStart(2,'0'),mi=String(d.getUTCMinutes()).padStart(2,'0');
   return RADAR_V2_TILES+'/'+p.path+'/'+yy+'/'+mo+'/'+da+'/'+hh+mi+'/'+z+'/'+x+'/'+y+'/'+p.file+'.webp'
 }
-// I WebP DPC sono già rappresentati nella palette pubblicata: NON convertire
-// il canale rosso in dBZ/mm/h e NON ricolorare il prodotto.
-// Nel raster WebP il fondo senza eco radar può essere nero opaco: la
-// visualizzazione nativa sul sito DPC tratta tale area come fondo mappa.
-// Quando si usa drawImage su un canvas Leaflet/MapLibre, il nero diventa
-// invece uno strato pieno che nasconde la cartografia (bug evidente su iOS).
-// Qui correggiamo ESCLUSIVAMENTE la trasparenza dei pixel neri/neutri,
-// lasciando INVARIATI RGB e intensità di ogni pixel colorato.
-function dpcRemoveNoEchoBackground(ctx,w=256,h=256){
-  const image=ctx.getImageData(0,0,w,h);
-  const p=image.data;
-  let changed=false,visible=false;
-  for(let i=0;i<p.length;i+=4){
-    if(p[i+3]===0)continue;
-    const r=p[i],g=p[i+1],b=p[i+2];
-    const max=Math.max(r,g,b),min=Math.min(r,g,b);
-    // Nero netto (con piccoli errori di compressione WebP).
-    if(max<=9){
-      p[i+3]=0;
-      changed=true;
-    }else if(max<=22&&max-min<=8){
-      // Bordo antialias di nero quasi neutro; evita un alone nero.
-      p[i+3]=Math.round(p[i+3]*(max-9)/13);
-      changed=true;
-      if(p[i+3]>0)visible=true
-    }else{
-      visible=true
+// Alcuni WebP DPC VMI/SRI portano il valore radar nella banda rossa
+// (immagine nero/rossa) e il browser non deve mostrarli come colori RGB.
+// Scala qualitativa in cinque classi con progressione conforme a Radar-DPC.
+// Non essendo disponibile la LUT ufficiale, non attribuiamo valori numerici
+// di riflettività specifici a queste transizioni cromatiche.
+const DPC_VMI_BANDS=[
+  [0,[126,209,246]],[.18,[70,173,225]],[.32,[47,172,120]],
+  [.45,[133,213,72]],[.57,[246,223,57]],
+  [.70,[244,154,47]],[.84,[225,72,45]],[1,[178,38,51]]
+];
+const DPC_SRI_BANDS=[
+  [0,[125,207,246]],[.18,[70,176,229]],[.33,[54,188,125]],
+  [.47,[151,216,75]],[.60,[246,221,60]],
+  [.73,[248,154,43]],[.86,[229,70,60]],[1,[142,55,174]]
+];
+function dpcPaletteAt(t,bands){
+  const x=Math.min(1,Math.max(0,t));
+  for(let j=1;j<bands.length;j++){
+    const lo=bands[j-1],hi=bands[j];
+    if(x<=hi[0]){
+      const k=(x-lo[0])/(hi[0]-lo[0]);
+      return lo[1].map((n,i)=>Math.round(n+(hi[1][i]-n)*k))
     }
   }
-  if(changed)ctx.putImageData(image,0,0);
+  return bands[bands.length-1][1]
+}
+function dpcDecodeTile(ctx,productKey,w=256,h=256){
+  const image=ctx.getImageData(0,0,w,h),pix=image.data;
+  let active=0,redLike=0;
+  for(let i=0;i<pix.length;i+=4){
+    if(pix[i+3]===0)continue;
+    const r=pix[i],g=pix[i+1],b=pix[i+2];
+    if(Math.max(r,g,b)<=22)continue;
+    active++;
+    if(r>30&&g<Math.max(18,r*.20)&&b<Math.max(18,r*.20))redLike++
+  }
+  // Evita di ricolorare un WebP già colorato, se il formato cambia.
+  const encoded=(productKey==='VMI'||productKey==='SRI')&&active>=12&&redLike/active>.7;
+  const palette=productKey==='VMI'?DPC_VMI_BANDS:DPC_SRI_BANDS;
+  let dirty=false,visible=false;
+  for(let i=0;i<pix.length;i+=4){
+    const alpha=pix[i+3];if(alpha===0)continue;
+    const r=pix[i],g=pix[i+1],b=pix[i+2];
+    const max=Math.max(r,g,b),min=Math.min(r,g,b);
+    if(max<=9){pix[i+3]=0;dirty=true;continue}
+    if(max<=22&&max-min<=8){
+      pix[i+3]=Math.round(alpha*Math.max(0,max-9)/13);
+      dirty=true
+    }else if(encoded){
+      // La componente R codifica la forza relativa dell'eco. Nessuna
+      // intensificazione arbitraria dei nuclei: trasforma in palette.
+      const c=dpcPaletteAt((r-12)/243,palette);
+      pix[i]=c[0];pix[i+1]=c[1];pix[i+2]=c[2];
+      pix[i+3]=Math.round(alpha*Math.min(1,Math.max(.36,(r-12)/65)));
+      dirty=true
+    }
+    if(pix[i+3]>0)visible=true
+  }
+  if(dirty)ctx.putImageData(image,0,0);
   return visible
 }
 function dpcSourceTile(coords){
@@ -1141,10 +1170,9 @@ const DpcV2Layer=L.GridLayer.extend({
         const ctx=canvas.getContext('2d');
         ctx.imageSmoothingEnabled=false;
         const crop=256/src.scale,sx=src.ox*crop,sy=src.oy*crop;
-        // Il canvas conserva i colori originali e rimuove soltanto il fondo
-        // nero (no echo) che altrimenti oscura tutta la Sardegna.
+        // DPC monobanda → palette; i WebP RGB già colorati restano tali.
         ctx.drawImage(img,sx,sy,crop,crop,0,0,256,256);
-        dpcRemoveNoEchoBackground(ctx,256,256);
+        dpcDecodeTile(ctx,productKey,256,256);
         // Il successo indica decodifica, anche se la tile è priva di eco.
         if(this._productKey===productKey&&this._frame?.getTime()===frame.getTime())
           this._successfulTiles=(this._successfulTiles||0)+1
@@ -1239,9 +1267,9 @@ async function colorizeDpcTile3d(productKey,time,z,x,y){
   canvas.width=256;canvas.height=256;
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
   try{
-    // Stessa maschera no-echo della mappa 2D, senza color map locale.
+    // Anche il 3D usa esattamente la stessa decodifica del 2D.
     ctx.drawImage(img,0,0,256,256);
-    dpcRemoveNoEchoBackground(ctx,256,256);
+    dpcDecodeTile(ctx,productKey,256,256);
     return canvas
   }catch(e){
     return null
@@ -1977,13 +2005,14 @@ function stationLegendHtml(){
 function radarLegendHtml(){
   if(!radarOn)return '';
   const vmi=radarProductKey==='VMI';
-  const title=vmi?
-    'Radar DPC · VMI · riflettività massima (dBZ)':
-    'Radar DPC · SRI · intensità al suolo (mm/h)';
-  return '<div class="map-legend-row"><div class="map-legend-title">'+title+'</div>'+
-    '<div class="map-legend-note">Colori RGB originali delle tile Radar-DPC senza intensificazione; il fondo nero senza echi è reso trasparente. '+
-    'Per confrontare i colori con il sito ufficiale usare opacità radar al 100%. '+
-    '<a href="https://radar.protezionecivile.it/" target="_blank" rel="noopener noreferrer">Legenda e mappa ufficiale Radar-DPC</a>.</div></div>'
+  const bands=vmi?DPC_VMI_BANDS:DPC_SRI_BANDS;
+  const grad=bands.map(([t,c])=>'rgb('+c.join(',')+') '+Math.round(100*t)+'%').join(',');
+  return '<div class="map-legend-row"><div class="map-legend-title">Radar DPC · '+
+    radarProductKey+(vmi?' · riflettività (dBZ)':' · intensità al suolo (mm/h)')+'</div>'+
+    '<div class="map-legend-bar" style="background:linear-gradient(90deg,'+grad+')"></div>'+
+    '<div class="map-legend-labels"><span>Debole</span><span>Moderata</span><span>Forte</span><span>Molto forte</span></div>'+
+    '<div class="map-legend-note">Palette qualitativa coerente con i colori Radar-DPC; non è una LUT numerica ufficiale certificata. '+
+    '<a href="https://radar.protezionecivile.it/" target="_blank" rel="noopener noreferrer">Scala e intensità originali sul sito DPC</a>.</div></div>'
 }
 function operaLegendHtml(){
   if(!operaOn)return '';
