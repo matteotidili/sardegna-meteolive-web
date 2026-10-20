@@ -811,7 +811,25 @@ const MOBILE_MAP=()=>window.innerWidth<=800;
 const SARDINIA_BOUNDS=L.latLngBounds([38.7,7.7],[41.5,10.2]).pad(.25);
 const MED_BOUNDS=L.latLngBounds([29.0,-10.5],[48.5,38.0]);
 const OPERA_BOUNDS=L.latLngBounds([30,-15],[55,28]);
-const map=L.map('map',{minZoom:MOBILE_MAP()?6:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true,zoomAnimation:true,markerZoomAnimation:true,fadeAnimation:true}).setView([40.02,9.02],8);
+// Ripristino della vista all'avvio, prima di disegnare le tile: niente
+// ritorno alla Sardegna intera dopo un refresh (Ctrl+R/F5 o mobile).
+const VIEW_STATE_KEY='sardegna-meteolive-view-v1';
+function loadSavedView(){
+  try{
+    const d=JSON.parse(localStorage.getItem(VIEW_STATE_KEY)||'null');
+    if(!d||d.v!==1||!Number.isFinite(d.savedAt)||Date.now()-d.savedAt>14*86400000)return null;
+    if(!Array.isArray(d.center)||d.center.length!==2||!d.center.every(Number.isFinite)||
+       Math.abs(d.center[0])>85||Math.abs(d.center[1])>180||
+       !Number.isFinite(d.zoom)||d.zoom<2||d.zoom>15)return null;
+    return d
+  }catch(e){return null}
+}
+const RESTORED_VIEW=loadSavedView();
+let viewStateReady=false,viewSaveTimer=null;
+const map=L.map('map',{minZoom:MOBILE_MAP()?6:7,maxZoom:15,doubleClickZoom:true,touchZoom:true,scrollWheelZoom:true,zoomAnimation:true,markerZoomAnimation:true,fadeAnimation:true}).setView(
+  RESTORED_VIEW?RESTORED_VIEW.center:[40.02,9.02],
+  RESTORED_VIEW?Math.max(MOBILE_MAP()?6:7,RESTORED_VIEW.zoom):8
+);
 function syncMapExtent(){
   const mobile=MOBILE_MAP();
   const min=meteoalarmOn?3:aromeOn?3:operaMapWide?5:(mobile?6:7);
@@ -4288,7 +4306,7 @@ async function aromeLoad(force=false){
     aromeForecast={...data,frames};
     aromeRefreshProductOptions();
     aromeRange.max=String(frames.length-1);
-    if(!previousRun&&aromeOn)fitAromeDomain();
+    if(!previousRun&&aromeOn&&!RESTORED_VIEW)fitAromeDomain();
     if(aromeOn){
       let index=frames.findIndex(f=>f.valid_time===previousValid);
       if(previousRun!==data.run_time||index<0)index=frames.findIndex(f=>Date.parse(f.valid_time)>=Date.now());
