@@ -1449,6 +1449,58 @@ function clearMobile3dStationMarkers(){
   station3dMobileMarkers.forEach(m=>{try{m.remove()}catch(e){}});
   station3dMobileMarkers=[]
 }
+/**
+ * Selezione ad alta densità dei marker per ogni livello di zoom.
+ * Un cerchio non può intersecarne un altro: gap di ~1 px ai bordi.
+ * Privilegiamo prima la stazione selezionata, poi le stazioni con meno
+ * vicini concorrenti (per mantenere visibili più osservazioni), infine
+ * la qualità della rete e una chiave stabile. Griglia spaziale O(n+k).
+ */
+function densestStationPacking(items,diameterWithGap){
+  if(!items.length)return [];
+  const step=Math.max(1,diameterWithGap),threshold=step*step;
+  const grid=new Map(),bucketKey=(x,y)=>x+','+y;
+  for(const item of items){
+    const x=Math.floor(item.p.x/step),y=Math.floor(item.p.y/step);
+    item._gx=x;item._gy=y;
+    const k=bucketKey(x,y);
+    if(!grid.has(k))grid.set(k,[]);
+    grid.get(k).push(item)
+  }
+  function near(grid,item,visit){
+    for(let x=item._gx-1;x<=item._gx+1;x++){
+      for(let y=item._gy-1;y<=item._gy+1;y++){
+        for(const other of grid.get(bucketKey(x,y))||[]){
+          if(other===item)continue;
+          const dx=item.p.x-other.p.x,dy=item.p.y-other.p.y;
+          if(dx*dx+dy*dy<threshold)visit(other)
+        }
+      }
+    }
+  }
+  for(const item of items){
+    let degree=0;
+    near(grid,item,()=>degree++);
+    item._degree=degree
+  }
+  const sorted=items.slice().sort((a,b)=>
+    Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||
+    a._degree-b._degree||
+    a.pri-b.pri||
+    a.stable.localeCompare(b.stable,'it')
+  );
+  const placed=new Map(),accepted=[];
+  for(const item of sorted){
+    let collision=false;
+    near(placed,item,()=>{collision=true});
+    if(collision)continue;
+    accepted.push(item);
+    const key=bucketKey(item._gx,item._gy);
+    if(!placed.has(key))placed.set(key,[]);
+    placed.get(key).push(item)
+  }
+  return accepted
+}
 function station3dCandidates(spacing){
   if(!map3d||!mode3d||!stationsOn)return [];
   const canvas=map3d.getCanvas();
@@ -1468,13 +1520,13 @@ function station3dCandidates(spacing){
     Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||
     a.pri-b.pri||a.stable.localeCompare(b.stable,'it')
   );
-  // Mostra tutte le stazioni con dato valido nell'area visibile, anche sovrapposte.
-  // Nessuna eliminazione per collisione: lo zoom non deve ridurre la densità.
-  return candidates
+  // In 3D usiamo le distanze in pixel proiettate (valgono anche con pitch).
+  return densestStationPacking(candidates,spacing)
 }
 function station3dMarkerSize(){
   const zoom=map3d?.getZoom()??7;
-  return Math.round(Math.max(34,Math.min(40,35+(zoom-7)*.7)))
+  // Cerchi leggermente più compatti alle scale regionali, leggibili in dettaglio.
+  return Math.round(Math.max(28,Math.min(35,28+(zoom-7)*.85)))
 }
 function renderMobile3dStations(){
   if(!map3d||!mode3d||!map3dStyleReady||!stationsOn){
@@ -1961,9 +2013,9 @@ function obsAgeMin(s){
 function markerMetrics(){
   const z=map.getZoom(),mobile=MOBILE_MAP();
   // Piccoli e progressivi: la scala aumenta con lo zoom senza salti.
-  const minimum=mobile?33:27,maximum=mobile?39:33;
+  const minimum=mobile?29:24,maximum=mobile?35:31;
   const diameter=Math.round(Math.max(minimum,Math.min(maximum,minimum+(z-7)*.85)));
-  const gap=1; // separazione minima reale fra cerchi: massima densità utile
+  const gap=1; // cerchi praticamente a contatto, mai sovrapposti
   return {d:diameter,sx:diameter+gap,sy:diameter+gap}
 }
 function stationMarkerFontSize(diameter,value){
@@ -2582,9 +2634,13 @@ function priority(s){
   return 4
 }
 function selectedMarkers(){
-  // Tutte le stazioni eleggibili rimangono visibili a qualunque zoom,
-  // anche quando i badge si sovrappongono: nessun diradamento spaziale.
-  return new Set(marks.filter(x=>baseVisible(x.s)).map(x=>x.m))
+  // Proiezione globale stabile durante i pan; ricalcolo a ogni livello di zoom.
+  const zoom=map.getZoom(),spacing=markerSpacing().x;
+  const candidates=marks.filter(x=>baseVisible(x.s)).map(x=>({
+    x,p:map.project(x.m.getLatLng(),zoom),
+    stable:stationKey(x.s),pri:priority(x.s)
+  }));
+  return new Set(densestStationPacking(candidates,spacing).map(item=>item.x.m))
 }
 function applyFilters(){
   const selected=selectedMarkers();
