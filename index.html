@@ -630,7 +630,7 @@ header .live{margin-left:0}
         <div class="layer-note" id="radarSriInfo">SRI · intensità di precipitazione stimata al suolo (mm/h) · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
-        <div class="radar-opacity-control"><label class="radar-opacity-label" for="radarOpacity">Opacità radar <output id="radarOpacityValue" for="radarOpacity">100%</output></label><input type="range" id="radarOpacity" min="30" max="100" step="5" value="100" aria-label="Opacità radar DPC VMI, SRI, cumulate ed Europa"><div class="radar-opacity-help">Decodifica cromatica VMI/SRI e nero senza eco trasparente. Per la scala numerica originale fare riferimento al Radar-DPC ufficiale.</div><button type="button" class="radar-restore-btn" id="radarOfficialOpacity">Opacità radar 100%</button></div>
+        <div class="radar-opacity-control"><label class="radar-opacity-label" for="radarOpacity">Opacità radar <output id="radarOpacityValue" for="radarOpacity">55%</output></label><input type="range" id="radarOpacity" min="30" max="100" step="5" value="55" aria-label="Opacità radar DPC VMI, SRI, cumulate ed Europa"><div class="radar-opacity-help">Decodifica cromatica VMI/SRI e nero senza eco trasparente. Per la scala numerica originale fare riferimento al Radar-DPC ufficiale.</div><button type="button" class="radar-restore-btn" id="radarOfficialOpacity">Opacità radar 100%</button></div>
         <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
         <div class="layer-note" id="cumInfo">Accumulo precipitazione
           <div class="cum-switch">
@@ -1182,13 +1182,13 @@ const DpcV2Layer=L.GridLayer.extend({
     return canvas
   }
 });
-const RADAR_OPACITY_STORAGE='sardegna-meteolive-radar-original-opacity-v2';
+const RADAR_OPACITY_STORAGE='sardegna-meteolive-radar-opacity-55-v3';
 function initialRadarOpacity(){
   try{const v=Number(localStorage.getItem(RADAR_OPACITY_STORAGE));if(Number.isFinite(v)&&v>=.3&&v<=1)return v}catch(e){}
-  return 1
+  return .55
 }
 let radarOpacity=initialRadarOpacity();
-function radar3dOpacity(){return radarOpacity}
+function radar3dOpacity(){return Math.round(radarOpacity*.8*100)/100}
 const RADAR_LAYER_OPTIONS={pane:'weather',opacity:0,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'};
 const radarLayer=new DpcV2Layer(RADAR_LAYER_OPTIONS);
 const radarBufferLayer=new DpcV2Layer(RADAR_LAYER_OPTIONS);
@@ -3769,7 +3769,7 @@ function applyRadarOpacity(){
   cumLayer.setOpacity(radarOpacity);
   // Gli altri frame OPERA precaricati devono restare completamente invisibili.
   operaFrameLayers.forEach(layer=>layer.setOpacity(operaOn&&layer===operaDisplayedLayer?radarOpacity:0));
-  // Stessa opacità in 2D e 3D, per non attenuare i colori del prodotto DPC.
+  // In 3D un'ulteriore lieve trasparenza migliora la leggibilità del territorio.
   if(map3d&&map3dStyleReady){
     if((radarOn||cumActive)&&map3d.getLayer('dpc-precip-3d-layer'))
       map3d.setPaintProperty('dpc-precip-3d-layer','raster-opacity',radar3dOpacity());
