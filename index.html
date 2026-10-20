@@ -2090,8 +2090,11 @@ function operaLegendHtml(){
 }
 function cumLegendHtml(){
   if(!cumActive)return '';
-  const product=CUM_PRODUCTS[cumActive];
-  return '<div class="map-legend-row"><div class="map-legend-title">Cumulate Radar-DPC · '+(product?.label||cumActive.toUpperCase())+' · mm</div>'+
+  // La legenda identifica sempre il campo effettivamente visualizzato,
+  // non quello ancora in fase di acquisizione.
+  const displayedCode=cumDisplayedCode||cumActive;
+  const product=CUM_PRODUCTS[displayedCode];
+  return '<div class="map-legend-row"><div class="map-legend-title">Cumulate Radar-DPC · '+(product?.label||displayedCode.toUpperCase())+' · mm</div>'+
     '<div class="map-legend-note">Colori RGB originali DPC, senza palette ricostruite; sfondo nodata trasparente. '+
     '<a href="https://radar.protezionecivile.it/" target="_blank" rel="noopener noreferrer">Legenda ufficiale delle cumulate</a>.</div></div>'
 }
