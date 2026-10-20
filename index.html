@@ -121,7 +121,10 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .station-map-legend{display:none;position:absolute;z-index:986;right:14px;bottom:14px;width:245px;background:#fffffff4;border:1px solid #d5dde4;border-radius:12px;padding:9px 10px;box-shadow:0 6px 20px #0003;backdrop-filter:blur(10px)}
 .station-map-legend.on{display:block}
 .station-map-legend .map-legend-row{padding:0}
-.map-legend-row{padding:5px 0}.map-legend-row+.map-legend-row{border-top:1px solid #dce3e8}.map-legend-title{font-size:8px;font-weight:900;letter-spacing:.08em;color:#263746;text-transform:uppercase;margin-bottom:5px}.map-legend-bar{height:10px;border-radius:8px;border:1px solid #b7c2cb;overflow:hidden}.map-legend-labels{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:7px;color:#34495a;font-variant-numeric:tabular-nums}.map-legend-note{font-size:7px;color:#647887;margin-top:3px}.lightning-scale{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:6px;font-size:8px;color:#d1deea}.lightning-scale span{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:5px 4px;border:1px solid #ffffff12;border-radius:7px;background:#0d1a27}.lightning-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;border:1px solid #111;box-shadow:0 0 5px #0008}.lightning-direction{display:flex;justify-content:space-between;margin-top:5px;font-size:7px;color:#7f96a9;text-transform:uppercase;letter-spacing:.06em}.li-legend-img{display:block;width:100%;max-width:640px;height:auto;margin-top:5px;border-radius:6px}.lightning-pulse-icon{background:transparent!important;border:0!important}.lightning-pulse-ring{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #fff;animation:lightningPulse 1.25s ease-out infinite;transform-origin:center}@keyframes lightningPulse{0%{transform:scale(.25);opacity:1}70%{opacity:.75}100%{transform:scale(2.1);opacity:0}}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
+.map-legend-row{padding:5px 0}.map-legend-row+.map-legend-row{border-top:1px solid #dce3e8}.map-legend-title{font-size:8px;font-weight:900;letter-spacing:.08em;color:#263746;text-transform:uppercase;margin-bottom:5px}.map-legend-bar{height:10px;border-radius:8px;border:1px solid #b7c2cb;overflow:hidden}.map-legend-labels{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:7px;color:#34495a;font-variant-numeric:tabular-nums}.map-legend-note{font-size:7px;color:#647887;margin-top:3px}.lightning-scale{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:6px;font-size:8px;color:#d1deea}.lightning-scale span{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:5px 4px;border:1px solid #ffffff12;border-radius:7px;background:#0d1a27}.lightning-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;border:1px solid #111;box-shadow:0 0 5px #0008}.lightning-direction{display:flex;justify-content:space-between;margin-top:5px;font-size:7px;color:#7f96a9;text-transform:uppercase;letter-spacing:.06em}.li-legend-img{display:block;width:100%;max-width:640px;height:auto;margin-top:5px;border-radius:6px}.lightning-pulse-icon{background:transparent!important;border:0!important}.lightning-pulse-ring{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #fff;animation:lightningPulse 1.25s ease-out infinite;transform-origin:center}@keyframes lightningPulse{0%{transform:scale(.25);opacity:1}70%{opacity:.75}100%{transform:scale(2.1);opacity:0}}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}
+#radarTime{position:relative;flex:0 0 136px;width:136px;min-width:136px;white-space:nowrap;overflow:hidden;text-overflow:clip;contain:layout style;isolation:isolate}
+#radarTimeline.radar-loading #radarTime:before{content:"";position:absolute;left:0;top:50%;width:4px;height:4px;border-radius:50%;background:#42d7ff;transform:translateY(-50%);pointer-events:none}
+@media(max-width:800px){#radarTime{width:auto;min-width:0;flex:initial;max-width:100%}}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
 .popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
 .station-tip{background:#081522f2!important;color:#f2f8ff!important;border:1px solid #3a5870!important;border-radius:9px!important;box-shadow:0 8px 22px #0008!important;padding:7px 9px!important;font-size:11px!important;line-height:1.3!important}
 .station-tip:before{border-top-color:#3a5870!important}
@@ -1401,7 +1404,7 @@ async function update3dDpcLayer(productKey,time,opacity=.28){
     map3d.setLayoutProperty('dpc-precip-3d-layer','visibility','visible');
     if(radarOn&&radarProductKey===productKey&&
        radarFrames[radarIndex]?.getTime()===new Date(time).getTime()){
-      radarTime.textContent=radarLabel(time);
+      radarSetClock(time);
       if(radar3dPlaybackWatch){clearTimeout(radar3dPlaybackWatch);radar3dPlaybackWatch=null}
       if(radarPlayback)scheduleRadarPlayback()
     }
@@ -3840,6 +3843,26 @@ radarOfficialOpacityBtn.addEventListener('click',()=>{
   radarOpacityInput.dispatchEvent(new Event('input',{bubbles:true}))
 });
 const radarTimeline=document.getElementById('radarTimeline'),radarRange=document.getElementById('radarRange'),radarTime=document.getElementById('radarTime'),radarPlay=document.getElementById('radarPlay');
+// Aggiorna un solo nodo di testo, senza ricreare la label o alterarne la larghezza.
+function radarSetClock(time){
+  const label=radarLabel(time);
+  if(radarTime.textContent!==label){
+    if(radarTime.firstChild?.nodeType===3&&radarTime.childNodes.length===1)
+      radarTime.firstChild.nodeValue=label;
+    else radarTime.textContent=label
+  }
+  radarTime.title='Fotogramma radar visualizzato: '+label;
+  radarTimeline.classList.remove('radar-loading')
+}
+function radarLoading(active){
+  radarTimeline.classList.toggle('radar-loading',!!active)
+}
+function radarLoadError(message){
+  radarLoading(false);
+  // La mappa mantiene il frame precedente: la data non deve cambiare
+  // fino all'effettiva visualizzazione del nuovo campo.
+  radarTime.title=message
+}
 const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo'),cumStamp=document.getElementById('cumStamp');
 function iso5(d){return new Date(Math.floor(d.getTime()/300000)*300000).toISOString().replace('.000Z','.000Z')}
 function fallbackRadarLatest(){return new Date(Math.floor((Date.now()-10*60000)/300000)*300000)}
@@ -3933,7 +3956,7 @@ function prepareRadarFrame(productKey,time,key,token){
     radarPendingLoadHandler=null;
     radarPendingFrameLayer=null;
     if(candidate._successfulTiles<1){
-      radarTime.textContent=radarLabel(time)+' · dati non disponibili';
+      radarLoadError('Fotogramma radar non disponibile: '+radarLabel(time));
       if(radarPlayback)scheduleRadarPlayback();
       return
     }
@@ -3959,7 +3982,7 @@ function prepareRadarFrame(productKey,time,key,token){
     radarPendingLoadHandler=null;
     radarPendingFrameLayer=null;
     radarFrameTimeout=null;
-    radarTime.textContent=radarLabel(time)+' · caricamento non completato';
+    radarLoadError('Caricamento radar non completato: '+radarLabel(time));
     if(radarPlayback)scheduleRadarPlayback()
   },8000)
 }
@@ -3970,9 +3993,10 @@ function setRadarFrame(i){
   const d=radarFrames[radarIndex],key=radarProductKey+'|'+d.getTime();
   cancelRadarFrameLoad();
   if(radar3dPlaybackWatch){clearTimeout(radar3dPlaybackWatch);radar3dPlaybackWatch=null}
+  radarLoading(false);
   if(mode3d){
     // In 3D Leaflet è nascosto: non attendere tile 2D che non verranno disegnate.
-    radarTime.textContent=radarLabel(d)+' · caricamento…';
+    radarLoading(true);
     schedule3dPrecipSync(60);
     if(radarPlayback)radar3dPlaybackWatch=setTimeout(()=>{
       radar3dPlaybackWatch=null;
@@ -3981,7 +4005,7 @@ function setRadarFrame(i){
     return
   }
   if(radarShownFrameKey===key){
-    radarTime.textContent=radarLabel(d);
+    radarSetClock(d);
     if(radarPlayback)scheduleRadarPlayback()
   }else{
     radarTime.textContent=radarLabel(d)+' · caricamento…';
@@ -4044,6 +4068,7 @@ function setRadarState(on,productKey=radarProductKey){
     }
     radarVisibleLayer=null;
     radarShownFrameKey='';
+    radarLoading(false);
     radarTimeline.classList.remove('on')
   }
   for(const [button,active] of [[radarBtn,on&&radarProductKey==='VMI'],[radarSriBtn,on&&radarProductKey==='SRI']]){
