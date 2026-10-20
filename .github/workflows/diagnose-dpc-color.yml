@@ -48,4 +48,5 @@ jobs:
           try:
               body=get('https://radar.protezionecivile.it/').decode('utf-8','replace')
               print('OFFICIAL_INDEX',len(body),'scripts',re.findall(r'<script[^>]*src=["\\\']([^"\\\']+)',body)[:20],flush=True)
+              print('OFFICIAL_HTML',body,flush=True)
           except Exception as e:print('OFFICIAL_FAIL',str(e)[:100],flush=True)
