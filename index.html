@@ -1710,7 +1710,8 @@ function ensureMap3d(){
   map3d.on('moveend',()=>{
     if(mode3d){
       scheduleMobile3dStations(40);
-      if(lightningOn&&lightningMode==='live')scheduleLightningSubscription('u')
+      if(lightningOn&&lightningMode==='live')scheduleLightningSubscription('u');
+      scheduleViewSave()
     }
   });
   map3d.on('zoomend',()=>{if(mode3d)scheduleMobile3dStations(40)});
@@ -5252,9 +5253,6 @@ window.addEventListener('pagehide',()=>{
   if(viewSaveTimer)clearTimeout(viewSaveTimer);
   saveViewState()
 });
-setTimeout(()=>{
-  if(map3d)map3d.on('moveend',scheduleViewSave);
-},250);
 // Stato già inizializzato: rende persistente anche l'accesso al sito per la prima volta.
 scheduleViewSave();
 
