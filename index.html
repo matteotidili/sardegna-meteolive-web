@@ -3843,10 +3843,33 @@ const radarTimeline=document.getElementById('radarTimeline'),radarRange=document
 const cumBtn=document.getElementById('cumBtn'),cumInfo=document.getElementById('cumInfo'),cumStamp=document.getElementById('cumStamp');
 function iso5(d){return new Date(Math.floor(d.getTime()/300000)*300000).toISOString().replace('.000Z','.000Z')}
 function fallbackRadarLatest(){return new Date(Math.floor((Date.now()-10*60000)/300000)*300000)}
+// Estensione temporanea della timeline per l'evento del 20 ottobre 2026:
+// dalle 06:00 italiane (04:00 UTC, ora legale) fino all'ultimo radar disponibile.
+// Al cambio di data italiana si torna automaticamente alle ultime 3 ore.
+const RADAR_EVENT_DAY_START=Date.parse('2026-10-19T22:00:00Z');
+const RADAR_EVENT_DAY_END=Date.parse('2026-10-20T22:00:00Z');
+const RADAR_EVENT_MORNING=Date.parse('2026-10-20T04:00:00Z');
+function radarExtendedToday(){
+  const now=Date.now();
+  return now>=RADAR_EVENT_DAY_START&&now<RADAR_EVENT_DAY_END
+}
 function buildRadarFrames(latest){
-  const end=new Date(latest),frames=[];
-  for(let i=36;i>=0;i--)frames.push(new Date(end.getTime()-i*5*60000));
-  radarFrames=frames;radarRange.max=String(frames.length-1);radarIndex=frames.length-1;radarRange.value=String(radarIndex)
+  const end=new Date(latest),step=5*60000;
+  const endMs=Math.floor(end.getTime()/step)*step;
+  // Il prodotto VMI/SRI ha un frame ogni 5 minuti.
+  const extended=radarExtendedToday()&&endMs>=RADAR_EVENT_MORNING;
+  const start=extended?RADAR_EVENT_MORNING:endMs-36*step;
+  const frames=[];
+  for(let t=start;t<=endMs;t+=step)frames.push(new Date(t));
+  radarFrames=frames;
+  radarRange.min='0';
+  radarRange.max=String(frames.length-1);
+  radarIndex=frames.length-1;
+  radarRange.value=String(radarIndex);
+  radarRange.setAttribute('aria-label',extended
+    ?'Animazione radar del 20 ottobre 2026, dalle 06:00 ora italiana fino all’ultimo aggiornamento'
+    :'Animazione radar delle ultime 3 ore');
+  radarTimeline.querySelector('.time-kind').textContent='RADAR '+radarProductKey+(extended?' · DALLE 06:00':'')
 }
 function radarLabel(d){
   return d.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(',',' ·')
