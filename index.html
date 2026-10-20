@@ -5102,6 +5102,162 @@ function enableMobileRangeTouch(input){
   input.addEventListener('touchcancel',()=>{touching=false},{passive:true})
 }
 document.querySelectorAll('input[type="range"]').forEach(enableMobileRangeTouch);
+
+// Ultima vista e impostazioni: il refresh non deve riportare alla home.
+// localStorage: persiste F5, riapertura del sito e browser mobile sullo stesso dispositivo.
+function captureViewState(){
+  const use3d=mode3d&&!!map3d;
+  const c=use3d?map3d.getCenter():map.getCenter();
+  const zoom=use3d?map3d.getZoom():map.getZoom();
+  const accordion=document.querySelector('[data-acc-item].open');
+  const controls=document.getElementById('controlsView');
+  const directory=document.getElementById('stationDirectory');
+  const bar=document.getElementById('params');
+  return {
+    v:1,savedAt:Date.now(),
+    center:[+c.lat.toFixed(6),+c.lng.toFixed(6)],
+    zoom:+zoom.toFixed(3),
+    base:currentBaseMode,
+    pitch:use3d?+map3d.getPitch().toFixed(2):null,
+    param:cur,network:netFilter,
+    directory:leftPanel.classList.contains('directory-open'),
+    accordion:accordion?.dataset.accItem||null,
+    panelOpen:leftPanel.classList.contains('open'),
+    controlsScroll:controls?.scrollTop||0,
+    directoryScroll:directory?.scrollTop||0,
+    paramScroll:bar?.scrollLeft||0,
+    directorySort,search:document.getElementById('q')?.value||'',
+    layers:{
+      stations:stationsOn,hydro:hydroOn,cedoc:cedocOn,
+      radar:radarOn,radarProduct:radarProductKey,
+      opera:operaOn,cum:cumActive,arome:aromeOn,
+      aromeProduct:aromeProductKey,aromeFlow:aromeFlowPreference,
+      satellite:satMetOn,satProduct,lightning:lightningOn,
+      fires:frpOn,firePeriod:frpPeriod.value,
+      alerts:meteoalarmOn,alertPeriod:meteoalarmPeriod.value,
+      boundaries:boundariesPreference,subregions:historicSubregionsOn
+    }
+  }
+}
+function saveViewState(){
+  if(!viewStateReady)return;
+  try{localStorage.setItem(VIEW_STATE_KEY,JSON.stringify(captureViewState()))}
+  catch(e){console.info('Salvataggio vista locale non disponibile',e)}
+}
+function scheduleViewSave(){
+  if(!viewStateReady)return;
+  if(viewSaveTimer)clearTimeout(viewSaveTimer);
+  viewSaveTimer=setTimeout(()=>{viewSaveTimer=null;saveViewState()},160)
+}
+function restoreViewState(){
+  const d=RESTORED_VIEW;
+  if(!d)return;
+  // Parametri, filtri e scheda vengono ripristinati senza click simulati,
+  // che potrebbero riattivare layer o riposizionare la mappa.
+  if(typeof d.param==='string'&&P[d.param]){
+    cur=d.param;
+    params.querySelectorAll('[data-k]').forEach(b=>{
+      const selected=b.dataset.k===cur;
+      b.classList.toggle('active',selected);
+      b.setAttribute('aria-pressed',String(selected))
+    })
+  }
+  if(typeof d.network==='string'&&document.querySelector('[data-net="'+d.network+'"]')){
+    netFilter=d.network;
+    document.querySelectorAll('[data-net]').forEach(b=>
+      b.classList.toggle('active',b.dataset.net===netFilter))
+  }
+  if(d.directorySort==='asc'||d.directorySort==='desc')
+    directorySort=d.directorySort;
+  if(typeof d.search==='string'&&d.search.length<=160){
+    query=d.search.toLowerCase().trim();
+    document.getElementById('q').value=d.search
+  }
+  const l=d.layers||{};
+  if(l.stations===false&&stationsOn)stationsBtn.click();
+  if(l.hydro===true)setHydroState(true);
+  if(l.cedoc===true)setCedocState(true);
+  if(l.fires===true)setFrpState(true);
+  if(l.firePeriod==='latest'||l.firePeriod==='60'){
+    frpPeriod.value=l.firePeriod;
+    if(frpOn)renderFrpLayer()
+  }
+  if(l.alertPeriod==='active'||l.alertPeriod==='upcoming')
+    meteoalarmPeriod.value=l.alertPeriod;
+  if(l.alerts===true)setMeteoalarmState(true);
+  if(l.boundaries===true){
+    boundariesPreference=true;
+    syncBoundaries()
+  }
+  if(l.subregions===true)historicSubregionsOn=true;
+  if(l.aromeFlow===false)aromeFlowPreference=false;
+  if(typeof l.aromeProduct==='string'&&/^[a-z0-9_]{1,35}$/.test(l.aromeProduct))
+    aromeProductKey=l.aromeProduct;
+  // Questi prodotti sono mutuamente esclusivi: non accenderli tutti.
+  if(l.arome===true)setAromeState(true);
+  else if(l.opera===true)setOperaState(true);
+  else if(l.radar===true)setRadarState(true,l.radarProduct==='SRI'?'SRI':'VMI');
+  else if(typeof l.cum==='string'&&CUM_PRODUCTS[l.cum])setCumState(l.cum);
+  if(l.satellite===true&&SAT_PRODUCTS[l.satProduct||''])
+    activateSatProduct(l.satProduct);
+  if(l.lightning===true)setLightningState(true);
+  // Applica in ultimo il layout richiesto e riposiziona la camera anche
+  // dopo eventuali fitBounds automatici di layer attivati sopra.
+  const allowed=['operational','light','sat','relief','3d'];
+  const baseMode=allowed.includes(d.base)?d.base:'sat';
+  setBaseMode(baseMode);
+  map.setView(d.center,Math.max(map.getMinZoom(),Math.min(15,d.zoom)),{animate:false});
+  if(mode3d&&map3d){
+    map3d.jumpTo({
+      center:[d.center[1],d.center[0]],zoom:d.zoom,
+      pitch:Number.isFinite(d.pitch)?Math.min(80,Math.max(0,d.pitch)):48,
+      bearing:0
+    })
+  }
+  showSidebarTab(d.directory===true);
+  if(typeof d.accordion==='string')setAccordion(d.accordion,true);
+  // La sidebar chiusa dagli handler di layer viene riaperta solo se
+  // era effettivamente aperta al momento dell'ultimo salvataggio.
+  if(window.innerWidth<=800){
+    leftPanel.classList.toggle('open',d.panelOpen===true);
+    syncMobileButtons()
+  }
+  if(stations.length)render();
+  requestAnimationFrame(()=>{
+    if(Number.isFinite(d.controlsScroll))
+      document.getElementById('controlsView').scrollTop=d.controlsScroll;
+    if(Number.isFinite(d.directoryScroll))
+      document.getElementById('stationDirectory').scrollTop=d.directoryScroll;
+    if(Number.isFinite(d.paramScroll))
+      params.scrollLeft=d.paramScroll;
+    if(stations.length)renderStationDirectory()
+  })
+}
+try{restoreViewState()}catch(e){console.warn('Ripristino ultima vista',e)}
+viewStateReady=true;
+map.on('moveend',scheduleViewSave);
+map.on('zoomend',scheduleViewSave);
+document.addEventListener('click',scheduleViewSave);
+document.addEventListener('change',scheduleViewSave);
+document.addEventListener('input',scheduleViewSave);
+document.addEventListener('scroll',e=>{
+  if(e.target===document.getElementById('controlsView')||
+     e.target===document.getElementById('stationDirectory')||
+     e.target===params)scheduleViewSave()
+},true);
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)saveViewState()
+});
+window.addEventListener('pagehide',()=>{
+  if(viewSaveTimer)clearTimeout(viewSaveTimer);
+  saveViewState()
+});
+setTimeout(()=>{
+  if(map3d)map3d.on('moveend',scheduleViewSave);
+},250);
+// Stato già inizializzato: rende persistente anche l'accesso al sito per la prima volta.
+scheduleViewSave();
+
 </script>
 <!-- deploy-refresh-precip-lightning -->
 </body></html>
