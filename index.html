@@ -5010,11 +5010,13 @@ async function cumFrameAvailable(productKey,time){
   const images=await Promise.all(checks);
   return images.some(img=>img&&img.naturalWidth>0&&img.naturalHeight>0)
 }
-function cancelPendingCumLoad(){
+function cancelPendingCumLoad(keepReadyLayer=false){
   if(cumPendingTimer){clearTimeout(cumPendingTimer);cumPendingTimer=null}
   if(cumPendingLayer&&cumPendingHandler)
     cumPendingLayer.off('load',cumPendingHandler);
-  if(cumPendingLayer&&cumPendingLayer!==cumVisibleLayer&&map.hasLayer(cumPendingLayer))
+  // Il frame pronto non va rimosso/riaggiunto prima dello scambio:
+  // causerebbe un nuovo caricamento e un flash sul layer.
+  if(!keepReadyLayer&&cumPendingLayer&&cumPendingLayer!==cumVisibleLayer&&map.hasLayer(cumPendingLayer))
     map.removeLayer(cumPendingLayer);
   cumPendingLayer=null;cumPendingHandler=null
 }
@@ -5081,9 +5083,11 @@ async function setCumState(code){
   nextLayer.setProductFrame(product.api,t);
   if(mode3d){
     // Leaflet è nascosto in 3D e non emette l'evento load.
-    if(map.hasLayer(cumVisibleLayer))map.removeLayer(cumVisibleLayer);
+    if(cumVisibleLayer&&map.hasLayer(cumVisibleLayer))
+      map.removeLayer(cumVisibleLayer);
     cumVisibleLayer=nextLayer;cumShownFrameKey=frameKey;cumDisplayedCode=code;
     if(!map.hasLayer(nextLayer))nextLayer.addTo(map);
+    nextLayer.setOpacity(radarOpacity);
     cumDisplayStamp(code,t);
     syncCumControls();
     return
@@ -5096,7 +5100,7 @@ async function setCumState(code){
     if(resolved)return;
     resolved=true;
     if(token!==cumLoadToken||cumActive!==code)return;
-    cancelPendingCumLoad();
+    cancelPendingCumLoad(ok);
     if(!ok){
       cumLoadFailed(code,'caricamento incompleto');
       return
