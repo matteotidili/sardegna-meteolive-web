@@ -48,5 +48,27 @@ jobs:
           try:
               body=get('https://radar.protezionecivile.it/').decode('utf-8','replace')
               print('OFFICIAL_INDEX',len(body),'scripts',re.findall(r'<script[^>]*src=["\\\']([^"\\\']+)',body)[:20],flush=True)
-              print('OFFICIAL_HTML',body,flush=True)
+              print('OFFICIAL_INDEX_ASSETS',re.findall(r'/_app/immutable/[^"<> ]+?\\.js',body)[:30],flush=True)
+              initial=re.findall(r'/_app/immutable/[^"<> ]+?\\.js',body)
+              queue=list(dict.fromkeys(initial))
+              done=set()
+              while queue and len(done)<85:
+                  route=queue.pop(0)
+                  if route in done:continue
+                  done.add(route)
+                  try:
+                      source=get('https://radar.protezionecivile.it'+route).decode('utf-8','replace')
+                      for m in re.finditer(r'CUM24|CUM3|SRT1|palette|colorScale|rainfall|legend|rainScale|raster-color',source,re.I):
+                          if m.start()<0:continue
+                          frag=source[max(0,m.start()-170):m.start()+220]
+                          print('OFFICIAL_MATCH',route,m.group(),frag[:390].replace('\\n',' '),flush=True)
+                          if sum(1 for _ in re.finditer(r'CUM24|CUM3|SRT1|palette|colorScale|rainfall|legend|rainScale|raster-color',source,re.I))>15:break
+                      for ref in re.findall(r'[_/a-zA-Z0-9.-]+\\.js',source):
+                          if ref.startswith('/_app/immutable/'):u=ref
+                          elif '/chunks/' in ref or '/nodes/' in ref:
+                              u='/_app/immutable/'+ref.split('immutable/')[-1]
+                          else:continue
+                          if u not in done and u not in queue:queue.append(u)
+                  except Exception as e:print('ASSET_FAIL',route,str(e)[:90],flush=True)
+              print('OFFICIAL_SCANNED',len(done),flush=True)
           except Exception as e:print('OFFICIAL_FAIL',str(e)[:100],flush=True)
