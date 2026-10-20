@@ -630,7 +630,7 @@ header .live{margin-left:0}
         <div class="layer-note" id="radarSriInfo">SRI · intensità di precipitazione stimata al suolo (mm/h) · Radar-DPC v2</div>
         <button class="btn" id="operaBtn">Radar Europa <span>OFF</span></button>
         <div class="layer-note" id="operaInfo"><div id="operaMeta">OPERA NIMBUS · rain rate · mm/h<br>EUMETNET CC BY 4.0 · tiles RadarEU</div></div>
-        <div class="radar-opacity-control"><label class="radar-opacity-label" for="radarOpacity">Opacità radar <output id="radarOpacityValue" for="radarOpacity">100%</output></label><input type="range" id="radarOpacity" min="30" max="100" step="5" value="100" aria-label="Opacità radar DPC VMI, SRI ed Europa"><div class="radar-opacity-help">100% = colori originali DPC; riduci per leggere le località sottostanti.</div></div>
+        <div class="radar-opacity-control"><label class="radar-opacity-label" for="radarOpacity">Opacità radar <output id="radarOpacityValue" for="radarOpacity">100%</output></label><input type="range" id="radarOpacity" min="30" max="100" step="5" value="100" aria-label="Opacità radar DPC VMI, SRI, cumulate ed Europa"><div class="radar-opacity-help">100% = colori originali DPC; riduci per vedere le località. Vale anche per le cumulate DPC.</div></div>
         <button class="btn" id="cumBtn">Cumulate DPC <span>OFF</span></button>
         <div class="layer-note" id="cumInfo">Accumulo precipitazione
           <div class="cum-switch">
@@ -1069,20 +1069,6 @@ function dpcTileUrl(productKey,time,z,x,y){
   const hh=String(d.getUTCHours()).padStart(2,'0'),mi=String(d.getUTCMinutes()).padStart(2,'0');
   return RADAR_V2_TILES+'/'+p.path+'/'+yy+'/'+mo+'/'+da+'/'+hh+mi+'/'+z+'/'+x+'/'+y+'/'+p.file+'.webp'
 }
-function clamp01(v){return Math.max(0,Math.min(1,v))}
-function mix1(a,b,t){return a+(b-a)*t}
-function smooth01(a,b,v){const t=clamp01((v-a)/Math.max(1e-9,b-a));return t*t*(3-2*t)}
-function mixRgb(a,b,t){return a.map((v,i)=>Math.round(mix1(v,b[i],t)))}
-function colorStops(value,stops){
-  if(value<=stops[0][0])return [...stops[0][1],stops[0][2]];
-  for(let i=0;i<stops.length-1;i++){
-    if(value<=stops[i+1][0]){
-      const t=smooth01(stops[i][0],stops[i+1][0],value);
-      return [...mixRgb(stops[i][1],stops[i+1][1],t),Math.round(mix1(stops[i][2],stops[i+1][2],t))]
-    }
-  }
-  const last=stops.at(-1);return [...last[1],last[2]]
-}
 // Radar-DPC v2: i WebP del bucket ufficiale contengono già l'immagine
 // resa con la simbologia DPC. Non trattare il canale rosso come dBZ o mm/h.
 // Qualsiasi ricolorazione locale creerebbe una rappresentazione non ufficiale.
@@ -1152,7 +1138,7 @@ const radarBufferLayer=new DpcV2Layer(RADAR_LAYER_OPTIONS);
 let radarVisibleLayer=null,radarShownFrameKey='',radarPendingFrameLayer=null;
 let radarRenderToken=0,radarFrameDebounce=null,radarFrameTimeout=null,radarPendingLoadHandler=null;
 let radarPlayback=false,radar3dPlaybackWatch=null;
-const cumLayer=new DpcV2Layer({pane:'weather',opacity:.88,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'© Radar-DPC · Dipartimento della Protezione Civile'});
+const cumLayer=new DpcV2Layer({pane:'weather',opacity:radarOpacity,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'Radar-DPC · Dipartimento della Protezione Civile · CC BY-SA'});
 const lightningRenderer=L.canvas({pane:'lightning',padding:.7});
 const lightningLayer=L.layerGroup();
 const lightningPulseLayer=L.layerGroup();
@@ -1315,7 +1301,7 @@ async function update3dDpcLayer(productKey,time,opacity=.28){
     // MapLibre 5.6.1 accetta `url`, non `image`, in ImageSource.updateImage().
     source.updateImage({url:canvas.toDataURL('image/png'),coordinates:DPC3D_GRID.coordinates});
     map3d.setPaintProperty('dpc-precip-3d-layer','raster-opacity',
-      radarOn&&productKey===radarProductKey?radar3dOpacity():opacity);
+      (radarOn&&productKey===radarProductKey)||cumActive?radar3dOpacity():opacity);
     map3d.setLayoutProperty('dpc-precip-3d-layer','visibility','visible');
     if(radarOn&&radarProductKey===productKey&&
        radarFrames[radarIndex]?.getTime()===new Date(time).getTime()){
@@ -1368,7 +1354,7 @@ function sync3dPrecipLayers(){
   }
   if(cumActive&&cumLayer?._productKey&&cumLayer?._frame){
     hide3dPrecipLayer('opera-radar-3d-layer');
-    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,.22);
+    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,radar3dOpacity());
     raise3dOperationalLayers();
     return
   }
@@ -1975,7 +1961,9 @@ function operaLegendHtml(){
 function cumLegendHtml(){
   if(!cumActive)return '';
   const product=CUM_PRODUCTS[cumActive];
-  return '<div class="map-legend-row"><div class="map-legend-title">Cumulate DPC · '+(product?.label||cumActive.toUpperCase())+' · mm</div><div class="map-legend-bar cum-legend-bar"></div><div class="map-legend-labels"><span>0</span><span>10</span><span>20</span><span>40</span><span>60</span><span>100</span><span>200+</span></div></div>'
+  return '<div class="map-legend-row"><div class="map-legend-title">Cumulate Radar-DPC · '+(product?.label||cumActive.toUpperCase())+' · mm</div>'+
+    '<div class="map-legend-note">Colori e trasparenze dei WebP DPC originali, senza palette ricostruite. '+
+    '<a href="https://radar.protezionecivile.it/" target="_blank" rel="noopener noreferrer">Legenda ufficiale delle cumulate</a>.</div></div>'
 }
 function lightningLegendHtml(){
   if(!lightningOn)return '';
@@ -3718,11 +3706,12 @@ const radarOpacityValue=document.getElementById('radarOpacityValue');
 function applyRadarOpacity(){
   for(const layer of [radarLayer,radarBufferLayer])
     layer.setOpacity(radarOn&&layer===radarVisibleLayer?radarOpacity:0);
+  cumLayer.setOpacity(radarOpacity);
   // Gli altri frame OPERA precaricati devono restare completamente invisibili.
   operaFrameLayers.forEach(layer=>layer.setOpacity(operaOn&&layer===operaDisplayedLayer?radarOpacity:0));
   // Stessa opacità in 2D e 3D, per non attenuare i colori del prodotto DPC.
   if(map3d&&map3dStyleReady){
-    if(radarOn&&map3d.getLayer('dpc-precip-3d-layer'))
+    if((radarOn||cumActive)&&map3d.getLayer('dpc-precip-3d-layer'))
       map3d.setPaintProperty('dpc-precip-3d-layer','raster-opacity',radar3dOpacity());
     if(operaOn&&map3d.getLayer('opera-radar-3d-layer'))
       map3d.setPaintProperty('opera-radar-3d-layer','raster-opacity',radar3dOpacity())
