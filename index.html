@@ -1115,6 +1115,20 @@ function dpcPaletteAt(t,bands){
 }
 function dpcDecodeTile(ctx,productKey,w=256,h=256){
   const image=ctx.getImageData(0,0,w,h),pix=image.data;
+  // Le cumulate DPC sono WebP RGB già colorati: NON applicare la
+  // decodifica monobanda VMI/SRI, né attenuare i pixel scuri validi.
+  // Si rende trasparente soltanto lo sfondo nero/nodata.
+  if(productKey==='SRT1'||productKey.startsWith('CUM')){
+    let changed=false,visible=false;
+    for(let i=0;i<pix.length;i+=4){
+      if(pix[i+3]===0)continue;
+      const r=pix[i],g=pix[i+1],b=pix[i+2];
+      if(r<=9&&g<=9&&b<=9){pix[i+3]=0;changed=true}
+      else visible=true
+    }
+    if(changed)ctx.putImageData(image,0,0);
+    return visible
+  }
   let active=0,redLike=0;
   for(let i=0;i<pix.length;i+=4){
     if(pix[i+3]===0)continue;
@@ -1214,7 +1228,12 @@ const radarBufferLayer=new DpcV2Layer(RADAR_LAYER_OPTIONS);
 let radarVisibleLayer=null,radarShownFrameKey='',radarPendingFrameLayer=null;
 let radarRenderToken=0,radarFrameDebounce=null,radarFrameTimeout=null,radarPendingLoadHandler=null;
 let radarPlayback=false,radar3dPlaybackWatch=null;
-const cumLayer=new DpcV2Layer({pane:'weather',opacity:radarOpacity,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'Radar-DPC · Dipartimento della Protezione Civile · CC BY-SA'});
+// Doppio buffer per cumulate: manteniamo visibile il frame precedente
+// finché il successivo è stato scaricato e renderizzato.
+const CUM_LAYER_OPTIONS={pane:'weather',opacity:0,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'Radar-DPC · Dipartimento della Protezione Civile · CC BY-SA'};
+const cumLayer=new DpcV2Layer(CUM_LAYER_OPTIONS);
+const cumBufferLayer=new DpcV2Layer(CUM_LAYER_OPTIONS);
+let cumVisibleLayer=null,cumShownFrameKey='',cumDisplayedCode=null,cumLoadToken=0,cumPendingLayer=null,cumPendingTimer=null,cumPendingHandler=null;
 const lightningRenderer=L.canvas({pane:'lightning',padding:.7});
 const lightningLayer=L.layerGroup();
 const lightningPulseLayer=L.layerGroup();
@@ -1429,9 +1448,9 @@ function sync3dPrecipLayers(){
     raise3dOperationalLayers();
     return
   }
-  if(cumActive&&cumLayer?._productKey&&cumLayer?._frame){
+  if(cumActive&&cumVisibleLayer?._productKey&&cumVisibleLayer?._frame){
     hide3dPrecipLayer('opera-radar-3d-layer');
-    update3dDpcLayer(cumLayer._productKey,cumLayer._frame,radar3dOpacity());
+    update3dDpcLayer(cumVisibleLayer._productKey,cumVisibleLayer._frame,radar3dOpacity());
     raise3dOperationalLayers();
     return
   }
@@ -2073,7 +2092,7 @@ function cumLegendHtml(){
   if(!cumActive)return '';
   const product=CUM_PRODUCTS[cumActive];
   return '<div class="map-legend-row"><div class="map-legend-title">Cumulate Radar-DPC · '+(product?.label||cumActive.toUpperCase())+' · mm</div>'+
-    '<div class="map-legend-note">Colori e trasparenze dei WebP DPC originali, senza palette ricostruite. '+
+    '<div class="map-legend-note">Colori RGB originali DPC, senza palette ricostruite; sfondo nodata trasparente. '+
     '<a href="https://radar.protezionecivile.it/" target="_blank" rel="noopener noreferrer">Legenda ufficiale delle cumulate</a>.</div></div>'
 }
 function lightningLegendHtml(){
@@ -3791,7 +3810,8 @@ const radarOpacityValue=document.getElementById('radarOpacityValue');
 function applyRadarOpacity(){
   for(const layer of [radarLayer,radarBufferLayer])
     layer.setOpacity(radarOn&&layer===radarVisibleLayer?radarOpacity:0);
-  cumLayer.setOpacity(radarOpacity);
+  for(const layer of [cumLayer,cumBufferLayer])
+    layer.setOpacity(cumActive&&layer===cumVisibleLayer?radarOpacity:0);
   // Gli altri frame OPERA precaricati devono restare completamente invisibili.
   operaFrameLayers.forEach(layer=>layer.setOpacity(operaOn&&layer===operaDisplayedLayer?radarOpacity:0));
   // In 3D un'ulteriore lieve trasparenza migliora la leggibilità del territorio.
@@ -4971,34 +4991,131 @@ document.addEventListener('visibilitychange',()=>{
 });
 setInterval(()=>{if(lightningOn&&lightningMode==='live')loadLightningHistoryFrames()},5*60*1000);
 
-async function setCumState(code){
-  cumActive=code;
-  if(!code){
-    if(map.hasLayer(cumLayer))map.removeLayer(cumLayer);
-    cumBtn.classList.remove('active');cumBtn.lastElementChild.textContent='OFF';
-    cumStamp.textContent=''
-  }else{
-    const product=CUM_PRODUCTS[code];
-    if(!product)return;
-    if(aromeOn)setAromeState(false);
-    if(radarOn)setRadarState(false);
-    if(operaOn)setOperaState(false);
-    cumStamp.textContent='Ricerca ultimo '+code.toUpperCase()+'…';
-    const t=await latestProductTime(product.api);
-    if(!t){cumStamp.textContent=code.toUpperCase()+' · dato non disponibile';return}
-    cumLayer.setProductFrame(product.api,t);
-    if(!map.hasLayer(cumLayer))cumLayer.addTo(map);
-    cumBtn.classList.add('active');cumBtn.lastElementChild.textContent=product.label;
-    if(t){
-      cumStamp.textContent=code.toUpperCase()+' · '+t.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})
-    }else{
-      cumStamp.textContent=code.toUpperCase()+' · ultimo campo disponibile'
-    }
+// Campioni DPC su Sardegna: una tile non esistente può far apparire
+// un intero layer vuoto. Verifichiamo che il WebP esista prima del cambio.
+async function cumFrameAvailable(productKey,time){
+  // z6: Sardegna centrale e settentrionale; anche tile adiacenti
+  // per non dedurre indisponibilità da una singola zona senza copertura.
+  const centers=[[40.05,9.05],[41.0,9.2],[39.15,8.8],[40.7,8.4]];
+  const keys=new Set();
+  for(const [lat,lng] of centers){
+    const p=map.project(L.latLng(lat,lng),6);
+    const x=Math.floor(p.x/256),y=Math.floor(p.y/256);
+    keys.add(x+','+y)
   }
-  document.querySelectorAll('[data-cum]').forEach(b=>b.classList.toggle('active',(code||'off')===b.dataset.cum));
+  const checks=Array.from(keys,key=>{
+    const [x,y]=key.split(',').map(Number);
+    return cachedDpcImage(dpcTileUrl(productKey,time,6,x,y))
+  });
+  const images=await Promise.all(checks);
+  return images.some(img=>img&&img.naturalWidth>0&&img.naturalHeight>0)
+}
+function cancelPendingCumLoad(){
+  if(cumPendingTimer){clearTimeout(cumPendingTimer);cumPendingTimer=null}
+  if(cumPendingLayer&&cumPendingHandler)
+    cumPendingLayer.off('load',cumPendingHandler);
+  if(cumPendingLayer&&cumPendingLayer!==cumVisibleLayer&&map.hasLayer(cumPendingLayer))
+    map.removeLayer(cumPendingLayer);
+  cumPendingLayer=null;cumPendingHandler=null
+}
+function cumDisplayStamp(code,time,notice=''){
+  const stamp=time.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  cumStamp.textContent=code.toUpperCase()+' · '+stamp+(notice?' · '+notice:'')
+}
+function syncCumControls(){
+  const displayed=cumDisplayedCode?CUM_PRODUCTS[cumDisplayedCode]:null;
+  cumBtn.classList.toggle('active',!!cumActive);
+  cumBtn.lastElementChild.textContent=displayed?.label||(cumActive?'…':'OFF');
+  document.querySelectorAll('[data-cum]').forEach(b=>b.classList.toggle('active',(cumActive||'off')===b.dataset.cum));
   schedule3dPrecipSync(40);
   legend();
   syncAccordionStates()
+}
+function cumLoadFailed(requestedCode,message){
+  const stillVisible=!!cumVisibleLayer;
+  // In caso di errore si mantiene l'ultima immagine effettivamente mostrata,
+  // tornando al relativo prodotto senza attribuire un campo sbagliato.
+  cumActive=stillVisible?cumDisplayedCode:null;
+  const shown=stillVisible?' · resta visualizzato '+(CUM_PRODUCTS[cumDisplayedCode]?.label||cumDisplayedCode):'';
+  cumStamp.textContent=requestedCode.toUpperCase()+' · '+message+shown;
+  syncCumControls()
+}
+async function setCumState(code){
+  if(code&&!CUM_PRODUCTS[code])return;
+  const token=++cumLoadToken;
+  cancelPendingCumLoad();
+  if(!code){
+    cumActive=null;cumDisplayedCode=null;cumShownFrameKey='';
+    cumVisibleLayer=null;
+    for(const l of [cumLayer,cumBufferLayer]){
+      l.setOpacity(0);
+      if(map.hasLayer(l))map.removeLayer(l)
+    }
+    cumStamp.textContent='';
+    syncCumControls();
+    return
+  }
+  if(aromeOn)setAromeState(false);
+  if(radarOn)setRadarState(false);
+  if(operaOn)setOperaState(false);
+  cumActive=code;
+  syncCumControls();
+  const product=CUM_PRODUCTS[code];
+  cumStamp.textContent='Ricerca ultimo '+code.toUpperCase()+'…';
+  const t=await latestProductTime(product.api);
+  if(token!==cumLoadToken||cumActive!==code)return;
+  if(!t){cumLoadFailed(code,'timestamp DPC non disponibile');return}
+  const frameKey=product.api+'|'+t.getTime();
+  if(frameKey===cumShownFrameKey&&cumVisibleLayer){
+    cumDisplayStamp(code,t);
+    return
+  }
+  cumStamp.textContent=code.toUpperCase()+' · verifica immagine…';
+  let available=false;
+  try{available=await cumFrameAvailable(product.api,t)}catch(e){console.warn('Verifica cumulate DPC',e)}
+  if(token!==cumLoadToken||cumActive!==code)return;
+  if(!available){cumLoadFailed(code,'tile DPC non ancora disponibile');return}
+  const nextLayer=cumVisibleLayer===cumLayer?cumBufferLayer:cumLayer;
+  nextLayer.setOpacity(0);
+  nextLayer._successfulTiles=0;
+  nextLayer.setProductFrame(product.api,t);
+  if(mode3d){
+    // Leaflet è nascosto in 3D e non emette l'evento load.
+    if(map.hasLayer(cumVisibleLayer))map.removeLayer(cumVisibleLayer);
+    cumVisibleLayer=nextLayer;cumShownFrameKey=frameKey;cumDisplayedCode=code;
+    if(!map.hasLayer(nextLayer))nextLayer.addTo(map);
+    cumDisplayStamp(code,t);
+    syncCumControls();
+    return
+  }
+  cumPendingLayer=nextLayer;
+  // Non usare un timeout che scambi un raster ancora in download per
+  // un dato valido. Se non completa, resta visibile l'ultima immagine.
+  let resolved=false;
+  const finish=ok=>{
+    if(resolved)return;
+    resolved=true;
+    if(token!==cumLoadToken||cumActive!==code)return;
+    cancelPendingCumLoad();
+    if(!ok){
+      cumLoadFailed(code,'caricamento incompleto');
+      return
+    }
+    const previous=cumVisibleLayer;
+    cumVisibleLayer=nextLayer;cumShownFrameKey=frameKey;cumDisplayedCode=code;
+    if(!map.hasLayer(nextLayer))nextLayer.addTo(map);
+    nextLayer.setOpacity(radarOpacity);
+    if(previous&&previous!==nextLayer){
+      previous.setOpacity(0);
+      if(map.hasLayer(previous))map.removeLayer(previous)
+    }
+    cumDisplayStamp(code,t);
+    syncCumControls()
+  };
+  cumPendingHandler=()=>finish(nextLayer._successfulTiles>0);
+  nextLayer.on('load',cumPendingHandler);
+  if(!map.hasLayer(nextLayer))nextLayer.addTo(map);
+  cumPendingTimer=setTimeout(()=>finish(false),15000)
 }
 syncAccordionStates();
 cumBtn.onclick=()=>cumInfo.classList.toggle('on');
@@ -5006,7 +5123,8 @@ document.querySelectorAll('[data-cum]').forEach(b=>b.onclick=()=>{const code=b.d
 setInterval(()=>{
   if(radarOn&&!radarPlayback&&radarIndex===radarFrames.length-1)loadRadarTimeline();
   if(operaOn&&!operaTimer&&operaIndex===operaFrames.length-1)loadOperaTimeline(false);
-  if(cumActive)setCumState(cumActive)
+  // Solo con app visibile: nessun reset del campo durante gli aggiornamenti.
+  if(cumActive&&!document.hidden)setCumState(cumActive)
 },5*60*1000);
 setInterval(()=>{if(hydroOn&&!document.hidden)loadHydroData(true)},5*60*1000);
 
