@@ -1468,29 +1468,9 @@ function station3dCandidates(spacing){
     Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||
     a.pri-b.pri||a.stable.localeCompare(b.stable,'it')
   );
-  const grid=new Map(),accepted=[];
-  for(const item of candidates){
-    const gx=Math.floor(item.p.x/spacing),gy=Math.floor(item.p.y/spacing);
-    let collide=false;
-    for(let ix=gx-1;ix<=gx+1&&!collide;ix++){
-      for(let iy=gy-1;iy<=gy+1&&!collide;iy++){
-        const bucket=grid.get(ix+','+iy);
-        if(!bucket)continue;
-        for(const keep of bucket){
-          const dx=item.p.x-keep.p.x,dy=item.p.y-keep.p.y;
-          if(dx*dx+dy*dy<spacing*spacing){
-            collide=true;break
-          }
-        }
-      }
-    }
-    if(collide)continue;
-    accepted.push(item);
-    const key=gx+','+gy;
-    if(!grid.has(key))grid.set(key,[]);
-    grid.get(key).push(item)
-  }
-  return accepted
+  // Mostra tutte le stazioni con dato valido nell'area visibile, anche sovrapposte.
+  // Nessuna eliminazione per collisione: lo zoom non deve ridurre la densità.
+  return candidates
 }
 function station3dMarkerSize(){
   const zoom=map3d?.getZoom()??7;
@@ -1567,7 +1547,7 @@ function ensure3dDataLayers(){
   if(!map3d||!map3dStyleReady)return;
   if(!map3d.getSource('stations-3d')){
     map3d.addSource('stations-3d',{type:'geojson',data:fc()});
-    // Dimensioni maggiorate e numeri centrati; il filtro spaziale previene sovrapposizioni.
+    // Numeri centrati: nessun filtro anticollisione sui marker delle stazioni.
     map3d.addLayer({
       id:'stations-3d-points',type:'circle',source:'stations-3d',
       paint:{
@@ -2602,46 +2582,9 @@ function priority(s){
   return 4
 }
 function selectedMarkers(){
-  const candidates=marks.filter(x=>baseVisible(x.s));
-  if(query)return new Set(candidates.map(x=>x.m));
-
-  const spacing=markerSpacing(),z=map.getZoom();
-  /* Coordinate globali al livello di zoom corrente:
-     la selezione non dipende dal centro o dal pan della mappa. */
-  const projected=candidates.map(x=>{
-    const p=map.project(x.m.getLatLng(),z);
-    const stable=stationKey(x.s);
-    return {x,p,pri:priority(x.s),stable}
-  }).sort((a,b)=>Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||a.pri-b.pri||a.stable.localeCompare(b.stable,'it'));
-
-  /* Griglia spaziale: controlliamo solo le celle vicine.
-     Consente una distanza quasi pari alla dimensione reale dei badge,
-     massimizzando il riempimento senza sovrapposizioni evidenti. */
-  const grid=new Map(),accepted=[];
-  const cellX=spacing.x,cellY=spacing.y;
-  for(const item of projected){
-    const gx=Math.floor(item.p.x/cellX),gy=Math.floor(item.p.y/cellY);
-    let collide=false;
-    for(let ix=gx-1;ix<=gx+1&&!collide;ix++){
-      for(let iy=gy-1;iy<=gy+1&&!collide;iy++){
-        const bucket=grid.get(ix+','+iy);
-        if(!bucket)continue;
-        for(const keep of bucket){
-          const dx=item.p.x-keep.p.x,dy=item.p.y-keep.p.y;
-          const minDistance=Math.max(spacing.x,spacing.y);
-          if(dx*dx+dy*dy<minDistance*minDistance){
-            collide=true;break
-          }
-        }
-      }
-    }
-    if(collide)continue;
-    accepted.push(item);
-    const key=gx+','+gy;
-    if(!grid.has(key))grid.set(key,[]);
-    grid.get(key).push(item)
-  }
-  return new Set(accepted.map(v=>v.x.m))
+  // Tutte le stazioni eleggibili rimangono visibili a qualunque zoom,
+  // anche quando i badge si sovrappongono: nessun diradamento spaziale.
+  return new Set(marks.filter(x=>baseVisible(x.s)).map(x=>x.m))
 }
 function applyFilters(){
   const selected=selectedMarkers();
