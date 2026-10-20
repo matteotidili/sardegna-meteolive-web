@@ -3966,7 +3966,7 @@ function prepareRadarFrame(productKey,time,key,token){
     const previous=radarVisibleLayer;
     radarVisibleLayer=candidate;
     radarShownFrameKey=key;
-    radarTime.textContent=radarLabel(time);
+    radarSetClock(time);
     scheduleRadarPrefetch();
     if(previous&&previous!==candidate&&map.hasLayer(previous))
       map.removeLayer(previous);
@@ -4008,7 +4008,7 @@ function setRadarFrame(i){
     radarSetClock(d);
     if(radarPlayback)scheduleRadarPlayback()
   }else{
-    radarTime.textContent=radarLabel(d)+' · caricamento…';
+    radarLoading(true);
     const token=radarRenderToken,productKey=radarProductKey;
     // Durante lo scrub rapido carichiamo solo l'ultima richiesta.
     radarFrameDebounce=setTimeout(()=>{
