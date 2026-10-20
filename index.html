@@ -3855,7 +3855,9 @@ function radarSetClock(time){
   radarTimeline.classList.remove('radar-loading')
 }
 function radarLoading(active){
-  radarTimeline.classList.toggle('radar-loading',!!active)
+  // Durante la riproduzione non mostrare alcuna spia intermittente:
+  // si aggiorna soltanto l'orario quando il fotogramma è pronto.
+  radarTimeline.classList.toggle('radar-loading',!!active&&!radarPlayback)
 }
 function radarLoadError(message){
   radarLoading(false);
