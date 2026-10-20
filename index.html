@@ -124,6 +124,17 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .map-legend-row{padding:5px 0}.map-legend-row+.map-legend-row{border-top:1px solid #dce3e8}.map-legend-title{font-size:8px;font-weight:900;letter-spacing:.08em;color:#263746;text-transform:uppercase;margin-bottom:5px}.map-legend-bar{height:10px;border-radius:8px;border:1px solid #b7c2cb;overflow:hidden}.map-legend-labels{display:flex;justify-content:space-between;gap:4px;margin-top:4px;font-size:7px;color:#34495a;font-variant-numeric:tabular-nums}.map-legend-note{font-size:7px;color:#647887;margin-top:3px}.lightning-scale{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:6px;font-size:8px;color:#d1deea}.lightning-scale span{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;padding:5px 4px;border:1px solid #ffffff12;border-radius:7px;background:#0d1a27}.lightning-dot{width:12px;height:12px;flex:0 0 12px;border-radius:50%;border:1px solid #111;box-shadow:0 0 5px #0008}.lightning-direction{display:flex;justify-content:space-between;margin-top:5px;font-size:7px;color:#7f96a9;text-transform:uppercase;letter-spacing:.06em}.li-legend-img{display:block;width:100%;max-width:640px;height:auto;margin-top:5px;border-radius:6px}.lightning-pulse-icon{background:transparent!important;border:0!important}.lightning-pulse-ring{width:18px;height:18px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px #fff;animation:lightningPulse 1.25s ease-out infinite;transform-origin:center}@keyframes lightningPulse{0%{transform:scale(.25);opacity:1}70%{opacity:.75}100%{transform:scale(2.1);opacity:0}}.time-kind{flex:0 0 auto;font-size:9px;font-weight:900;letter-spacing:.08em;color:#91a4b8}.timebtn{width:32px;height:30px;border:1px solid #35516a;background:#102131;color:#eef6ff;border-radius:8px;cursor:pointer;font-weight:800}.timebtn.active{border-color:#42d7ff;background:#12394d}.timeline input[type=range]{min-width:0;flex:1;accent-color:#42d7ff}.time-label{min-width:102px;text-align:right;color:#dbeaf6;font-size:10px;font-weight:750;font-variant-numeric:tabular-nums}
 #radarTime{position:relative;flex:0 0 136px;width:136px;min-width:136px;white-space:nowrap;overflow:hidden;text-overflow:clip;contain:layout style;isolation:isolate}
 #radarTimeline.radar-loading #radarTime:before{content:"";position:absolute;left:0;top:50%;width:4px;height:4px;border-radius:50%;background:#42d7ff;transform:translateY(-50%);pointer-events:none}
+#radarTimeline .time-kind{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.radar-speed-switch{display:flex;align-items:center;gap:2px;flex:0 0 auto;padding:2px;border:1px solid #35516a;border-radius:8px;background:#0a1a29}
+.radar-speed-opt{display:grid;place-items:center;min-width:28px;height:26px;padding:0 3px;border:0;border-radius:5px;background:transparent;color:#94b1c4;font:800 10px/1 Inter,system-ui,Arial,sans-serif;cursor:pointer;touch-action:manipulation}
+.radar-speed-opt.active,.radar-speed-opt[aria-pressed="true"]{background:#176180;color:#fff}
+.radar-speed-opt:focus-visible{outline:2px solid #7addfa;outline-offset:1px}
+@media(max-width:800px){
+ #radarTimeline .radar-speed-switch{grid-row:2;grid-column:1/3;justify-self:start;width:100%;box-sizing:border-box;min-width:0;padding:1px;gap:1px}
+ #radarTimeline .radar-speed-opt{flex:1 1 0;min-width:0;height:30px;padding:0;font-size:10px}
+ #radarTimeline input#radarRange{grid-row:2;grid-column:3/-1;min-width:0}
+ #radarTimeline .time-kind{max-width:58px}
+}
 @media(max-width:800px){#radarTime{width:auto;min-width:0;flex:initial;max-width:100%}}.cum-switch{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.cumopt{border:1px solid #2a4358;background:#0d1b29;color:#a9bdcf;border-radius:7px;padding:6px 3px;font-size:9px;font-weight:800;cursor:pointer}.cumopt.active{border-color:#42d7ff;background:#12394d;color:#fff}
 .popup{font-size:12px;line-height:1.45}.popup b{font-size:14px}.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#0c1724;color:#eef6ff}
 .station-tip{background:#081522f2!important;color:#f2f8ff!important;border:1px solid #3a5870!important;border-radius:9px!important;box-shadow:0 8px 22px #0008!important;padding:7px 9px!important;font-size:11px!important;line-height:1.3!important}
@@ -774,7 +785,7 @@ header .live{margin-left:0}
 <div class="map-legends" id="mapLegends" aria-live="polite"></div>
 <div class="station-map-legend" id="stationMapLegend" aria-live="polite"></div>
 <div class="timeline" id="aromeTimeline"><div class="time-kind">AROME HD · PREV.</div><button class="timebtn" id="aromePrev" title="Ora precedente">‹</button><button class="timebtn" id="aromePlay" title="Riproduci">▶</button><button class="timebtn" id="aromeNext" title="Ora successiva">›</button><input id="aromeRange" type="range" min="0" max="50" value="0" step="1" aria-label="Ora di previsione AROME da H+1 a H+51"><div class="time-label" id="aromeTime">—</div></div>
-<div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
+<div class="timeline" id="radarTimeline"><div class="time-kind">RADAR</div><button class="timebtn" id="radarPrev" title="Frame precedente">‹</button><button class="timebtn" id="radarPlay" title="Riproduci">▶</button><button class="timebtn" id="radarNext" title="Frame successivo">›</button><div class="radar-speed-switch" role="group" aria-label="Velocità di riproduzione radar"><button type="button" class="radar-speed-opt active" data-radar-speed="1" aria-pressed="true" title="Velocità normale">1×</button><button type="button" class="radar-speed-opt" data-radar-speed="2" aria-pressed="false" title="Velocità doppia">2×</button><button type="button" class="radar-speed-opt" data-radar-speed="3" aria-pressed="false" title="Velocità tripla">3×</button></div><input id="radarRange" type="range" min="0" max="36" value="36" step="1" aria-label="Sequenza temporale radar"><div class="time-label" id="radarTime">ULTIMO</div></div>
 <div class="timeline" id="operaTimeline"><div class="time-kind">EU RADAR</div><button class="timebtn" id="operaPrev" title="Frame precedente">‹</button><button class="timebtn" id="operaPlay" title="Riproduci">▶</button><button class="timebtn" id="operaNext" title="Frame successivo">›</button><input id="operaRange" type="range" min="0" max="11" value="11" step="1" aria-label="Sequenza temporale radar Europa"><div class="time-label" id="operaTime">ULTIMO</div></div>
 <div class="timeline" id="satTimeline"><div class="time-kind">SAT</div><button class="timebtn" id="satPrev" title="Frame precedente">‹</button><button class="timebtn" id="satPlay" title="Riproduci">▶</button><button class="timebtn" id="satNext" title="Frame successivo">›</button><input id="satRange" type="range" min="0" max="18" value="18" step="1" aria-label="Sequenza temporale satellite"><div class="time-label" id="satTime">ULTIMO</div></div>
 <div class="timeline" id="lightningTimeline"><div class="time-kind">FULMINI</div><button class="timebtn" id="lightningPrev" title="Frame precedente">‹</button><button class="timebtn" id="lightningPlay" title="Riproduci storico">▶</button><button class="timebtn" id="lightningNext" title="Frame successivo">›</button><input id="lightningRange" type="range" min="0" max="24" value="24" step="1" aria-label="Storico fulmini ultime due ore"><div class="time-label" id="lightningTime">LIVE</div></div>
@@ -1231,6 +1242,16 @@ const radarBufferLayer=new DpcV2Layer(RADAR_LAYER_OPTIONS);
 let radarVisibleLayer=null,radarShownFrameKey='',radarPendingFrameLayer=null;
 let radarRenderToken=0,radarFrameDebounce=null,radarFrameTimeout=null,radarPendingLoadHandler=null;
 let radarPlayback=false,radar3dPlaybackWatch=null;
+const RADAR_SPEED_STORAGE='sardegna-meteolive-radar-playback-speed-v1';
+function initialRadarSpeed(){
+  try{
+    const n=Number(localStorage.getItem(RADAR_SPEED_STORAGE));
+    if([1,2,3].includes(n))return n
+  }catch(e){}
+  return 1
+}
+let radarSpeed=initialRadarSpeed();
+function radarPlaybackDelay(){return Math.round(750/radarSpeed)}
 // Doppio buffer per cumulate: manteniamo visibile il frame precedente
 // finché il successivo è stato scaricato e renderizzato.
 const CUM_LAYER_OPTIONS={pane:'weather',opacity:0,tileSize:256,updateWhenZooming:true,keepBuffer:4,attribution:'Radar-DPC · Dipartimento della Protezione Civile · CC BY-SA'};
@@ -3943,7 +3964,7 @@ function scheduleRadarPlayback(){
   radarTimer=setTimeout(()=>{
     radarTimer=null;
     if(radarPlayback&&radarOn)setRadarFrame(radarIndex>=radarFrames.length-1?0:radarIndex+1)
-  },750)
+  },radarPlaybackDelay())
 }
 function prepareRadarFrame(productKey,time,key,token){
   if(!radarOn||token!==radarRenderToken)return;
@@ -4091,6 +4112,23 @@ radarSriBtn.onclick=()=>setRadarState(!(radarOn&&radarProductKey==='SRI'),'SRI')
 document.getElementById('radarPrev').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex-1)};
 document.getElementById('radarNext').onclick=()=>{stopRadarAnimation();setRadarFrame(radarIndex+1)};
 radarPlay.onclick=()=>radarPlayback?stopRadarAnimation():startRadarAnimation();
+const radarSpeedButtons=Array.from(document.querySelectorAll('#radarTimeline [data-radar-speed]'));
+function setRadarSpeed(speed){
+  if(![1,2,3].includes(speed))return;
+  radarSpeed=speed;
+  radarSpeedButtons.forEach(btn=>{
+    const selected=Number(btn.dataset.radarSpeed)===speed;
+    btn.classList.toggle('active',selected);
+    btn.setAttribute('aria-pressed',String(selected))
+  });
+  try{localStorage.setItem(RADAR_SPEED_STORAGE,String(speed))}catch(e){}
+  // Se il frame è già pronto e c'è un timer, aggiorna la velocità
+  // immediatamente. Se è ancora in download aspetta il rendering,
+  // senza saltare fotogrammi o riavviare la timeline.
+  if(radarPlayback&&radarTimer!==null)scheduleRadarPlayback()
+}
+radarSpeedButtons.forEach(btn=>btn.addEventListener('click',()=>setRadarSpeed(Number(btn.dataset.radarSpeed))));
+setRadarSpeed(radarSpeed);
 radarRange.oninput=()=>{stopRadarAnimation();setRadarFrame(Number(radarRange.value))};
 // Precipitazione oraria AROME HD 0,01° da GRIB2 ufficiali Météo-France.
 // Gli accumuli da H0 sono differenziati tra scadenze consecutive nel collector.
