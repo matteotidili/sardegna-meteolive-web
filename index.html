@@ -2123,7 +2123,8 @@ function stationLegendHtml(){
   if(!stationsOn)return '';
   const p=P[cur];
   const grad='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')';
-  return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div>'+(cur==='rain_48h'?'<div class="map-legend-note">CEDOC: dato ufficiale su 48h; altre reti: stima da cumulati giornalieri, solo con storico sufficiente. AM: non disponibile.</div>':'')+'</div>'
+  return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div>'+(cur==='rain_48h'?'<div class="map-legend-note">CEDOC: dato ufficiale su 48h; altre reti: stima da cumulati giornalieri, solo con storico sufficiente. AM: non disponibile.</div>':'')+
+    (stations.some(s=>baseVisible(s)&&s.network!=='cedoc'&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note">Cerchio grigio con — = stazione censita, ma rilevazione assente o non aggiornata. Non usare come dato in tempo reale.</div>':'')+'</div>'
 }
 function radarLegendHtml(){
   if(!radarOn)return '';
@@ -5523,9 +5524,14 @@ try{restoreViewState()}catch(e){console.warn('Ripristino ultima vista',e)}
 try{
   const key='sardegna-meteolive-stations-recovered-20261030-v1';
   if(localStorage.getItem(key)!=='yes'){
-    netFilter='all';query='';
+    netFilter='all';query='';cur='temp';
     document.getElementById('q').value='';
     document.querySelectorAll('[data-net]').forEach(b=>b.classList.toggle('active',b.dataset.net==='all'));
+    params.querySelectorAll('[data-k]').forEach(b=>{
+      const selected=b.dataset.k===cur;
+      b.classList.toggle('active',selected);
+      b.setAttribute('aria-pressed',String(selected))
+    });
     if(!stationsOn)stationsBtn.click();
     if(stations.length)render();
     localStorage.setItem(key,'yes')
