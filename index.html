@@ -5279,6 +5279,48 @@ setInterval(()=>{if(hydroOn&&!document.hidden)loadHydroData(true)},5*60*1000);
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
 let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,lastRain48Data=null,observationsLoading=false;
+// Il catalogo WU è indipendente dalla disponibilità dell'API osservazioni.
+// Nuove PWS scoperta vengono mostrate anche con chiave momentaneamente bloccata.
+let lastWuCatalog=null,wuCatalogCheckedAt=0,wuCatalogPromise=null;
+async function fetchWuCatalog(){
+  const now=Date.now();
+  if(lastWuCatalog&&now-wuCatalogCheckedAt<30*60000)return lastWuCatalog;
+  if(wuCatalogPromise)return wuCatalogPromise;
+  wuCatalogPromise=fetch(DATA+'wunderground_stations.json?t='+Math.floor(now/(30*60000)),{
+    cache:'no-store',signal:AbortSignal.timeout(12000)
+  }).then(r=>{if(!r.ok)throw new Error('Catalogo WU '+r.status);return r.json()})
+    .then(j=>{
+      if(!Array.isArray(j?.stations)||j.stations.length===0)throw new Error('Catalogo WU vuoto');
+      lastWuCatalog=j;wuCatalogCheckedAt=Date.now();
+      return j
+    }).catch(e=>{
+      console.warn('Catalogo WU temporaneamente non disponibile',e);
+      // Riprova tra due minuti, preservando la lista già caricata.
+      wuCatalogCheckedAt=Date.now()-28*60000;
+      return lastWuCatalog
+    }).finally(()=>{wuCatalogPromise=null});
+  return wuCatalogPromise
+}
+function mergeWuCatalog(observations,catalog){
+  const rows=(Array.isArray(observations)?observations:[])
+    .filter(s=>s&&s.station_id!=='ISERRA56').map(s=>({...s,network:'wunderground'}));
+  const known=new Set(rows.map(s=>String(s.station_id||'')));
+  for(const station of (catalog?.stations||[])){
+    if(!station||!station.station_id||station.station_id==='ISERRA56')continue;
+    const sid=String(station.station_id);
+    if(known.has(sid)||!Number.isFinite(station.lat)||!Number.isFinite(station.lon))continue;
+    known.add(sid);
+    rows.push({
+      station_id:sid,name:station.name||sid,network:'wunderground',
+      lat:station.lat,lon:station.lon,elev:null,qc_status:station.qc_status??null,
+      temp:null,tmin:null,tmax:null,rh:null,wind_kmh:null,gust_kmh:null,
+      wind_dir:null,rain_today:null,rain_rate:null,rain_48h:null,dewpoint:null,
+      pressure_hpa:null,solar_wm2:null,uv:null,last:null,stale_min:null,
+      available:{temp:false,rh:false,wind:false,wind_dir:false,gust:false,rain:false}
+    })
+  }
+  return rows
+}
 function dataStampLabel(d,label){
   if(!d?.generated_at)return label+' —';
   const t=new Date(d.generated_at),age=Math.max(0,(Date.now()-t.getTime())/60000);
@@ -5299,13 +5341,15 @@ async function loadObservations(){
     fetch(DATA+'am.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('AM '+r.status);return r.json()}),
     fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()}),
     fetch(DATA+'weatherlink.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WL '+r.status);return r.json()}),
-    fetch(DATA+'rain_48h.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('RAIN48 '+r.status);return r.json()})
+    fetch(DATA+'rain_48h.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('RAIN48 '+r.status);return r.json()}),
+    fetchWuCatalog()
   ]);
   if(results[0].status==='fulfilled')lastDpcnData=results[0].value;
   if(results[1].status==='fulfilled')lastAmData=results[1].value;
   if(results[2].status==='fulfilled')lastWuData=results[2].value;
   if(results[3].status==='fulfilled')lastWlData=results[3].value;
   if(results[4].status==='fulfilled')lastRain48Data=results[4].value;
+  const catalog=results[5].status==='fulfilled'?results[5].value:lastWuCatalog;
   const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,wl=lastWlData;
   const r48=lastRain48Data;
   const now=Date.now(),generated=Date.parse(r48?.generated_at||'');
@@ -5325,7 +5369,7 @@ async function loadObservations(){
   };
   const ds=(dpcn?.stations||[]).map(s=>append48(s,s.network||'dpcn-sardegna'));
   const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare',rain_48h:null}));
-  const ws=(wu?.stations||[]).filter(s=>s.station_id!=='ISERRA56').map(s=>append48(s,'wunderground'));
+  const ws=mergeWuCatalog(wu?.stations||[],catalog).map(s=>append48(s,'wunderground'));
   const wls=(wl?.stations||[]).map(s=>append48(s,'weatherlink'));
   stations=[...as,...ds,...ws,...wls,...cedocAsStandardStations()];
   const wlButton=document.getElementById('wlNetBtn');
@@ -5334,7 +5378,10 @@ async function loadObservations(){
     netFilter='all';
     document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'))
   }
-  const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));if(wu)parts.push(dataStampLabel(wu,'WU'));if(wls.length)parts.push(dataStampLabel(wl,'WL'));
+  const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));
+  if(wu||catalog)parts.push((wu?dataStampLabel(wu,'WU'):'WU dati non disponibili')+
+    (catalog&&catalog.stations.length>(wu?.stations?.length||0)?' · '+catalog.stations.length+' PWS censite':''));
+  if(wls.length)parts.push(dataStampLabel(wl,'WL'));
   const counter=document.getElementById('counter');
   counter.textContent=parts.length?parts.join(' · '):'Nessuna rete disponibile';
   // La sorgente può essere in ritardo anche quando il JSON è stato acquisito oggi.
