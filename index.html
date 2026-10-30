@@ -2673,7 +2673,7 @@ function legend(){
 }
 // Per le variabili istantanee non classifichiamo come attuali dati vecchi di ore.
 // Gli estremi giornalieri, invece, sono valori accumulati dal giorno locale in corso.
-const LIVE_STATION_PARAMS=new Set(['temp','rh','wind_kmh','rain_rate']);
+const LIVE_STATION_PARAMS=new Set(['temp','rh','wind_kmh','gust_kmh','rain_rate']);
 const DAILY_STATION_PARAMS=new Set(['tmin','tmax','rain_today']);
 const ROLLING_STATION_PARAMS=new Set(['rain_48h']);
 const LIVE_STATION_MAX_AGE_MIN=90;
