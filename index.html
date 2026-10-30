@@ -1544,6 +1544,7 @@ function densestStationPacking(items,diameterWithGap){
   }
   const sorted=items.slice().sort((a,b)=>
     Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||
+    Number(!!b.valid)-Number(!!a.valid)||
     a._degree-b._degree||
     a.pri-b.pri||
     a.stable.localeCompare(b.stable,'it')
@@ -1574,7 +1575,7 @@ function station3dCandidates(spacing){
     try{p=map3d.project([lon,lat])}catch(e){return null}
     if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)||
        p.x< -spacing||p.x>width+spacing||p.y< -spacing||p.y>height+spacing)return null;
-    return {s,p,pri:priority(s),stable:stationKey(s)}
+    return {s,p,pri:priority(s),stable:stationKey(s),valid:stationParameterIsCurrent(s,cur)}
   }).filter(Boolean).sort((a,b)=>
     Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||
     a.pri-b.pri||a.stable.localeCompare(b.stable,'it')
@@ -1599,7 +1600,7 @@ function renderMobile3dStations(){
   const diameter=station3dMarkerSize();
   const selected=station3dCandidates(diameter+1);
   for(const item of selected){
-    const s=item.s,key=stationKey(s),bg=col(s[cur],P[cur].st),value=fmtMarker(s[cur],cur);
+    const s=item.s,key=stationKey(s),bg=stationMarkerColor(s),value=stationMarkerValue(s);
     let marker=existing.get(key),el;
     if(marker){
       existing.delete(key);
@@ -1619,7 +1620,7 @@ function renderMobile3dStations(){
         const escapeHTML=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         new maplibregl.Popup({closeButton:false,offset:18})
           .setLngLat([Number(st.lon),Number(st.lat)])
-          .setHTML('<b>'+escapeHTML(st.name||'Stazione')+'</b><br>'+escapeHTML(P[cur].n)+': '+escapeHTML(fmt(st[cur],cur,st))+
+          .setHTML('<b>'+escapeHTML(st.name||'Stazione')+'</b><br>'+escapeHTML(P[cur].n)+': '+escapeHTML(stationParameterIsCurrent(st,cur)?fmt(st[cur],cur,st):'dato non aggiornato / non disponibile')+
             '<br><span style="opacity:.75">'+escapeHTML(net)+(cur==='rain_48h'?(st.rain_48h_source==='estimated_from_daily_counters'?' · stima da storico':' · dato diretto CEDOC'):'')+'</span>')
           .addTo(map3d)
       });
@@ -1636,7 +1637,7 @@ function renderMobile3dStations(){
     label.style.textShadow=darkInk?'0 1px 0 #ffffffba':'0 1px 2px #000,0 0 2px #000';
     if(label.textContent!==value)label.textContent=value;
     label.style.fontSize=stationMarkerFontSize(diameter,value)+'px';
-    el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+fmt(s[cur],cur,s);
+    el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+(stationParameterIsCurrent(s,cur)?fmt(s[cur],cur,s):'non aggiornato o non disponibile');
     el.setAttribute('aria-label',el.title);
     const p=marker.getLngLat();
     if(p.lng!==Number(s.lon)||p.lat!==Number(s.lat))marker.setLngLat([Number(s.lon),Number(s.lat)]);
@@ -1645,7 +1646,7 @@ function renderMobile3dStations(){
   for(const marker of existing.values())marker.remove();
   station3dMobileMarkers=retained;
   const status=document.getElementById('status');
-  if(status)status.textContent='Vista 3D · '+selected.length+' stazioni visibili · '+P[cur].n+' · '+stations.filter(baseVisible).length+' con dato'
+  if(status)status.textContent='Vista 3D · '+selected.length+' stazioni visibili · '+P[cur].n+' · '+stations.filter(baseVisible).length+' presenti · '+stations.filter(s=>baseVisible(s)&&stationParameterIsCurrent(s,cur)).length+' aggiornate'
 }
 function scheduleMobile3dStations(delay=60){
   if(station3dMobileRefreshTimer)clearTimeout(station3dMobileRefreshTimer);
@@ -1924,11 +1925,14 @@ function renderStationDirectory(){
   const scroll=list.scrollTop;
   const focused=document.activeElement?.closest('[data-station-key]')?.dataset.stationKey;
   const rows=stations.filter(baseVisible).sort((a,b)=>{
+    const quality=Number(stationParameterIsCurrent(b,cur))-Number(stationParameterIsCurrent(a,cur));
+    if(quality)return quality;
     const delta=directorySort==='desc'?b[cur]-a[cur]:a[cur]-b[cur];
     return delta||(a.name||'').localeCompare(b.name||'','it')||stationKey(a).localeCompare(stationKey(b),'it')
   });
   const timeScope=cur==='rain_48h'?' · ultime 48 ore (CEDOC dato diretto; altre reti stima campionata)':LIVE_STATION_PARAMS.has(cur)?' · rilevazioni ultimi '+LIVE_STATION_MAX_AGE_MIN+' min':DAILY_STATION_PARAMS.has(cur)?' · oggi (ora italiana)':'';
-  document.getElementById('directorySummary').textContent=rows.length+' stazioni · '+P[cur].n+' · '+P[cur].u+timeScope;
+  const withCurrent=rows.filter(s=>stationParameterIsCurrent(s,cur)).length;
+  document.getElementById('directorySummary').textContent=rows.length+' stazioni presenti · '+withCurrent+' con dato valido · '+P[cur].n+' · '+P[cur].u+timeScope;
   document.querySelectorAll('[data-station-sort]').forEach(btn=>{
     const active=btn.dataset.stationSort===directorySort;
     btn.classList.toggle('active',active);
@@ -1946,8 +1950,9 @@ function renderStationDirectory(){
     const net=s.network==='wunderground'?'WU':s.network==='aeronautica-militare'?'AM':s.network==='weatherlink'?'WL':s.network==='cedoc'?'CEDOC':'DPCN';
     const date=s.last?new Date(s.last):null;
     const time=date&&Number.isFinite(date.getTime())?date.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'orario non disponibile';
-    meta.textContent=net+(Number.isFinite(s.elev)?' · '+Math.round(s.elev)+' m':'')+' · '+time;
-    const value=document.createElement('span');value.className='station-value';value.style.background=col(s[cur],P[cur].st);value.textContent=fmtMarker(s[cur],cur);
+    const usable=stationParameterIsCurrent(s,cur);
+    meta.textContent=net+(Number.isFinite(s.elev)?' · '+Math.round(s.elev)+' m':'')+' · '+time+(usable?'':' · DATO NON AGGIORNATO / N.D.');
+    const value=document.createElement('span');value.className='station-value';value.style.background=stationMarkerColor(s);value.textContent=stationMarkerValue(s);
     details.append(name,meta);row.append(details,value);fragment.append(row)
   }
   if(!rows.length){const empty=document.createElement('div');empty.className='directory-empty';empty.textContent='Nessuna stazione con questo parametro e questi filtri.';fragment.append(empty)}
@@ -2083,12 +2088,12 @@ function stationMarkerFontSize(diameter,value){
   return Math.round(Math.min(19,diameter*factor)*10)/10
 }
 function ico(s){
-  const v=s[cur],bg=col(v,P[cur].st),m=markerMetrics();
+  const v=stationMarkerValue(s),bg=stationMarkerColor(s),m=markerMetrics();
   const suspect=s.network==='wunderground'&&s.qc_status===0;
   const cls='badge '+(markerUseDarkInk(bg)?'light-ink':'dark-ink')+(suspect?' suspect':'');
   return L.divIcon({
     className:'',
-    html:'<div class="'+cls+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px"><span class="station-marker-number" style="font-size:'+stationMarkerFontSize(m.d,fmtMarker(v,cur))+'px">'+fmtMarker(v,cur)+'</span></div>',
+    html:'<div class="'+cls+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px"><span class="station-marker-number" style="font-size:'+stationMarkerFontSize(m.d,v)+'px">'+v+'</span></div>',
     iconSize:[m.d,m.d],
     iconAnchor:[m.d/2,m.d/2]
   })
@@ -2102,10 +2107,18 @@ function popup(s){
       (Number.isFinite(s.rain_48h)?cedocNumber(s.rain_48h)+' mm':'—')+'</b> (dato CEDOC)<br>Osservazione: '+ts+
       '<br><small>Misura automatica non validata ARPAS</small><br><a href="'+url+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>'
   }
+  if(obsAgeMin(s)>LIVE_STATION_MAX_AGE_MIN){
+    const ts=Number.isFinite(Date.parse(s.last||''))?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'non disponibile';
+    return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br><strong style="color:#edc784">DATI NON AGGIORNATI</strong><br>Rete: '+cedocEscape(s.network||'')+'<br>Ultima osservazione: '+ts+'<br><small>La stazione è localizzata in mappa, ma non sono disponibili misure attuali.</small></div>'
+  }
   let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+
 '<br>Ultime 48 ore: '+(Number.isFinite(s.rain_48h)?s.rain_48h.toFixed(1)+' mm'+(s.rain_48h_source==='estimated_from_daily_counters'?' (stima da storico)':''):'—')+
 extra+quality+'</div>'}
-function tooltipHtml(s){const net=s.network==='cedoc'?'CEDOC Sardegna':s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':s.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';return '<div class="tip-name">'+s.name+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+fmt(s[cur],cur,s)+'</div>'}
+function tooltipHtml(s){
+  const net=s.network==='cedoc'?'CEDOC Sardegna':s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':s.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';
+  const usable=stationParameterIsCurrent(s,cur);
+  return '<div class="tip-name">'+cedocEscape(s.name||'Stazione')+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+(usable?fmt(s[cur],cur,s):'— · dato non aggiornato / n.d.')+'</div>'
+}
 function stationLegendHtml(){
   if(!stationsOn)return '';
   const p=P[cur];
@@ -2678,10 +2691,19 @@ function stationParameterIsCurrent(s,key){
   if(LIVE_STATION_PARAMS.has(key))return now-obs<=LIVE_STATION_MAX_AGE_MIN*60000;
   return stationRomeDate.format(obs)===stationRomeDate.format(now)
 }
+function stationMarkerValue(s,key=cur){
+  return stationParameterIsCurrent(s,key)?fmtMarker(s[key],key):'—'
+}
+function stationMarkerColor(s,key=cur){
+  return stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#65717d'
+}
 function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
   const q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);
-  return net&&q&&stationParameterIsCurrent(s,cur)
+  if(!net||!q||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return false;
+  // Mantieni visibili le posizioni delle stazioni anche se la rete WU è bloccata.
+  // La misura obsoleta resta nascosta e il marker diventa grigio con "—".
+  return s.network==='cedoc'?stationParameterIsCurrent(s,cur):true
 }
 function markerSpacing(){
   const m=markerMetrics();
@@ -2700,7 +2722,7 @@ function selectedMarkers(){
   const zoom=map.getZoom(),spacing=markerSpacing().x;
   const candidates=marks.filter(x=>baseVisible(x.s)).map(x=>({
     x,p:map.project(x.m.getLatLng(),zoom),
-    stable:stationKey(x.s),pri:priority(x.s)
+    stable:stationKey(x.s),pri:priority(x.s),valid:stationParameterIsCurrent(x.s,cur)
   }));
   return new Set(densestStationPacking(candidates,spacing).map(item=>item.x.m))
 }
@@ -2716,7 +2738,7 @@ function applyFilters(){
 // I badge delle stazioni sono aggiornati in-place per evitare un flash
 // dovuto alla ricostruzione del DOM durante zoom e refresh.
 function syncStationMarker(x){
-  const s=x.s,m=markerMetrics(),v=fmtMarker(s[cur],cur),bg=col(s[cur],P[cur].st);
+  const s=x.s,m=markerMetrics(),v=stationMarkerValue(s),bg=stationMarkerColor(s);
   const suspect=s.network==='wunderground'&&s.qc_status===0;
   const ink=markerUseDarkInk(bg)?'light-ink':'dark-ink';
   const stamp=[cur,m.d,v,bg,suspect,ink].join('|');
@@ -2739,7 +2761,7 @@ function syncStationMarker(x){
     }
     x.iconStamp=stamp
   }
-  const tipStamp=[cur,s.name,s[cur]].join('|');
+  const tipStamp=[cur,s.name,s[cur],stationParameterIsCurrent(s,cur)].join('|');
   if(x.tooltipStamp!==tipStamp){
     x.m.setTooltipContent(tooltipHtml(s));
     x.tooltipStamp=tipStamp
@@ -2750,7 +2772,8 @@ function render(zoomOnly=false){
   const shown=applyFilters();
   if(zoomOnly)return;
   const eligible=stations.filter(baseVisible).length;
-  document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' con dato · '+P[cur].n+
+  const current=stations.filter(s=>baseVisible(s)&&stationParameterIsCurrent(s,cur)).length;
+  document.getElementById('status').textContent=shown+' visualizzate · '+eligible+' presenti · '+current+' aggiornate · '+P[cur].n+
     (cur==='rain_48h'&&eligible===0?' · CEDOC in acquisizione; altre reti richiedono 48 ore di archivio':'')+
     (mode3d?' · vista 3D':'');
   legend();
@@ -5436,7 +5459,7 @@ function restoreViewState(){
     document.getElementById('q').value=d.search
   }
   const l=d.layers||{};
-  if(l.stations===false&&stationsOn)stationsBtn.click();
+  // Non ripristinare un vecchio OFF salvato: le stazioni si aprono attive.
   if(l.hydro===true)setHydroState(true);
   if(l.cedoc===true)setCedocState(true);
   if(l.fires===true)setFrpState(true);
@@ -5496,6 +5519,18 @@ function restoreViewState(){
   })
 }
 try{restoreViewState()}catch(e){console.warn('Ripristino ultima vista',e)}
+// Reset una tantum di vecchi filtri che potevano oscurare intere reti.
+try{
+  const key='sardegna-meteolive-stations-recovered-20261030-v1';
+  if(localStorage.getItem(key)!=='yes'){
+    netFilter='all';query='';
+    document.getElementById('q').value='';
+    document.querySelectorAll('[data-net]').forEach(b=>b.classList.toggle('active',b.dataset.net==='all'));
+    if(!stationsOn)stationsBtn.click();
+    if(stations.length)render();
+    localStorage.setItem(key,'yes')
+  }
+}catch(e){console.info('Ripristino filtri stazioni non disponibile',e)}
 viewStateReady=true;
 map.on('moveend',scheduleViewSave);
 map.on('zoomend',scheduleViewSave);
