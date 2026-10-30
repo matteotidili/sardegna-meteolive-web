@@ -5380,7 +5380,9 @@ async function loadObservations(){
   }
   const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));
   if(wu||catalog)parts.push((wu?dataStampLabel(wu,'WU'):'WU dati non disponibili')+
-    (catalog&&catalog.stations.length>(wu?.stations?.length||0)?' · '+catalog.stations.length+' PWS censite':''));
+    (catalog&&catalog.stations.length>(wu?.stations?.length||0)?' · '+catalog.stations.length+' PWS censite':'')+
+    (typeof wu?.warning==='string'&&wu.warning.includes('throttled')?' · API LIMITATA':''));
+
   if(wls.length)parts.push(dataStampLabel(wl,'WL'));
   const counter=document.getElementById('counter');
   counter.textContent=parts.length?parts.join(' · '):'Nessuna rete disponibile';
