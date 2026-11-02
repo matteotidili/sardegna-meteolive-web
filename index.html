@@ -2710,8 +2710,9 @@ function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
   const q=!query||((s.name||'')+' '+(s.station_id||'')).toLowerCase().includes(query);
   if(!net||!q||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return false;
-  // Tutti gli identificativi restano nell'elenco, anche senza misura.
-  return true
+  // Preserva il catalogo WU, DPCN e AM anche in caso di dati assenti;
+  // i pluviometri CEDOC restano riservati ai parametri che misurano.
+  return s.network==='cedoc'?stationParameterIsCurrent(s,cur):true
 }
 // La mappa 2D e 3D mostra soltanto valori validi per il parametro attivo.
 function mapStationVisible(s){
