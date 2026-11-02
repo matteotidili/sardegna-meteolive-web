@@ -29,16 +29,21 @@ jobs:
           html=Path('index.html').read_text(encoding='utf-8')
           required=(
             "function mapStationVisible(s){",
-            "return baseVisible(s)&&stationParameterIsCurrent(s,cur)",
+            "return baseVisible(s)",
+            "stationMarkerValue(s,key=cur)",
+            "?fmtMarker(s[key],key):'!'", 
             "marks.filter(x=>mapStationVisible(x.s))",
             "stations.filter(mapStationVisible).map(s=>",
-            "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'transparent'",
+            "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#fff9ed'",
+            "badge.no-data",
+            "station3d-mobile-marker.no-data", 
             "value.classList.toggle('no-reading',!usable)",
             "if(mapStationVisible(item.s)&&layer.hasLayer(item.m))",
           )
           for snippet in required:
             assert snippet in html, 'Regressione stazioni: '+snippet
           assert 'Cerchio grigio con' not in html
+          assert "return baseVisible(s)&&stationParameterIsCurrent(s,cur)" not in html
           assert "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#65717d'" not in html
           scripts=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',html,re.S|re.I)
           inline=max(scripts,key=len,default='')
