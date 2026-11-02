@@ -1625,7 +1625,8 @@ function renderMobile3dStations(){
         const escapeHTML=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         new maplibregl.Popup({closeButton:false,offset:18})
           .setLngLat([Number(st.lon),Number(st.lat)])
-          .setHTML('<b>'+escapeHTML(st.name||'Stazione')+'</b><br>'+stationAltitudeHtml(st)+'<br>'+escapeHTML(P[cur].n)+': '+escapeHTML(stationParameterIsCurrent(st,cur)?fmt(st[cur],cur,st):'dato non aggiornato / non disponibile')+
+          .setHTML('<b>'+escapeHTML(st.name||'Stazione')+'</b><br>'+stationAltitudeHtml(st)+'<br>'+escapeHTML(P[cur].n)+': '+escapeHTML(stationMarkerValue(st))+
+            (!stationParameterIsCurrent(st,cur)?'<br><b style="color:#efbd78">DATO NON AGGIORNATO</b> · ultima osservazione: '+escapeHTML(st.last?new Date(st.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'non disponibile'):'')+
             '<br><span style="opacity:.75">'+escapeHTML(net)+(cur==='rain_48h'?(st.rain_48h_source==='estimated_from_daily_counters'?' · stima da storico':' · dato diretto CEDOC'):'')+'</span>')
           .addTo(map3d)
       });
@@ -1636,7 +1637,9 @@ function renderMobile3dStations(){
     }
     el._stationData=s;
     const isCurrent=stationParameterIsCurrent(s,cur);
-    el.classList.toggle('no-data',!isCurrent);
+    const oldReading=stationMarkerHistorical(s,cur);
+    el.classList.toggle('old-reading',oldReading);
+    el.classList.toggle('no-data',!isCurrent&&!oldReading);
     const darkInk=markerUseDarkInk(bg),label=el.querySelector('.station3d-mobile-value');
     el.style.width=diameter+'px';el.style.height=diameter+'px';
     el.style.background=bg;
@@ -1644,7 +1647,7 @@ function renderMobile3dStations(){
     label.style.textShadow=darkInk?'0 1px 0 #ffffffba':'0 1px 2px #000,0 0 2px #000';
     if(label.textContent!==value)label.textContent=value;
     label.style.fontSize=stationMarkerFontSize(diameter,value)+'px';
-    el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+(stationParameterIsCurrent(s,cur)?fmt(s[cur],cur,s):'non aggiornato o non disponibile');
+    el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+(isCurrent?fmt(s[cur],cur,s):oldReading?fmt(s[cur],cur,s)+' (ultimo valore, NON aggiornato)':'non aggiornato o non disponibile');
     el.setAttribute('aria-label',el.title);
     const p=marker.getLngLat();
     if(p.lng!==Number(s.lon)||p.lat!==Number(s.lat))marker.setLngLat([Number(s.lon),Number(s.lat)]);
@@ -2863,7 +2866,7 @@ function syncStationMarker(x){
     }
     x.iconStamp=stamp
   }
-  const tipStamp=[cur,s.name,s[cur],s.last,stationParameterIsCurrent(s,cur)].join('|');
+  const tipStamp=[cur,s.name,s[cur],s.last,stationParameterIsCurrent(s,cur),stationMarkerHistorical(s,cur)].join('|');
   if(x.tooltipStamp!==tipStamp){
     x.m.setTooltipContent(tooltipHtml(s));
     x.tooltipStamp=tipStamp
