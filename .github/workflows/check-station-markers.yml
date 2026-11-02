@@ -29,12 +29,12 @@ jobs:
           html=Path('index.html').read_text(encoding='utf-8')
           required=(
             "function mapStationVisible(s){",
-            "if(s.network==='dpcn-sardegna'||s.network==='wunderground'){",
+            "return baseVisible(s)",
             "stationMarkerValue(s,key=cur)",
-            "?fmtMarker(s[key],key):'!'", 
+            "function stationMarkerHistorical(s,key=cur){",
             "marks.filter(x=>mapStationVisible(x.s))",
             "stations.filter(mapStationVisible).map(s=>",
-            "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#fff9ed'",
+            "return col(s[key],P[key].st);",
             "badge.no-data",
             "station3d-mobile-marker.no-data", 
             "value.classList.toggle('no-reading',!usable)",
@@ -44,11 +44,14 @@ jobs:
             assert snippet in html, 'Regressione stazioni: '+snippet
           assert 'Cerchio grigio con' not in html
           assert "return baseVisible(s)&&stationParameterIsCurrent(s,cur)" not in html
-          # DPCN e WU: non mostrare badge "!" per parametri mancanti/scaduti.
-          # Il catalogo resta accessibile nell'elenco.
-          assert "if(!baseVisible(s))return false;" in html
-          assert "if(s.network==='dpcn-sardegna'||s.network==='wunderground'){" in html
-          assert "return stationParameterIsCurrent(s,cur)" in html
+          # La mappa NON deve mai svuotarsi perche' l'ultimo dato e' scaduto.
+          # Valori vecchi: bordi ambra tratteggiati + ora nel tooltip.
+          assert "function mapStationVisible(s){\n  return baseVisible(s)\n}" in html
+          assert "const HISTORICAL_MARKER_MAX_AGE_MIN=12*60" in html
+          assert "stationMarkerHistorical(s,cur)" in html
+          assert "badge.old-reading" in html
+          assert "station3d-mobile-marker.old-reading" in html
+          assert "DATI NON AGGIORNATI" in html
           assert "stations.filter(mapStationVisible).map(s=>" in html
           assert "const rows=stations.filter(baseVisible).sort" in html
           assert "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#65717d'" not in html
@@ -56,7 +59,7 @@ jobs:
           inline=max(scripts,key=len,default='')
           assert len(inline)>100000, 'Script principale non trovato'
           Path('/tmp/sardegna-meteolive-inline.js').write_text(inline,encoding='utf-8')
-          print('OK: 2D/3D mostrano soltanto misure valide; nessun marker grigio sostitutivo')
+          print('OK: nessuna sparizione stazioni in caso di dati scaduti, numeri vecchi marcati e datati')
           PY
       - name: Controlla sintassi JavaScript
         run: node --check /tmp/sardegna-meteolive-inline.js
