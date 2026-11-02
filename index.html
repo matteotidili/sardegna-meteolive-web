@@ -105,7 +105,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
 .badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1;border:0;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;font-variant-numeric:tabular-nums}.badge.suspect{opacity:.7}.badge.no-data{border:2px solid #d97706!important;background:#fff9ed!important;box-shadow:0 0 0 1px #fff,0 1px 4px #0005!important}.badge.no-data .station-marker-number{color:#a34d00!important;text-shadow:none!important;font-size:15px!important;transform:translate(-50%,-50%) scaleX(1)}
-.cedoc-badge{display:flex;justify-content:center;align-items:center;box-sizing:border-box;min-width:35px;height:27px;padding:2px 4px;border:2px solid #f6faff;border-radius:12px;color:#fff;font:900 12px Inter,Arial,sans-serif;text-shadow:0 1px 2px #000b;box-shadow:0 1px 6px #001e2bae;white-space:nowrap}.cedoc-icon{background:none;border:0}.cedoc-popup{font:12px/1.6 Inter,Arial,sans-serif}.cedoc-popup strong{font-weight:850}.cedoc-popup .cedoc-source{color:#496b83;font-size:10px}.cedoc-popup a{color:#076a9e}.cedoc-status-stale{color:#f0c176}.cedoc-badge.cedoc-delayed{border-color:#ffc068;border-style:dashed;opacity:.7}
+.cedoc-badge{display:flex;justify-content:center;align-items:center;box-sizing:border-box;min-width:35px;height:27px;padding:2px 4px;border:2px solid #f6faff;border-radius:12px;color:#fff;font:900 12px Inter,Arial,sans-serif;text-shadow:0 1px 2px #000b;box-shadow:0 1px 6px #001e2bae;white-space:nowrap}.cedoc-icon{background:none;border:0}.cedoc-popup{font:12px/1.6 Inter,Arial,sans-serif}.cedoc-popup strong{font-weight:850}.cedoc-popup .cedoc-source{color:#496b83;font-size:10px}.cedoc-popup a{color:#076a9e}.cedoc-status-stale{color:#f0c176}.cedoc-badge.cedoc-delayed{border-color:#ffc068;border-style:dashed;opacity:.7}.cedoc-badge.cedoc-no-data{min-width:27px;width:27px;padding:0;border-radius:50%;border:2px solid #d97706!important;background:#fff9ed!important;color:#9a4b00!important;text-shadow:none!important;box-shadow:0 0 0 1px #fff,0 1px 4px #0004}
 .station-marker-number{position:absolute;left:50%;top:50%;display:block;white-space:nowrap;font:950 16px/1 "Arial Narrow",Arial,Inter,system-ui,sans-serif;letter-spacing:-.05em;font-variant-numeric:tabular-nums;transform:translate(-50%,-50%) scaleX(.81);transform-origin:center;pointer-events:none}
 .badge.light-ink{color:#10202b;text-shadow:0 1px 0 #ffffff9c}
 .badge.dark-ink{color:#fff;text-shadow:0 1px 2px #000e,0 0 2px #000c}
@@ -2488,12 +2488,13 @@ document.getElementById('hydroBtn').onclick=()=>setHydroState(!hydroOn);
 // CEDOC: soltanto cumulato giornaliero del giorno civile italiano, acquisito
 // direttamente dalle schede dei pluviometri (non la mappa con accumulo 48h).
 const CEDOC_META='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/cedoc.json';
+const CEDOC_SITES='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/cedoc_sites.json';
 const CEDOC_ATTR='Pluviometria giornaliera © Regione Autonoma della Sardegna – CEDOC / ADIS · dati automatici non validati ARPAS';
 const cedocLayer=L.layerGroup();
 const cedocBtn=document.getElementById('cedocBtn');
 const cedocCounter=document.getElementById('cedocCounter');
 const cedocStatusHelp=document.getElementById('cedocStatusHelp');
-let cedocOn=false,cedocStations=[],cedocLastLoad=0,cedocLoading=false,cedocStatus='unavailable',cedocAttribution=false;
+let cedocOn=false,cedocStations=[],cedocSites=[],cedocLastLoad=0,cedocLoading=false,cedocStatus='unavailable',cedocAttribution=false;
 function cedocColor(mm){
   if(mm>=150)return '#b02dab';
   if(mm>=100)return '#d13142';
@@ -2531,7 +2532,8 @@ function cedocLiveStations(raw){
   })
 }
 function cedocLegendHtml(){
-  if(!cedocOn||!cedocStations.length)return '';
+  if(!cedocOn||(!cedocStations.length&&!cedocSites.length))return '';
+  if(!cedocStations.length)return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+cedocSites.length+' postazioni censite</div><div class="map-legend-note">Simbolo ! con bordo arancione: rete temporaneamente senza misure recenti. Nessun accumulo ricostruito o inventato.</div></div>';
   const stops=[['0','#667789'],['0–15','#248dc2'],['15–30','#3baa81'],['30–60','#d1aa17'],['60–100','#f27927'],['100–150','#d13142'],['150+','#b02dab']];
   return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+(cur==='rain_48h'?'accumulo ultime 48 ore':'pioggia cumulata oggi')+' · mm</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:9px">'+
@@ -2541,6 +2543,15 @@ function cedocLegendHtml(){
 function renderCedocLayer(){
   cedocLayer.clearLayers();
   if(cedocOn){
+    const freshSiteIds=new Set(cedocStations.map(p=>String(p.station_id)));
+    for(const p of cedocSites){
+      if(freshSiteIds.has(String(p.station_id)))continue;
+      const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge cedoc-no-data" title="CEDOC: osservazione non aggiornata">!</span>',iconSize:[30,27],iconAnchor:[15,13]});
+      const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
+      L.marker([p.lat,p.lon],{pane:'cedoc',icon,zIndexOffset:75})
+        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div>Pluviometro censito, osservazioni recenti non disponibili.</div><div>Nessun cumulato visualizzato perché il dato non è verificabile.</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>')
+        .addTo(cedocLayer)
+    }
     for(const p of cedocStations){
       const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
       if(!Number.isFinite(value))continue;
@@ -2563,19 +2574,24 @@ function update3dCedoc(){
     map3d.addSource('cedoc-3d',{type:'geojson',data:fc()});
     map3d.addLayer({id:'cedoc-3d-points',type:'circle',source:'cedoc-3d',
       paint:{'circle-radius':18,'circle-color':['get','color'],
-        'circle-stroke-color':['case',['==',['get','delayed'],1],'#ffbf57','#ffffff'],
+        'circle-stroke-color':['case',['==',['get','missing'],1],'#d97706',['==',['get','delayed'],1],'#ffbf57','#ffffff'],
         'circle-stroke-width':1.5,'circle-opacity':['case',['==',['get','delayed'],1],.55,.95]}});
     map3d.addLayer({id:'cedoc-3d-labels',type:'symbol',source:'cedoc-3d',
       layout:{'text-field':['get','label'],'text-size':11,'text-allow-overlap':true,'text-ignore-placement':true,
         'text-pitch-alignment':'viewport'},
-      paint:{'text-color':'#ffffff','text-halo-color':'#142735','text-halo-width':1.5}});
+      paint:{'text-color':['case',['==',['get','missing'],1],'#9a4b00','#ffffff'],'text-halo-color':'#142735','text-halo-width':1.5}});
     map3d.on('click','cedoc-3d-points',e=>{
       const feature=e.features&&e.features[0];if(!feature)return;
       const p=feature.properties;
       new maplibregl.Popup({closeButton:true,offset:20}).setLngLat(feature.geometry.coordinates)
-        .setText(String(p.name)+' – '+String(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' – CEDOC').addTo(map3d)
+        .setText(p.missing?'CEDOC '+p.name+' – dato non aggiornato':String(p.name)+' – '+String(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' – CEDOC').addTo(map3d)
     })
   }
+  const freshIds=new Set(cedocStations.map(p=>String(p.station_id)));
+  const missingFeatures=cedocOn?cedocSites.filter(p=>!freshIds.has(String(p.station_id))).map(p=>({
+    type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
+    properties:{name:p.name,label:'!',color:'#fff9ed',delayed:1,missing:1}
+  })):[];
   const features=cedocOn?cedocStations.map(p=>{
     const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
     if(!Number.isFinite(value))return null;
@@ -2585,17 +2601,24 @@ function update3dCedoc(){
         delayed:Date.now()-Date.parse(p.last)>90*60000?1:0}
     }
   }).filter(Boolean):[];
-  map3d.getSource('cedoc-3d').setData(fc(features));
+  map3d.getSource('cedoc-3d').setData(fc(features.concat(missingFeatures)));
   raise3dOperationalLayers()
 }
 function cedocAsStandardStations(){
+  const freshIds=new Set(cedocStations.map(s=>String(s.station_id)));
+  const missing=cedocSites.filter(s=>!freshIds.has(String(s.station_id))).map(s=>({
+    station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,
+    temp:null,tmin:null,tmax:null,rh:null,wind_kmh:null,gust_kmh:null,
+    rain_today:null,rain_48h:null,rain_rate:null,last:null,network:'cedoc',
+    source_url:s.source_url
+  }));
   return cedocStations.map(s=>({
     station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,
     rain_today:s.rain_today,rain_48h:Number.isFinite(s.rain_48h)?s.rain_48h:null,
     rain_48h_last:Number.isFinite(s.rain_48h)?s.last:null,
     rain_48h_source:s.rain_48h_source,
     last:s.last,network:'cedoc',source_url:s.source_url,observed_day:s.observed_day
-  }))
+  })).concat(missing)
 }
 function syncCedocStationNetwork(){
   stations=stations.filter(s=>s.network!=='cedoc').concat(cedocAsStandardStations());
@@ -2606,9 +2629,17 @@ async function loadCedocData(force=false){
   if(cedocLoading||(!force&&Date.now()-cedocLastLoad<15*60000))return;
   cedocLoading=true;
   try{
-    const response=await fetch(CEDOC_META+'?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)});
-    if(!response.ok)throw Error('HTTP '+response.status);
-    const data=await response.json();
+    const stamp=Date.now();
+    const [obsResult,siteResult]=await Promise.allSettled([
+      fetch(CEDOC_META+'?t='+stamp,{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('CEDOC '+r.status);return r.json()}),
+      fetch(CEDOC_SITES+'?t='+stamp,{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('Anagrafica CEDOC '+r.status);return r.json()})
+    ]);
+    if(siteResult.status==='fulfilled'&&Array.isArray(siteResult.value.stations)){
+      cedocSites=siteResult.value.stations.filter(p=>p&&p.station_id&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&
+        p.lat>=38.6&&p.lat<=41.5&&p.lon>=7.5&&p.lon<=10.4);
+    }
+    if(obsResult.status!=='fulfilled')throw obsResult.reason;
+    const data=obsResult.value;
     cedocStatus=data.status||'unavailable';
     cedocStations=cedocLiveStations(data);
     cedocLastLoad=Date.now();
@@ -2626,14 +2657,14 @@ async function loadCedocData(force=false){
       const reason=data.status==='ok'?
         'Il dataset non è più recente oppure è cambiato il giorno locale.':
         data.warning?String(data.warning).slice(0,170):'dati giornalieri non disponibili o scaduti';
-      cedocCounter.textContent='CEDOC · 0 misure recenti · '+reason+' · ultimo dataset '+published;
+      cedocCounter.textContent='CEDOC · '+cedocSites.length+' postazioni censite · 0 misure recenti · '+reason+' · ultimo dataset '+published;
       cedocCounter.classList.add('cedoc-status-stale');
       cedocStatusHelp.style.display='block'
     }
   }catch(e){
     cedocStations=[];
     cedocStatus='unavailable';
-    cedocCounter.textContent='CEDOC · impossibile leggere il dataset automatico; controllare il workflow di raccolta.';
+    cedocCounter.textContent='CEDOC · '+cedocSites.length+' postazioni censite · misure non disponibili; controllare il workflow di raccolta.';
     cedocStatusHelp.style.display='block';
   }finally{
     cedocLoading=false;
@@ -2717,7 +2748,7 @@ function baseVisible(s){
   if(!net||!q||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return false;
   // Preserva il catalogo WU, DPCN e AM anche in caso di dati assenti;
   // i pluviometri CEDOC restano riservati ai parametri che misurano.
-  return s.network==='cedoc'?stationParameterIsCurrent(s,cur):true
+  return s.network==='cedoc'?(cur==='rain_today'||cur==='rain_48h'):true
 }
 // Preserva in mappa anche la posizione di una stazione WU temporaneamente
 // non interrogata per quota, distinguendola da una misura aggiornata.
