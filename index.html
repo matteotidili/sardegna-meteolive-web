@@ -2859,7 +2859,12 @@ function syncStationMarker(x){
     const icon=ico(s);
     x.m.options.icon=icon;
     const node=x.m._icon;
-    if(node){
+    // Quando una stazione passa da "recente" a "non aggiornata",
+    // sostituisci il badge numerato con il punto da 14px: non basta
+    // cambiare il testo della vecchia icona Leaflet gia' montata.
+    if(!isCurrent){
+      x.m.setIcon(icon);
+    }else if(node){
       const badge=node.querySelector('.badge');
       const number=badge?.querySelector('.station-marker-number');
       if(badge&&number){
