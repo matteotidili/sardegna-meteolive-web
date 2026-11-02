@@ -2147,7 +2147,7 @@ function stationLegendHtml(){
   const grad='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')';
   return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div>'+(cur==='rain_48h'?'<div class="map-legend-note">CEDOC: dato ufficiale su 48h; altre reti: stima da cumulati giornalieri, solo con storico sufficiente. AM: non disponibile.</div>':'')+
     (stations.some(s=>mapStationVisible(s)&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note">Cerchio colorato con numero = osservazione recente. Cerchio chiaro con contorno arancione e ! = stazione censita, senza misura recente. Il simbolo ! non rappresenta un valore meteorologico.</div>':'')+
-    (stations.some(s=>baseVisible(s)&&s.network==='dpcn-sardegna'&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note">Le stazioni DPCN senza misura recente per questo parametro non sono mostrate sulla mappa; restano consultabili nell\'elenco stazioni.</div>':'')+'</div>'
+    (stations.some(s=>baseVisible(s)&&(s.network==='dpcn-sardegna'||s.network==='wunderground')&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note">Le stazioni DPCN e Weather Underground senza misura recente per questo parametro restano consultabili nell\'elenco, ma non vengono mostrate sulla mappa.</div>':'')+'</div>'
 }
 function radarLegendHtml(){
   if(!radarOn)return '';
@@ -2762,13 +2762,16 @@ function baseVisible(s){
   // i pluviometri CEDOC restano riservati ai parametri che misurano.
   return s.network==='cedoc'?(cur==='rain_today'||cur==='rain_48h'):true
 }
-// Le DPCN non devono mostrare "!" quando la rete non fornisce
-// il parametro selezionato oppure la misura è scaduta.
-// Restano ricercabili nell'elenco con stato N.D.; WU conserva il simbolo
-// diagnostico per rendere distinguibili le PWS non ancora aggiornate.
+// DPCN e Weather Underground: sulla mappa compaiono SOLO le osservazioni
+// valide e recenti per il parametro selezionato; mai "!" al loro posto.
+// Le stazioni prive della misura restano nell'elenco con ora reale/stato N.D.
+// Nessuna stazione viene eliminata dal catalogo o aggiornata artificialmente.
 function mapStationVisible(s){
   if(!baseVisible(s))return false;
-  return s.network!=='dpcn-sardegna'||stationParameterIsCurrent(s,cur)
+  if(s.network==='dpcn-sardegna'||s.network==='wunderground'){
+    return stationParameterIsCurrent(s,cur)
+  }
+  return true
 }
 function markerSpacing(){
   const m=markerMetrics();
