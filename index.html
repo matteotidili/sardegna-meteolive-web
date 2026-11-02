@@ -40,6 +40,8 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
      0 1px 2px #000;
   pointer-events:none
 }
+.station3d-mobile-marker.no-data{background:#fff9ed!important;border:2px solid #d97706;box-shadow:0 0 0 1px #fff,0 1px 3px #0003}
+.station3d-mobile-marker.no-data .station3d-mobile-value{color:#a34d00!important;text-shadow:none!important;font-size:15px!important}
 .station3d-mobile-marker:active{transform:scale(.94)}
 /* Popup MapLibre: fondo scuro e testo ad alto contrasto. */
 #map3d .maplibregl-popup-content{
@@ -102,7 +104,7 @@ main{position:relative;min-height:0}#map,#map3d{height:100%;width:100%}#map3d{di
 .opera-legend-words span:nth-child(5){flex:5 1 0}
 .opera-legend-note{margin-top:5px;font-size:7px;color:#8299ad;line-height:1.25}
 .legend{padding:10px 14px 14px;border-top:1px solid #20364a}.legend-title{font-size:9px;color:#8fa5b8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px}.legend-bar{height:10px;border-radius:20px;border:1px solid #ffffff2a}.legend-labs{display:flex;justify-content:space-between;font-size:8px;color:#9eb2c4;margin-top:4px}
-.badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1;border:0;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;font-variant-numeric:tabular-nums}.badge.suspect{opacity:.7}
+.badge{position:relative;box-sizing:border-box;width:30px;height:30px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#111827;font-weight:950;font-size:10px;line-height:1;border:0;box-shadow:0 1px 4px #0009,0 0 0 1px #0002;white-space:nowrap;font-variant-numeric:tabular-nums}.badge.suspect{opacity:.7}.badge.no-data{border:2px solid #d97706!important;background:#fff9ed!important;box-shadow:0 0 0 1px #fff,0 1px 4px #0005!important}.badge.no-data .station-marker-number{color:#a34d00!important;text-shadow:none!important;font-size:15px!important;transform:translate(-50%,-50%) scaleX(1)}
 .cedoc-badge{display:flex;justify-content:center;align-items:center;box-sizing:border-box;min-width:35px;height:27px;padding:2px 4px;border:2px solid #f6faff;border-radius:12px;color:#fff;font:900 12px Inter,Arial,sans-serif;text-shadow:0 1px 2px #000b;box-shadow:0 1px 6px #001e2bae;white-space:nowrap}.cedoc-icon{background:none;border:0}.cedoc-popup{font:12px/1.6 Inter,Arial,sans-serif}.cedoc-popup strong{font-weight:850}.cedoc-popup .cedoc-source{color:#496b83;font-size:10px}.cedoc-popup a{color:#076a9e}.cedoc-status-stale{color:#f0c176}.cedoc-badge.cedoc-delayed{border-color:#ffc068;border-style:dashed;opacity:.7}
 .station-marker-number{position:absolute;left:50%;top:50%;display:block;white-space:nowrap;font:950 16px/1 "Arial Narrow",Arial,Inter,system-ui,sans-serif;letter-spacing:-.05em;font-variant-numeric:tabular-nums;transform:translate(-50%,-50%) scaleX(.81);transform-origin:center;pointer-events:none}
 .badge.light-ink{color:#10202b;text-shadow:0 1px 0 #ffffff9c}
@@ -1631,6 +1633,8 @@ function renderMobile3dStations(){
       marker._stationKey=key
     }
     el._stationData=s;
+    const isCurrent=stationParameterIsCurrent(s,cur);
+    el.classList.toggle('no-data',!isCurrent);
     const darkInk=markerUseDarkInk(bg),label=el.querySelector('.station3d-mobile-value');
     el.style.width=diameter+'px';el.style.height=diameter+'px';
     el.style.background=bg;
@@ -2097,7 +2101,7 @@ function stationMarkerFontSize(diameter,value){
 function ico(s){
   const v=stationMarkerValue(s),bg=stationMarkerColor(s),m=markerMetrics();
   const suspect=s.network==='wunderground'&&s.qc_status===0;
-  const cls='badge '+(markerUseDarkInk(bg)?'light-ink':'dark-ink')+(suspect?' suspect':'');
+  const cls='badge '+(markerUseDarkInk(bg)?'light-ink':'dark-ink')+(suspect?' suspect':'')+(stationParameterIsCurrent(s,cur)?'':' no-data');
   return L.divIcon({
     className:'',
     html:'<div class="'+cls+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px"><span class="station-marker-number" style="font-size:'+stationMarkerFontSize(m.d,v)+'px">'+v+'</span></div>',
@@ -2131,7 +2135,7 @@ function stationLegendHtml(){
   const p=P[cur];
   const grad='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')';
   return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div>'+(cur==='rain_48h'?'<div class="map-legend-note">CEDOC: dato ufficiale su 48h; altre reti: stima da cumulati giornalieri, solo con storico sufficiente. AM: non disponibile.</div>':'')+
-    (stations.some(s=>baseVisible(s)&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note">La mappa mostra soltanto osservazioni valide per il parametro selezionato. Le stazioni senza misura recente rimangono nell’elenco con l’orario dell’ultima lettura.</div>':'')+'</div>'
+    (stations.some(s=>baseVisible(s)&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note">Cerchio colorato con numero = osservazione recente. Cerchio chiaro con contorno arancione e ! = stazione censita, senza misura recente. Il simbolo ! non rappresenta un valore meteorologico.</div>':'')+'</div>'
 }
 function radarLegendHtml(){
   if(!radarOn)return '';
@@ -2700,11 +2704,12 @@ function stationParameterIsCurrent(s,key){
   return stationRomeDate.format(obs)===stationRomeDate.format(now)
 }
 function stationMarkerValue(s,key=cur){
-  return stationParameterIsCurrent(s,key)?fmtMarker(s[key],key):'n.d.'
+  return stationParameterIsCurrent(s,key)?fmtMarker(s[key],key):'!'
 }
 function stationMarkerColor(s,key=cur){
-  // Le posizioni restano nel catalogo, ma i dati non validi non producono marker.
-  return stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'transparent'
+  // Nessuna misura obsoleta ha un colore meteorologico.
+  // Le stazioni senza dato recente sono indicate da un anello ambra, NON grigio.
+  return stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#fff9ed'
 }
 function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
@@ -2714,9 +2719,10 @@ function baseVisible(s){
   // i pluviometri CEDOC restano riservati ai parametri che misurano.
   return s.network==='cedoc'?stationParameterIsCurrent(s,cur):true
 }
-// La mappa 2D e 3D mostra soltanto valori validi per il parametro attivo.
+// Preserva in mappa anche la posizione di una stazione WU temporaneamente
+// non interrogata per quota, distinguendola da una misura aggiornata.
 function mapStationVisible(s){
-  return baseVisible(s)&&stationParameterIsCurrent(s,cur)
+  return baseVisible(s)
 }
 function markerSpacing(){
   const m=markerMetrics();
@@ -2754,7 +2760,8 @@ function syncStationMarker(x){
   const s=x.s,m=markerMetrics(),v=stationMarkerValue(s),bg=stationMarkerColor(s);
   const suspect=s.network==='wunderground'&&s.qc_status===0;
   const ink=markerUseDarkInk(bg)?'light-ink':'dark-ink';
-  const stamp=[cur,m.d,v,bg,suspect,ink].join('|');
+  const isCurrent=stationParameterIsCurrent(s,cur);
+  const stamp=[cur,m.d,v,bg,suspect,ink,isCurrent].join('|');
   if(x.iconStamp!==stamp){
     const icon=ico(s);
     x.m.options.icon=icon;
@@ -2767,7 +2774,7 @@ function syncStationMarker(x){
         node.style.marginLeft=(-m.d/2)+'px';node.style.marginTop=(-m.d/2)+'px';
         badge.style.width=m.d+'px';badge.style.height=m.d+'px';
         badge.style.background=bg;
-        badge.className='badge '+ink+(suspect?' suspect':'');
+        badge.className='badge '+ink+(suspect?' suspect':'')+(isCurrent?'':' no-data');
         number.textContent=v;
         number.style.fontSize=stationMarkerFontSize(m.d,v)+'px'
       }else x.m.setIcon(icon)
@@ -2786,7 +2793,7 @@ function render(zoomOnly=false){
   if(zoomOnly)return;
   const eligible=stations.filter(baseVisible).length;
   const current=stations.filter(mapStationVisible).length;
-  document.getElementById('status').textContent=shown+' stazioni in mappa · '+current+' con dato valido · '+(eligible-current)+' senza dato (solo in elenco) · '+P[cur].n+
+  document.getElementById('status').textContent=shown+' stazioni in mappa · '+current+' con dato valido · '+(eligible-current)+' censite senza misura recente · '+P[cur].n+
     (cur==='rain_48h'&&current===0?' · Ultime 48 ore: CEDOC / storico insufficiente per le altre reti':'')+
     (mode3d?' · vista 3D':'');
   legend();
