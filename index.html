@@ -5278,7 +5278,7 @@ setInterval(()=>{if(hydroOn&&!document.hidden)loadHydroData(true)},5*60*1000);
 
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
-let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,lastRain48Data=null,observationsLoading=false;
+let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,lastRain48Data=null,lastWuHealth=null,observationsLoading=false;
 // Il catalogo WU è indipendente dalla disponibilità dell'API osservazioni.
 // Nuove PWS scoperta vengono mostrate anche con chiave momentaneamente bloccata.
 let lastWuCatalog=null,wuCatalogCheckedAt=0,wuCatalogPromise=null;
@@ -5342,13 +5342,16 @@ async function loadObservations(){
     fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()}),
     fetch(DATA+'weatherlink.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WL '+r.status);return r.json()}),
     fetch(DATA+'rain_48h.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('RAIN48 '+r.status);return r.json()}),
-    fetchWuCatalog()
+    fetchWuCatalog(),
+    fetch(DATA+'wunderground_app_api_health.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)})
+      .then(r=>{if(!r.ok)throw new Error('WU health '+r.status);return r.json()})
   ]);
   if(results[0].status==='fulfilled')lastDpcnData=results[0].value;
   if(results[1].status==='fulfilled')lastAmData=results[1].value;
   if(results[2].status==='fulfilled')lastWuData=results[2].value;
   if(results[3].status==='fulfilled')lastWlData=results[3].value;
   if(results[4].status==='fulfilled')lastRain48Data=results[4].value;
+  if(results[6].status==='fulfilled')lastWuHealth=results[6].value;
   const catalog=results[5].status==='fulfilled'?results[5].value:lastWuCatalog;
   const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,wl=lastWlData;
   const r48=lastRain48Data;
@@ -5379,9 +5382,14 @@ async function loadObservations(){
     document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'))
   }
   const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));
-  if(wu||catalog)parts.push((wu?dataStampLabel(wu,'WU'):'WU dati non disponibili')+
-    (catalog&&catalog.stations.length>(wu?.stations?.length||0)?' · '+catalog.stations.length+' PWS censite':'')+
-    (typeof wu?.warning==='string'&&wu.warning.includes('throttled')?' · API LIMITATA':''));
+  if(wu||catalog){
+    const wuRecent=ws.filter(s=>stationParameterIsCurrent(s,'temp')).length;
+    const wuBlocked=lastWuHealth?.status==='cooldown';
+    parts.push((wu?dataStampLabel(wu,'WU'):'WU dati non disponibili')+
+      ' · '+wuRecent+'/'+ws.length+' temperature recenti'+
+      (catalog&&catalog.stations.length>(wu?.stations?.length||0)?' · '+catalog.stations.length+' PWS censite':'')+
+      (wuBlocked?' · API LIMITATA':''));
+  }
 
   if(wls.length)parts.push(dataStampLabel(wl,'WL'));
   const counter=document.getElementById('counter');
