@@ -1637,9 +1637,8 @@ function renderMobile3dStations(){
     }
     el._stationData=s;
     const isCurrent=stationParameterIsCurrent(s,cur);
-    const oldReading=stationMarkerHistorical(s,cur);
-    el.classList.toggle('old-reading',oldReading);
-    el.classList.toggle('no-data',!isCurrent&&!oldReading);
+    el.classList.toggle('old-reading',false);
+    el.classList.toggle('no-data',!isCurrent);
     const darkInk=markerUseDarkInk(bg),label=el.querySelector('.station3d-mobile-value');
     el.style.width=diameter+'px';el.style.height=diameter+'px';
     el.style.background=bg;
@@ -1647,7 +1646,7 @@ function renderMobile3dStations(){
     label.style.textShadow=darkInk?'0 1px 0 #ffffffba':'0 1px 2px #000,0 0 2px #000';
     if(label.textContent!==value)label.textContent=value;
     label.style.fontSize=stationMarkerFontSize(diameter,value)+'px';
-    el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+(isCurrent?fmt(s[cur],cur,s):oldReading?fmt(s[cur],cur,s)+' (ultimo valore, NON aggiornato)':'non aggiornato o non disponibile');
+    el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+(isCurrent?fmt(s[cur],cur,s):'non aggiornato o non disponibile');
     el.setAttribute('aria-label',el.title);
     const p=marker.getLngLat();
     if(p.lng!==Number(s.lon)||p.lat!==Number(s.lat))marker.setLngLat([Number(s.lon),Number(s.lat)]);
@@ -2106,7 +2105,7 @@ function stationMarkerFontSize(diameter,value){
 function ico(s){
   const v=stationMarkerValue(s),bg=stationMarkerColor(s),m=markerMetrics();
   const suspect=s.network==='wunderground'&&s.qc_status===0;
-  const cls='badge '+(markerUseDarkInk(bg)?'light-ink':'dark-ink')+(suspect?' suspect':'')+(stationMarkerHistorical(s,cur)?' old-reading':stationParameterIsCurrent(s,cur)?'':' no-data');
+  const cls='badge '+(markerUseDarkInk(bg)?'light-ink':'dark-ink')+(suspect?' suspect':'');
   return L.divIcon({
     className:'',
     html:'<div class="'+cls+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px"><span class="station-marker-number" style="font-size:'+stationMarkerFontSize(m.d,v)+'px">'+v+'</span></div>',
@@ -2173,7 +2172,8 @@ function stationLegendHtml(){
   const p=P[cur];
   const grad='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')';
   return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div>'+(cur==='rain_48h'?'<div class="map-legend-note">CEDOC: dato ufficiale su 48h; altre reti: stima da cumulati giornalieri, solo con storico sufficiente. AM: non disponibile.</div>':'')+
-    (stations.some(s=>mapStationVisible(s)&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note" style="color:#f1c27f"><b>ATTENZIONE — DATI NON AGGIORNATI:</b> i numeri con bordo arancione tratteggiato sono ultime misure precedenti (max 12 ore), NON condizioni attuali. Cerchio con trattino = sola posizione della stazione, senza dato corrente. Controllare sempre l’orario nel popup.</div>':'')+'</div>'
+    (stations.some(s=>baseVisible(s))&&!stations.some(s=>mapStationVisible(s))?'<div class="map-legend-note" style="color:#f1c27f"><b>DATI STAZIONI NON AGGIORNATI:</b> al momento non sono disponibili misure recenti per questo parametro. Le stazioni non sono state cancellate: posizioni e ultima osservazione restano nell’elenco stazioni. Non vengono visualizzati valori meteorologici scaduti.</div>':'')+
+    (lastWuHealth?.status==='cooldown'&&(netFilter==='all'||netFilter==='wunderground')?'<div class="map-legend-note" style="color:#f1c27f">Weather Underground: acquisizione temporaneamente limitata dall’API. Nessuna misura vecchia viene mostrata come attuale.</div>':'')+'</div>'
 }
 function radarLegendHtml(){
   if(!radarOn)return '';
@@ -2785,14 +2785,10 @@ function stationMarkerHistorical(s,key=cur){
   return true
 }
 function stationMarkerValue(s,key=cur){
-  return stationParameterIsCurrent(s,key)||stationMarkerHistorical(s,key)
-    ?fmtMarker(s[key],key):'–'
+  return stationParameterIsCurrent(s,key)?fmtMarker(s[key],key):'—'
 }
 function stationMarkerColor(s,key=cur){
-  if(stationParameterIsCurrent(s,key)||stationMarkerHistorical(s,key))
-    return col(s[key],P[key].st);
-  // La stazione resta localizzabile senza mostrare dati non verificabili.
-  return '#fff9ed'
+  return stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#fff9ed'
 }
 function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
@@ -2802,11 +2798,11 @@ function baseVisible(s){
   // i pluviometri CEDOC restano riservati ai parametri che misurano.
   return s.network==='cedoc'?(cur==='rain_today'||cur==='rain_48h'):true
 }
-// La visibilità della posizione non dipende dall'esito dell'ultimo polling.
-// Se il dato è scaduto si usa uno stile di allerta (mai un "!" né un numero
-// presentato come corrente); l'inventario non viene cancellato.
+// Valori operativi: SOLO misure recenti. Le postazioni senza osservazioni
+// restano tutte disponibili nel catalogo e nell'elenco delle stazioni.
+// Mai trattini, punti esclamativi o ultime temperature colorate sulla mappa.
 function mapStationVisible(s){
-  return baseVisible(s)
+  return baseVisible(s)&&stationParameterIsCurrent(s,cur)
 }
 function markerSpacing(){
   const m=markerMetrics();
@@ -2845,8 +2841,7 @@ function syncStationMarker(x){
   const suspect=s.network==='wunderground'&&s.qc_status===0;
   const ink=markerUseDarkInk(bg)?'light-ink':'dark-ink';
   const isCurrent=stationParameterIsCurrent(s,cur);
-  const oldReading=stationMarkerHistorical(s,cur);
-  const stamp=[cur,m.d,v,bg,suspect,ink,isCurrent,oldReading].join('|');
+  const stamp=[cur,m.d,v,bg,suspect,ink,isCurrent].join('|');
   if(x.iconStamp!==stamp){
     const icon=ico(s);
     x.m.options.icon=icon;
@@ -2859,14 +2854,14 @@ function syncStationMarker(x){
         node.style.marginLeft=(-m.d/2)+'px';node.style.marginTop=(-m.d/2)+'px';
         badge.style.width=m.d+'px';badge.style.height=m.d+'px';
         badge.style.background=bg;
-        badge.className='badge '+ink+(suspect?' suspect':'')+(oldReading?' old-reading':isCurrent?'':' no-data');
+        badge.className='badge '+ink+(suspect?' suspect':'')+(isCurrent?'':' no-data');
         number.textContent=v;
         number.style.fontSize=stationMarkerFontSize(m.d,v)+'px'
       }else x.m.setIcon(icon)
     }
     x.iconStamp=stamp
   }
-  const tipStamp=[cur,s.name,s[cur],s.last,stationParameterIsCurrent(s,cur),stationMarkerHistorical(s,cur)].join('|');
+  const tipStamp=[cur,s.name,s[cur],s.last,stationParameterIsCurrent(s,cur)].join('|');
   if(x.tooltipStamp!==tipStamp){
     x.m.setTooltipContent(tooltipHtml(s));
     x.tooltipStamp=tipStamp
@@ -2878,7 +2873,9 @@ function render(zoomOnly=false){
   if(zoomOnly)return;
   const eligible=stations.filter(baseVisible).length;
   const current=stations.filter(s=>mapStationVisible(s)&&stationParameterIsCurrent(s,cur)).length;
-  document.getElementById('status').textContent=shown+' stazioni in mappa · '+current+' con dato recente · '+(eligible-current)+' senza misura recente (ultimi valori segnalati) · '+P[cur].n+
+  document.getElementById('status').textContent=current===0
+    ?'NESSUNA MISURA RECENTE DISPONIBILE · '+eligible+' stazioni censite, non eliminate · '+P[cur].n
+    :shown+' stazioni in mappa · '+current+' con dato recente · '+(eligible-current)+' senza misura recente (visibili nell’elenco) · '+P[cur].n+
     (cur==='rain_48h'&&current===0?' · Ultime 48 ore: CEDOC / storico insufficiente per le altre reti':'')+
     (mode3d?' · vista 3D':'');
   legend();
