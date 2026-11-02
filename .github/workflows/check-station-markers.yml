@@ -29,7 +29,7 @@ jobs:
           html=Path('index.html').read_text(encoding='utf-8')
           required=(
             "function mapStationVisible(s){",
-            "return s.network!=='dpcn-sardegna'||stationParameterIsCurrent(s,cur)",
+            "if(s.network==='dpcn-sardegna'||s.network==='wunderground'){",
             "stationMarkerValue(s,key=cur)",
             "?fmtMarker(s[key],key):'!'", 
             "marks.filter(x=>mapStationVisible(x.s))",
@@ -44,11 +44,13 @@ jobs:
             assert snippet in html, 'Regressione stazioni: '+snippet
           assert 'Cerchio grigio con' not in html
           assert "return baseVisible(s)&&stationParameterIsCurrent(s,cur)" not in html
-          # DPCN: temperature recenti numeriche; se parametro mancante
-          # o obsoleto, marker assente senza simboli di errore ingannevoli.
+          # DPCN e WU: non mostrare badge "!" per parametri mancanti/scaduti.
+          # Il catalogo resta accessibile nell'elenco.
           assert "if(!baseVisible(s))return false;" in html
-          assert "s.network!=='dpcn-sardegna'||stationParameterIsCurrent(s,cur)" in html
+          assert "if(s.network==='dpcn-sardegna'||s.network==='wunderground'){" in html
+          assert "return stationParameterIsCurrent(s,cur)" in html
           assert "stations.filter(mapStationVisible).map(s=>" in html
+          assert "const rows=stations.filter(baseVisible).sort" in html
           assert "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#65717d'" not in html
           scripts=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',html,re.S|re.I)
           inline=max(scripts,key=len,default='')
