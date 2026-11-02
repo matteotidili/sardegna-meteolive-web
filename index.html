@@ -5447,6 +5447,11 @@ async function loadObservations(){
   if(results[3].status==='fulfilled')lastWlData=results[3].value;
   if(results[4].status==='fulfilled')lastRain48Data=results[4].value;
   if(results[6].status==='fulfilled')lastWuHealth=results[6].value;
+  if(results[7].status==='rejected'){
+    // Se la cache altimetrica e' in fase di prima pubblicazione, riprova
+    // tra due minuti: non lasciare "non disponibile" per 6 ore dopo un 404.
+    stationElevationFetchedAt=Date.now()-6*3600000+2*60000;
+  }
   if(results[7].status==='fulfilled'&&Array.isArray(results[7].value?.stations)){
     stationElevationMap=new Map(results[7].value.stations
       .filter(s=>s&&s.network&&s.station_id&&Number.isFinite(s.elev)&&
