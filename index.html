@@ -1623,7 +1623,7 @@ function renderMobile3dStations(){
         const escapeHTML=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         new maplibregl.Popup({closeButton:false,offset:18})
           .setLngLat([Number(st.lon),Number(st.lat)])
-          .setHTML('<b>'+escapeHTML(st.name||'Stazione')+'</b><br>'+escapeHTML(P[cur].n)+': '+escapeHTML(stationParameterIsCurrent(st,cur)?fmt(st[cur],cur,st):'dato non aggiornato / non disponibile')+
+          .setHTML('<b>'+escapeHTML(st.name||'Stazione')+'</b><br>'+stationAltitudeHtml(st)+'<br>'+escapeHTML(P[cur].n)+': '+escapeHTML(stationParameterIsCurrent(st,cur)?fmt(st[cur],cur,st):'dato non aggiornato / non disponibile')+
             '<br><span style="opacity:.75">'+escapeHTML(net)+(cur==='rain_48h'?(st.rain_48h_source==='estimated_from_daily_counters'?' · stima da storico':' · dato diretto CEDOC'):'')+'</span>')
           .addTo(map3d)
       });
@@ -1699,7 +1699,7 @@ function ensure3dDataLayers(){
       const f=e.features&&e.features[0];if(!f)return;
       new maplibregl.Popup({closeButton:false,offset:10})
         .setLngLat(f.geometry.coordinates)
-        .setHTML('<b>'+String(f.properties.name||'Stazione')+'</b><br>'+String(f.properties.param||'')+': '+String(f.properties.label||'—')+'<br><span style="opacity:.75">'+String(f.properties.net||'')+'</span>')
+        .setHTML('<b>'+cedocEscape(f.properties.name||'Stazione')+'</b><br>'+stationAltitudeHtml(f.properties)+'<br>'+cedocEscape(f.properties.param||'')+': '+String(f.properties.label||'—')+'<br><span style="opacity:.75">'+String(f.properties.net||'')+'</span>')
         .addTo(map3d)
     });
     map3d.on('mouseenter','stations-3d-points',()=>{map3d.getCanvas().style.cursor='pointer'});
@@ -2109,20 +2109,31 @@ function ico(s){
     iconAnchor:[m.d/2,m.d/2]
   })
 }
+function stationAltitudeText(s){
+  // Quote altimetriche anagrafiche in metri: non derivarle da valori meteo.
+  const raw=[s?.elev,s?.elevation_m,s?.altitude_m].find(v=>v!==null&&v!==undefined&&v!=='');
+  const elev=Number(raw);
+  return raw!==undefined&&Number.isFinite(elev)&&elev>=-20&&elev<=2500
+    ?Math.round(elev).toLocaleString('it-IT')+' m s.l.m.'
+    :'non disponibile'
+}
+function stationAltitudeHtml(s){
+  return '<span class="station-altitude">Quota: <b>'+stationAltitudeText(s)+'</b></span>'
+}
 function popup(s){
   if(s.network==='cedoc'){
     const ts=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
     const url='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(s.station_id||''));
-    return '<div class="popup"><b>'+cedocEscape(s.name)+'</b><br><span style="color:#9fb4c6">CEDOC / Regione Sardegna · pluviometro</span><br>Pioggia oggi: <b>'+
+    return '<div class="popup"><b>'+cedocEscape(s.name)+'</b><br>'+stationAltitudeHtml(s)+'<br><span style="color:#9fb4c6">CEDOC / Regione Sardegna · pluviometro</span><br>Pioggia oggi: <b>'+
       cedocNumber(s.rain_today)+' mm</b><br>Ultime 48 ore: <b>'+
       (Number.isFinite(s.rain_48h)?cedocNumber(s.rain_48h)+' mm':'—')+'</b> (dato CEDOC)<br>Osservazione: '+ts+
       '<br><small>Misura automatica non validata ARPAS</small><br><a href="'+url+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>'
   }
   if(obsAgeMin(s)>LIVE_STATION_MAX_AGE_MIN){
     const ts=Number.isFinite(Date.parse(s.last||''))?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'non disponibile';
-    return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br><strong style="color:#edc784">DATI NON AGGIORNATI</strong><br>Rete: '+cedocEscape(s.network||'')+'<br>Ultima osservazione: '+ts+'<br><small>La stazione è localizzata in mappa, ma non sono disponibili misure attuali.</small></div>'
+    return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br>'+stationAltitudeHtml(s)+'<br><strong style="color:#edc784">DATI NON AGGIORNATI</strong><br>Rete: '+cedocEscape(s.network||'')+'<br>Ultima osservazione: '+ts+'<br><small>La stazione è localizzata in mappa, ma non sono disponibili misure attuali.</small></div>'
   }
-  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+s.name+'</b><br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+
+  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br>'+stationAltitudeHtml(s)+'<br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+
 '<br>Ultime 48 ore: '+(Number.isFinite(s.rain_48h)?s.rain_48h.toFixed(1)+' mm'+(s.rain_48h_source==='estimated_from_daily_counters'?' (stima da storico)':''):'—')+
 extra+quality+'</div>'}
 function tooltipHtml(s){
@@ -2549,7 +2560,7 @@ function renderCedocLayer(){
       const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge cedoc-no-data" title="CEDOC: osservazione non aggiornata">!</span>',iconSize:[30,27],iconAnchor:[15,13]});
       const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
       L.marker([p.lat,p.lon],{pane:'cedoc',icon,zIndexOffset:75})
-        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div>Pluviometro censito, osservazioni recenti non disponibili.</div><div>Nessun cumulato visualizzato perché il dato non è verificabile.</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>')
+        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div>'+stationAltitudeHtml(p)+'</div><div>Pluviometro censito, osservazioni recenti non disponibili.</div><div>Nessun cumulato visualizzato perché il dato non è verificabile.</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>')
         .addTo(cedocLayer)
     }
     for(const p of cedocStations){
@@ -2560,7 +2571,7 @@ function renderCedocLayer(){
       const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge'+(delayed?' cedoc-delayed':'')+'" style="background:'+cedocColor(value)+'" title="Rilevamento: '+stamp+'">'+cedocNumber(value)+'</span>',iconSize:[40,27],iconAnchor:[20,13]});
       const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
       L.marker([p.lat,p.lon],{pane:'cedoc',icon,zIndexOffset:80})
-        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div><b>'+cedocNumber(value)+' mm</b> '+(cur==='rain_48h'?'nelle ultime 48 ore':'accumulati oggi')+'</div><div>Rilevamento: '+stamp+'</div>'+(delayed?'<div style="color:#b16a10;font-weight:800">Attenzione: misura vecchia di oltre 90 minuti</div>':'')+'<div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
+        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div>'+stationAltitudeHtml(p)+'</div><div><b>'+cedocNumber(value)+' mm</b> '+(cur==='rain_48h'?'nelle ultime 48 ore':'accumulati oggi')+'</div><div>Rilevamento: '+stamp+'</div>'+(delayed?'<div style="color:#b16a10;font-weight:800">Attenzione: misura vecchia di oltre 90 minuti</div>':'')+'<div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
         .addTo(cedocLayer)
     }
     if(!map.hasLayer(cedocLayer))cedocLayer.addTo(map)
@@ -2584,20 +2595,20 @@ function update3dCedoc(){
       const feature=e.features&&e.features[0];if(!feature)return;
       const p=feature.properties;
       new maplibregl.Popup({closeButton:true,offset:20}).setLngLat(feature.geometry.coordinates)
-        .setText(p.missing?'CEDOC '+p.name+' – dato non aggiornato':String(p.name)+' – '+String(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' – CEDOC').addTo(map3d)
+        .setHTML('<b>'+cedocEscape(p.name||'Stazione')+'</b><br>'+stationAltitudeHtml(p)+'<br>'+(p.missing?'CEDOC · dato non aggiornato':cedocEscape(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' · CEDOC')).addTo(map3d)
     })
   }
   const freshIds=new Set(cedocStations.map(p=>String(p.station_id)));
   const missingFeatures=cedocOn?cedocSites.filter(p=>!freshIds.has(String(p.station_id))).map(p=>({
     type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-    properties:{name:p.name,label:'!',color:'#fff9ed',delayed:1,missing:1}
+    properties:{name:p.name,elev:p.elev??null,label:'!',color:'#fff9ed',delayed:1,missing:1}
   })):[];
   const features=cedocOn?cedocStations.map(p=>{
     const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
     if(!Number.isFinite(value))return null;
     return {
       type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-      properties:{name:p.name,label:cedocNumber(value),color:cedocColor(value),
+      properties:{name:p.name,elev:p.elev??null,label:cedocNumber(value),color:cedocColor(value),
         delayed:Date.now()-Date.parse(p.last)>90*60000?1:0}
     }
   }).filter(Boolean):[];
@@ -2607,13 +2618,13 @@ function update3dCedoc(){
 function cedocAsStandardStations(){
   const freshIds=new Set(cedocStations.map(s=>String(s.station_id)));
   const missing=cedocSites.filter(s=>!freshIds.has(String(s.station_id))).map(s=>({
-    station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,
+    station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,elev:s.elev??null,
     temp:null,tmin:null,tmax:null,rh:null,wind_kmh:null,gust_kmh:null,
     rain_today:null,rain_48h:null,rain_rate:null,last:null,network:'cedoc',
     source_url:s.source_url
   }));
   return cedocStations.map(s=>({
-    station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,
+    station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,elev:s.elev??null,
     rain_today:s.rain_today,rain_48h:Number.isFinite(s.rain_48h)?s.rain_48h:null,
     rain_48h_last:Number.isFinite(s.rain_48h)?s.last:null,
     rain_48h_source:s.rain_48h_source,
@@ -5362,7 +5373,7 @@ function mergeWuCatalog(observations,catalog){
     known.add(sid);
     rows.push({
       station_id:sid,name:station.name||sid,network:'wunderground',
-      lat:station.lat,lon:station.lon,elev:null,qc_status:station.qc_status??null,
+      lat:station.lat,lon:station.lon,elev:station.elev??null,qc_status:station.qc_status??null,
       temp:null,tmin:null,tmax:null,rh:null,wind_kmh:null,gust_kmh:null,
       wind_dir:null,rain_today:null,rain_rate:null,rain_48h:null,dewpoint:null,
       pressure_hpa:null,solar_wm2:null,uv:null,last:null,stale_min:null,
