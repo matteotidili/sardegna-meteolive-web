@@ -1,0 +1,50 @@
+name: Verifica stazioni senza marker grigi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '.github/workflows/check-station-markers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  markers:
+    name: Verifica dati validi su mappe 2D e 3D
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Controlla marker, colori e filtri di validita
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('index.html').read_text(encoding='utf-8')
+          required=(
+            "function mapStationVisible(s){",
+            "return baseVisible(s)&&stationParameterIsCurrent(s,cur)",
+            "marks.filter(x=>mapStationVisible(x.s))",
+            "stations.filter(mapStationVisible).map(s=>",
+            "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'transparent'",
+            "value.classList.toggle('no-reading',!usable)",
+            "if(mapStationVisible(item.s)&&layer.hasLayer(item.m))",
+          )
+          for snippet in required:
+            assert snippet in html, 'Regressione stazioni: '+snippet
+          assert 'Cerchio grigio con' not in html
+          assert "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#65717d'" not in html
+          scripts=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',html,re.S|re.I)
+          inline=max(scripts,key=len,default='')
+          assert len(inline)>100000, 'Script principale non trovato'
+          Path('/tmp/sardegna-meteolive-inline.js').write_text(inline,encoding='utf-8')
+          print('OK: 2D/3D mostrano soltanto misure valide; nessun marker grigio sostitutivo')
+          PY
+      - name: Controlla sintassi JavaScript
+        run: node --check /tmp/sardegna-meteolive-inline.js
