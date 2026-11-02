@@ -29,12 +29,12 @@ jobs:
           html=Path('index.html').read_text(encoding='utf-8')
           required=(
             "function mapStationVisible(s){",
-            "return baseVisible(s)&&stationParameterIsCurrent(s,cur)",
+            "function mapStationVisible(s){\n  return baseVisible(s)\n}",
             "stationMarkerValue(s,key=cur)",
             "function stationMarkerHistorical(s,key=cur){",
             "marks.filter(x=>mapStationVisible(x.s))",
             "stations.filter(mapStationVisible).map(s=>",
-            "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#fff9ed'",
+            "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#173b50'",
             "badge.no-data",
             "station3d-mobile-marker.no-data", 
             "value.classList.toggle('no-reading',!usable)",
@@ -46,7 +46,11 @@ jobs:
           # Nessuna temperatura vecchia puo' sembrare una misura corrente.
           # Rete e catalogo conservati, mappa solo con letture recenti;
           # se la rete si ferma, un avviso esplicito ne spiega la causa.
-          assert "function mapStationVisible(s){\n  return baseVisible(s)&&stationParameterIsCurrent(s,cur)\n}" in html
+          assert "function mapStationVisible(s){\n  return baseVisible(s)\n}" in html
+          assert 'station-locator-dot' in html
+          assert 'station3d-mobile-marker.unavailable-dot' in html
+          assert "iconSize:[14,14]" in html
+          assert "label.style.display=isCurrent?'block':'none'" in html
           assert "NESSUNA MISURA RECENTE DISPONIBILE" in html
           assert "DATI STAZIONI NON AGGIORNATI" in html
           assert "API" in html
@@ -59,7 +63,7 @@ jobs:
           inline=max(scripts,key=len,default='')
           assert len(inline)>100000, 'Script principale non trovato'
           Path('/tmp/sardegna-meteolive-inline.js').write_text(inline,encoding='utf-8')
-          print('OK: soltanto misure recenti sulla mappa 2D/3D, allerta leggibile su rete non aggiornata')
+          print('OK: solo dati recenti numerati; postazioni non aggiornate come piccoli punti senza numeri in 2D/3D')
           PY
       - name: Controlla sintassi JavaScript
         run: node --check /tmp/sardegna-meteolive-inline.js
