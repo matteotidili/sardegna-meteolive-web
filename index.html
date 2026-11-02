@@ -2109,16 +2109,34 @@ function ico(s){
     iconAnchor:[m.d/2,m.d/2]
   })
 }
-function stationAltitudeText(s){
-  // Quote altimetriche anagrafiche in metri: non derivarle da valori meteo.
-  const raw=[s?.elev,s?.elevation_m,s?.altitude_m].find(v=>v!==null&&v!==undefined&&v!=='');
+// Cache altimetrica separata dalle osservazioni: interrogata al massimo
+// ogni 6 ore, quote del DTM regionale calcolate in backend (mai in browser).
+let stationElevationMap=new Map();
+let stationElevationFetchedAt=0;
+function stationAltitudeDeclared(s){
+  const raw=[s?.elev,s?.elevation_m,s?.altitude_m]
+    .find(v=>v!==null&&v!==undefined&&v!=='');
   const elev=Number(raw);
-  return raw!==undefined&&Number.isFinite(elev)&&elev>=-20&&elev<=2500
-    ?Math.round(elev).toLocaleString('it-IT')+' m s.l.m.'
-    :'non disponibile'
+  return raw!==undefined&&Number.isFinite(elev)&&elev>=-20&&elev<=2500?elev:null
+}
+function stationAltitudeEstimated(s){
+  if(!s?.network||!s?.station_id)return null;
+  const row=stationElevationMap.get(String(s.network)+'|'+String(s.station_id));
+  if(!row||!Number.isFinite(row.elev)||!Number.isFinite(row.lat)||!Number.isFinite(row.lon))return null;
+  // Una stazione spostata rispetto al catalogo necessita di un nuovo DTM.
+  if(!Number.isFinite(s.lat)||!Number.isFinite(s.lon)||
+     Math.abs(s.lat-row.lat)>0.00005||Math.abs(s.lon-row.lon)>0.00005)return null;
+  return row.method==='regional_dtm_10m'||row.method==='srtm30m'?row:null
 }
 function stationAltitudeHtml(s){
-  return '<span class="station-altitude">Quota: <b>'+stationAltitudeText(s)+'</b></span>'
+  const declared=stationAltitudeDeclared(s);
+  if(declared!==null)return '<span class="station-altitude">Quota: <b>'+Math.round(declared).toLocaleString('it-IT')+' m s.l.m.</b></span>';
+  const estimated=stationAltitudeEstimated(s);
+  if(!estimated)return '<span class="station-altitude">Quota: <b>non disponibile</b></span>';
+  const source=estimated.method==='regional_dtm_10m'?'DTM Regione Sardegna · 10 m':'SRTM · 30 m';
+  return '<span class="station-altitude">Quota terreno stimata: <b>'+
+    Math.round(estimated.elev).toLocaleString('it-IT')+' m s.l.m.</b>'+
+    ' <small>('+source+')</small></span>'
 }
 function popup(s){
   if(s.network==='cedoc'){
@@ -2602,14 +2620,14 @@ function update3dCedoc(){
   const freshIds=new Set(cedocStations.map(p=>String(p.station_id)));
   const missingFeatures=cedocOn?cedocSites.filter(p=>!freshIds.has(String(p.station_id))).map(p=>({
     type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-    properties:{name:p.name,elev:p.elev??null,label:'!',color:'#fff9ed',delayed:1,missing:1}
+    properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,label:'!',color:'#fff9ed',delayed:1,missing:1}
   })):[];
   const features=cedocOn?cedocStations.map(p=>{
     const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
     if(!Number.isFinite(value))return null;
     return {
       type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-      properties:{name:p.name,elev:p.elev??null,label:cedocNumber(value),color:cedocColor(value),
+      properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,label:cedocNumber(value),color:cedocColor(value),
         delayed:Date.now()-Date.parse(p.last)>90*60000?1:0}
     }
   }).filter(Boolean):[];
@@ -5412,7 +5430,16 @@ async function loadObservations(){
     fetch(DATA+'rain_48h.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('RAIN48 '+r.status);return r.json()}),
     fetchWuCatalog(),
     fetch(DATA+'wunderground_app_api_health.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)})
-      .then(r=>{if(!r.ok)throw new Error('WU health '+r.status);return r.json()})
+      .then(r=>{if(!r.ok)throw new Error('WU health '+r.status);return r.json()}),
+    (Date.now()-stationElevationFetchedAt>6*3600000
+      ?(async()=>{
+          stationElevationFetchedAt=Date.now();
+          const r=await fetch(DATA+'station_elevations.json?t='+Math.floor(Date.now()/3600000),
+            {cache:'no-store',signal:AbortSignal.timeout(12000)});
+          if(!r.ok)throw new Error('Quote terreno '+r.status);
+          return r.json()
+        })()
+      :Promise.resolve(null))
   ]);
   if(results[0].status==='fulfilled')lastDpcnData=results[0].value;
   if(results[1].status==='fulfilled')lastAmData=results[1].value;
@@ -5420,6 +5447,12 @@ async function loadObservations(){
   if(results[3].status==='fulfilled')lastWlData=results[3].value;
   if(results[4].status==='fulfilled')lastRain48Data=results[4].value;
   if(results[6].status==='fulfilled')lastWuHealth=results[6].value;
+  if(results[7].status==='fulfilled'&&Array.isArray(results[7].value?.stations)){
+    stationElevationMap=new Map(results[7].value.stations
+      .filter(s=>s&&s.network&&s.station_id&&Number.isFinite(s.elev)&&
+        (s.method==='regional_dtm_10m'||s.method==='srtm30m'))
+      .map(s=>[String(s.network)+'|'+String(s.station_id),s]));
+  }
   const catalog=results[5].status==='fulfilled'?results[5].value:lastWuCatalog;
   const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,wl=lastWlData;
   const r48=lastRain48Data;
@@ -5470,6 +5503,10 @@ async function loadObservations(){
       (dpcn.checked_at?' · ultima acquisizione MeteoHub: '+clock(dpcn.checked_at):'');
   }else counter.removeAttribute('title');
   if(stations.length)build();else document.getElementById('status').textContent='Errore caricamento dati stazioni';
+  if(results[7].status==='fulfilled'&&Array.isArray(results[7].value?.stations)){
+    // Rinnova anche i popup del layer CEDOC gestito separatamente.
+    renderCedocLayer()
+  }
   }finally{observationsLoading=false}
 }
 loadObservations();
