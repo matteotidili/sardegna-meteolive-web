@@ -52,7 +52,7 @@ jobs:
           assert "iconSize:[14,14]" in html
           assert "label.style.display=isCurrent?'block':'none'" in html
           assert "NESSUNA MISURA RECENTE DISPONIBILE" in html
-          assert "DATI STAZIONI NON AGGIORNATI" in html
+          assert "Stazioni non aggiornate:" in html
           assert "API" in html
           assert "Cerchio con trattino" not in html
           assert "i numeri con bordo arancione tratteggiato sono" not in html
