@@ -2722,7 +2722,7 @@ cedocBtn.onclick=()=>setCedocState(!cedocOn);
 // Leggi metadati e conteggio fin dall'apertura dell'app; il layer resta OFF
 // finché l'utente non lo attiva, per non sovrapporre reti pluviometriche.
 loadCedocData(true);
-setInterval(()=>{if(!document.hidden)loadCedocData(true)},5*60*1000);
+setInterval(()=>{if(!document.hidden)loadCedocData(false)},60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCedocData(true)});
 
 function legend(){
