@@ -2584,7 +2584,7 @@ function cedocLiveStations(raw){
 }
 function cedocLegendHtml(){
   if(!cedocOn||(!cedocStations.length&&!cedocSites.length))return '';
-  if(!cedocStations.length)return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+cedocSites.length+' postazioni censite</div><div class="map-legend-note">Nessuna misura recente verificabile. Le postazioni sono conservate in anagrafica ma non mostrate come valori attuali.</div></div>';
+  if(!cedocStations.length)return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+cedocSites.length+' postazioni censite</div><div class="map-legend-note">Cerchi azzurri: postazioni censite senza misure odierne verificabili. Nessun accumulo inventato.</div></div>';
   const stops=[['0','#1d9aca'],['0–15','#248dc2'],['15–30','#3baa81'],['30–60','#d1aa17'],['60–100','#f27927'],['100–150','#d13142'],['150+','#b02dab']];
   return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+(cur==='rain_48h'?'accumulo ultime 48 ore':'pioggia cumulata oggi')+' · mm</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:9px">'+
@@ -2594,8 +2594,19 @@ function cedocLegendHtml(){
 function renderCedocLayer(){
   cedocLayer.clearLayers();
   if(cedocOn){
-    // Non creare segnaposto o punti esclamativi per sensori senza dati recenti.
-    // L'anagrafica geografica resta disponibile nel dataset CEDOC.
+    // La fonte puo' fermarsi: continuiamo a mostrare le ubicazioni censite,
+    // SENZA millimetri, in azzurro (no punti grigi e no punti esclamativi).
+    const measuredIds=new Set(cedocStations.map(p=>String(p.station_id)));
+    for(const p of cedocSites){
+      if(measuredIds.has(String(p.station_id)))continue;
+      const marker=L.divIcon({className:'cedoc-icon',
+        html:'<span title="CEDOC: postazione censita, dato non disponibile" style="display:block;width:14px;height:14px;border:2px solid #1595c3;border-radius:50%;background:rgba(0,160,215,.12);box-shadow:0 0 0 1px rgba(255,255,255,.65)"></span>',
+        iconSize:[18,18],iconAnchor:[9,9]});
+      const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
+      L.marker([p.lat,p.lon],{pane:'cedoc',icon:marker,zIndexOffset:30})
+        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div>'+stationAltitudeHtml(p)+'</div><div>Postazione CEDOC censita: misura attuale non disponibile.</div><div>Nessun accumulo pluviometrico attribuito.</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>')
+        .addTo(cedocLayer);
+    }
     for(const p of cedocStations){
       const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
       if(!Number.isFinite(value))continue;
@@ -2617,9 +2628,10 @@ function update3dCedoc(){
   if(!map3d.getSource('cedoc-3d')){
     map3d.addSource('cedoc-3d',{type:'geojson',data:fc()});
     map3d.addLayer({id:'cedoc-3d-points',type:'circle',source:'cedoc-3d',
-      paint:{'circle-radius':18,'circle-color':['get','color'],
-        'circle-stroke-color':['case',['==',['get','missing'],1],'#d97706',['==',['get','delayed'],1],'#ffbf57','#ffffff'],
-        'circle-stroke-width':1.5,'circle-opacity':['case',['==',['get','delayed'],1],.55,.95]}});
+      paint:{'circle-radius':['case',['==',['get','missing'],1],6,18],
+        'circle-color':['get','color'],
+        'circle-stroke-color':['case',['==',['get','missing'],1],'#1595c3',['==',['get','delayed'],1],'#ffbf57','#ffffff'],
+        'circle-stroke-width':1.5,'circle-opacity':['case',['==',['get','missing'],1],.55,['==',['get','delayed'],1],.55,.95]}});
     map3d.addLayer({id:'cedoc-3d-labels',type:'symbol',source:'cedoc-3d',
       layout:{'text-field':['get','label'],'text-size':11,'text-allow-overlap':true,'text-ignore-placement':true,
         'text-pitch-alignment':'viewport'},
@@ -2631,6 +2643,12 @@ function update3dCedoc(){
         .setHTML('<b>'+cedocEscape(p.name||'Stazione')+'</b><br>'+stationAltitudeHtml(p)+'<br>'+(p.missing?'CEDOC · dato non aggiornato':cedocEscape(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' · CEDOC')).addTo(map3d)
     })
   }
+  const measuredIds=new Set(cedocStations.map(p=>String(p.station_id)));
+  const locationOnly=cedocOn?cedocSites.filter(p=>!measuredIds.has(String(p.station_id))).map(p=>({
+    type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
+    properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,
+      label:'',color:'#c8f2ff',delayed:0,missing:1}
+  })):[];
   const features=cedocOn?cedocStations.map(p=>{
     const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
     if(!Number.isFinite(value))return null;
@@ -2640,7 +2658,7 @@ function update3dCedoc(){
         delayed:Date.now()-Date.parse(p.last)>90*60000?1:0}
     }
   }).filter(Boolean):[];
-  map3d.getSource('cedoc-3d').setData(fc(features));
+  map3d.getSource('cedoc-3d').setData(fc(features.concat(locationOnly)));
   raise3dOperationalLayers()
 }
 function cedocAsStandardStations(){
@@ -2689,7 +2707,7 @@ async function loadCedocData(force=false){
       const reason=data.status==='ok'?
         'Il dataset non è più recente oppure è cambiato il giorno locale.':
         data.warning?String(data.warning).slice(0,170):'dati giornalieri non disponibili o scaduti';
-      cedocCounter.textContent='CEDOC · '+cedocSites.length+' postazioni censite · 0 misure recenti · '+reason+' · ultimo dataset '+published;
+      cedocCounter.textContent='CEDOC · '+cedocSites.length+' postazioni censite (cerchi azzurri) · 0 misure odierne verificabili · '+reason+' · ultimo controllo '+published;
       cedocCounter.classList.add('cedoc-status-stale');
       cedocStatusHelp.style.display='block'
     }
@@ -2719,9 +2737,9 @@ function setCedocState(on){
   }
 }
 cedocBtn.onclick=()=>setCedocState(!cedocOn);
-// Leggi metadati e conteggio fin dall'apertura dell'app; il layer resta OFF
-// finché l'utente non lo attiva, per non sovrapporre reti pluviometriche.
-loadCedocData(true);
+// Visualizza fin dall'avvio tutte le postazioni CEDOC note: con misura
+// valida hanno il cumulato, altrimenti SOLO un piccolo cerchio azzurro.
+setCedocState(true);
 setInterval(()=>{if(!document.hidden)loadCedocData(false)},60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCedocData(true)});
 
