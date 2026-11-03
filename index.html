@@ -645,7 +645,7 @@ header .live{margin-left:0}
     <button class="btn direct-layer-toggle" id="hydroBtn">Idrometri ARPAS <span>OFF</span></button>
     <div id="hydroCounter" class="counter direct-layer-counter">Rete fiduciaria · soft real time</div>
     <button class="btn direct-layer-toggle" id="cedocBtn" aria-pressed="false">Pluviometri CEDOC · oggi <span>OFF</span></button>
-    <div id="cedocCounter" class="counter direct-layer-counter">Rete CEDOC · accumuli giornalieri · aggiornamento previsto ogni 30 minuti</div>
+    <div id="cedocCounter" class="counter direct-layer-counter">Rete CEDOC · controlli ogni 5 min · scansione completa circa ogni 15 min</div>
     <div id="cedocStatusHelp" class="counter direct-layer-counter" style="display:none"><a href="https://github.com/matteotidili/sardegna-meteolive-data/actions/workflows/update-cedoc.yml" target="_blank" rel="noopener noreferrer">Verifica acquisizione automatica</a> · <a href="https://www.sardegnacedoc.it/idrografico/temporeale" target="_blank" rel="noopener noreferrer">Fonte CEDOC</a></div>
 
     <div class="accordion-item" data-acc-item="precip">
@@ -2584,25 +2584,18 @@ function cedocLiveStations(raw){
 }
 function cedocLegendHtml(){
   if(!cedocOn||(!cedocStations.length&&!cedocSites.length))return '';
-  if(!cedocStations.length)return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+cedocSites.length+' postazioni censite</div><div class="map-legend-note">Simbolo ! con bordo arancione: rete temporaneamente senza misure recenti. Nessun accumulo ricostruito o inventato.</div></div>';
+  if(!cedocStations.length)return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+cedocSites.length+' postazioni censite</div><div class="map-legend-note">Nessuna misura recente verificabile. Le postazioni sono conservate in anagrafica ma non mostrate come valori attuali.</div></div>';
   const stops=[['0','#1d9aca'],['0–15','#248dc2'],['15–30','#3baa81'],['30–60','#d1aa17'],['60–100','#f27927'],['100–150','#d13142'],['150+','#b02dab']];
   return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+(cur==='rain_48h'?'accumulo ultime 48 ore':'pioggia cumulata oggi')+' · mm</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:9px">'+
     stops.map(([v,c])=>'<span style="display:flex;align-items:center;gap:3px"><i style="background:'+c+';width:9px;height:9px;border-radius:50%;display:inline-block"></i>'+v+'</span>').join('')+
-    '</div><div class="map-legend-note">'+(cur==='rain_48h'?'Totale mobile delle ultime 48 ore, dato CEDOC.':'Cumulato da inizio giornata (ora italiana).')+' Aggiornamento circa ogni 30 min; non validato ARPAS.</div></div>'
+    '</div><div class="map-legend-note">'+(cur==='rain_48h'?'Totale mobile delle ultime 48 ore, dato CEDOC.':'Cumulato da inizio giornata (ora italiana).')+' Controllo ogni 5 min, scansione completa circa ogni 15 min; non validato ARPAS.</div></div>'
 }
 function renderCedocLayer(){
   cedocLayer.clearLayers();
   if(cedocOn){
-    const freshSiteIds=new Set(cedocStations.map(p=>String(p.station_id)));
-    for(const p of cedocSites){
-      if(freshSiteIds.has(String(p.station_id)))continue;
-      const icon=L.divIcon({className:'cedoc-icon',html:'<span class="cedoc-badge cedoc-no-data" title="CEDOC: osservazione non aggiornata">!</span>',iconSize:[30,27],iconAnchor:[15,13]});
-      const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(String(p.station_id));
-      L.marker([p.lat,p.lon],{pane:'cedoc',icon,zIndexOffset:75})
-        .bindPopup('<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div>'+stationAltitudeHtml(p)+'</div><div>Pluviometro censito, osservazioni recenti non disponibili.</div><div>Nessun cumulato visualizzato perché il dato non è verificabile.</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>')
-        .addTo(cedocLayer)
-    }
+    // Non creare segnaposto o punti esclamativi per sensori senza dati recenti.
+    // L'anagrafica geografica resta disponibile nel dataset CEDOC.
     for(const p of cedocStations){
       const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
       if(!Number.isFinite(value))continue;
@@ -2638,11 +2631,6 @@ function update3dCedoc(){
         .setHTML('<b>'+cedocEscape(p.name||'Stazione')+'</b><br>'+stationAltitudeHtml(p)+'<br>'+(p.missing?'CEDOC · dato non aggiornato':cedocEscape(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' · CEDOC')).addTo(map3d)
     })
   }
-  const freshIds=new Set(cedocStations.map(p=>String(p.station_id)));
-  const missingFeatures=cedocOn?cedocSites.filter(p=>!freshIds.has(String(p.station_id))).map(p=>({
-    type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-    properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,label:'!',color:'#fff9ed',delayed:1,missing:1}
-  })):[];
   const features=cedocOn?cedocStations.map(p=>{
     const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
     if(!Number.isFinite(value))return null;
@@ -2652,24 +2640,17 @@ function update3dCedoc(){
         delayed:Date.now()-Date.parse(p.last)>90*60000?1:0}
     }
   }).filter(Boolean):[];
-  map3d.getSource('cedoc-3d').setData(fc(features.concat(missingFeatures)));
+  map3d.getSource('cedoc-3d').setData(fc(features));
   raise3dOperationalLayers()
 }
 function cedocAsStandardStations(){
-  const freshIds=new Set(cedocStations.map(s=>String(s.station_id)));
-  const missing=cedocSites.filter(s=>!freshIds.has(String(s.station_id))).map(s=>({
-    station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,elev:s.elev??null,
-    temp:null,tmin:null,tmax:null,rh:null,wind_kmh:null,gust_kmh:null,
-    rain_today:null,rain_48h:null,rain_rate:null,last:null,network:'cedoc',
-    source_url:s.source_url
-  }));
   return cedocStations.map(s=>({
     station_id:s.station_id,name:s.name,lat:s.lat,lon:s.lon,elev:s.elev??null,
     rain_today:s.rain_today,rain_48h:Number.isFinite(s.rain_48h)?s.rain_48h:null,
     rain_48h_last:Number.isFinite(s.rain_48h)?s.last:null,
     rain_48h_source:s.rain_48h_source,
     last:s.last,network:'cedoc',source_url:s.source_url,observed_day:s.observed_day
-  })).concat(missing)
+  }))
 }
 function syncCedocStationNetwork(){
   stations=stations.filter(s=>s.network!=='cedoc').concat(cedocAsStandardStations());
@@ -2677,7 +2658,7 @@ function syncCedocStationNetwork(){
   else render()
 }
 async function loadCedocData(force=false){
-  if(cedocLoading||(!force&&Date.now()-cedocLastLoad<15*60000))return;
+  if(cedocLoading||(!force&&Date.now()-cedocLastLoad<60*1000))return;
   cedocLoading=true;
   try{
     const stamp=Date.now();
