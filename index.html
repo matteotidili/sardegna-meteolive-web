@@ -2582,8 +2582,13 @@ function cedocLiveStations(raw){
       Number.isFinite(s.rain_today)&&s.rain_today>=0&&s.rain_today<=1800
   })
 }
+function cedocRainVisible(){
+  // CEDOC appare esclusivamente selezionando Pioggia o 48 ore.
+  // Resta nascosta per temperatura, vento, raffiche, umidita' e rain rate.
+  return cedocOn&&(cur==='rain_today'||cur==='rain_48h')
+}
 function cedocLegendHtml(){
-  if(!cedocOn||(!cedocStations.length&&!cedocSites.length))return '';
+  if(!cedocRainVisible()||(!cedocStations.length&&!cedocSites.length))return '';
   if(!cedocStations.length)return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+cedocSites.length+' postazioni censite</div><div class="map-legend-note">Cerchi azzurri: postazioni censite senza misure odierne verificabili. Nessun accumulo inventato.</div></div>';
   const stops=[['0','#1d9aca'],['0–15','#248dc2'],['15–30','#3baa81'],['30–60','#d1aa17'],['60–100','#f27927'],['100–150','#d13142'],['150+','#b02dab']];
   return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+(cur==='rain_48h'?'accumulo ultime 48 ore':'pioggia cumulata oggi')+' · mm</div>'+
@@ -2593,7 +2598,7 @@ function cedocLegendHtml(){
 }
 function renderCedocLayer(){
   cedocLayer.clearLayers();
-  if(cedocOn){
+  if(cedocRainVisible()){
     // La fonte puo' fermarsi: continuiamo a mostrare le ubicazioni censite,
     // SENZA millimetri, in azzurro (no punti grigi e no punti esclamativi).
     const measuredIds=new Set(cedocStations.map(p=>String(p.station_id)));
@@ -2644,12 +2649,12 @@ function update3dCedoc(){
     })
   }
   const measuredIds=new Set(cedocStations.map(p=>String(p.station_id)));
-  const locationOnly=cedocOn?cedocSites.filter(p=>!measuredIds.has(String(p.station_id))).map(p=>({
+  const locationOnly=cedocRainVisible()?cedocSites.filter(p=>!measuredIds.has(String(p.station_id))).map(p=>({
     type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
     properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,
       label:'',color:'#c8f2ff',delayed:0,missing:1}
   })):[];
-  const features=cedocOn?cedocStations.map(p=>{
+  const features=cedocRainVisible()?cedocStations.map(p=>{
     const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
     if(!Number.isFinite(value))return null;
     return {
@@ -2737,8 +2742,8 @@ function setCedocState(on){
   }
 }
 cedocBtn.onclick=()=>setCedocState(!cedocOn);
-// Visualizza fin dall'avvio tutte le postazioni CEDOC note: con misura
-// valida hanno il cumulato, altrimenti SOLO un piccolo cerchio azzurro.
+// Abilita la fonte CEDOC all'avvio, ma mostra i punti solo nei
+// parametri Pioggia e 48 ore. Gli altri parametri restano puliti.
 setCedocState(true);
 setInterval(()=>{if(!document.hidden)loadCedocData(false)},60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCedocData(true)});
