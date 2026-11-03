@@ -624,7 +624,7 @@ header .live{margin-left:0}
       <button class="netbtn" data-net="dpcn-sardegna">DPCN</button>
       <button class="netbtn" data-net="cedoc">CEDOC</button>
       <button class="netbtn" data-net="aeronautica-militare">AM</button>
-      <button class="netbtn" data-net="wunderground">WU</button>
+      <button class="netbtn" data-net="wunderground" hidden style="display:none" aria-hidden="true">WU</button>
       <button class="netbtn" data-net="weatherlink" id="wlNetBtn" hidden>WL</button>
     </div>
   </div>
@@ -2186,7 +2186,7 @@ function stationLegendHtml(){
   const grad='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')';
   return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div>'+(cur==='rain_48h'?'<div class="map-legend-note">CEDOC: dato ufficiale su 48h; altre reti: stima da cumulati giornalieri, solo con storico sufficiente. AM: non disponibile.</div>':'')+
     (stations.some(s=>baseVisible(s)&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note" style="color:#f1c27f"><b>Stazioni non aggiornate:</b> il piccolo punto senza numero indica esclusivamente la posizione censita. Non rappresenta un valore meteorologico. Le ultime osservazioni e gli orari restano consultabili nell’elenco.</div>':'')+
-    (lastWuHealth?.status==='cooldown'&&(netFilter==='all'||netFilter==='wunderground')?'<div class="map-legend-note" style="color:#f1c27f">Weather Underground: acquisizione temporaneamente limitata dall’API. Nessuna misura vecchia viene mostrata come attuale.</div>':'')+'</div>'
+    (WU_ENABLED&&lastWuHealth?.status==='cooldown'&&(netFilter==='all'||netFilter==='wunderground')?'<div class="map-legend-note" style="color:#f1c27f">Weather Underground: acquisizione temporaneamente limitata dall’API. Nessuna misura vecchia viene mostrata come attuale.</div>':'')+'</div>'
 }
 function radarLegendHtml(){
   if(!radarOn)return '';
@@ -2960,6 +2960,7 @@ document.querySelectorAll('[data-base]').forEach(b=>{
   b.onclick=()=>setBaseMode(b.dataset.base)
 });
 document.querySelectorAll('[data-net]').forEach(b=>b.onclick=()=>{
+  if(!WU_ENABLED&&b.dataset.net==='wunderground')return;
   netFilter=b.dataset.net;
   document.querySelectorAll('[data-net]').forEach(x=>x.classList.toggle('active',x.dataset.net===netFilter));
   if(netFilter==='cedoc'&&cur!=='rain_today'&&cur!=='rain_48h'){
@@ -5397,11 +5398,15 @@ setInterval(()=>{if(hydroOn&&!document.hidden)loadHydroData(true)},5*60*1000);
 
 document.getElementById('q').oninput=e=>{query=e.target.value.toLowerCase().trim();render()};
 const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/data/';
+// Sospensione temporanea WU: non caricare neppure catalogo, osservazioni
+// e stato API; mantenere archivio e codice per futura riattivazione.
+const WU_ENABLED=false;
 let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,lastRain48Data=null,lastWuHealth=null,observationsLoading=false;
 // Il catalogo WU è indipendente dalla disponibilità dell'API osservazioni.
 // Nuove PWS scoperta vengono mostrate anche con chiave momentaneamente bloccata.
 let lastWuCatalog=null,wuCatalogCheckedAt=0,wuCatalogPromise=null;
 async function fetchWuCatalog(){
+  if(!WU_ENABLED)return null;
   const now=Date.now();
   if(lastWuCatalog&&now-wuCatalogCheckedAt<30*60000)return lastWuCatalog;
   if(wuCatalogPromise)return wuCatalogPromise;
@@ -5458,12 +5463,12 @@ async function loadObservations(){
   const results=await Promise.allSettled([
     fetch(DATA+'stations.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('DPCN '+r.status);return r.json()}),
     fetch(DATA+'am.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('AM '+r.status);return r.json()}),
-    fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()}),
+    WU_ENABLED?fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()}):Promise.resolve(null),
     fetch(DATA+'weatherlink.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WL '+r.status);return r.json()}),
     fetch(DATA+'rain_48h.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('RAIN48 '+r.status);return r.json()}),
     fetchWuCatalog(),
-    fetch(DATA+'wunderground_app_api_health.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)})
-      .then(r=>{if(!r.ok)throw new Error('WU health '+r.status);return r.json()}),
+    WU_ENABLED?fetch(DATA+'wunderground_app_api_health.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)})
+      .then(r=>{if(!r.ok)throw new Error('WU health '+r.status);return r.json()}):Promise.resolve(null),
     (Date.now()-stationElevationFetchedAt>6*3600000
       ?(async()=>{
           stationElevationFetchedAt=Date.now();
@@ -5511,9 +5516,14 @@ async function loadObservations(){
   };
   const ds=(dpcn?.stations||[]).map(s=>append48(s,s.network||'dpcn-sardegna'));
   const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare',rain_48h:null}));
-  const ws=mergeWuCatalog(wu?.stations||[],catalog).map(s=>append48(s,'wunderground'));
+  const ws=WU_ENABLED?mergeWuCatalog(wu?.stations||[],catalog).map(s=>append48(s,'wunderground')):[];
   const wls=(wl?.stations||[]).map(s=>append48(s,'weatherlink'));
   stations=[...as,...ds,...ws,...wls,...cedocAsStandardStations()];
+  // Una selezione WU conservata in pagina non deve produrre una rete vuota.
+  if(!WU_ENABLED&&netFilter==='wunderground'){
+    netFilter='all';
+    document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'));
+  }
   const wlButton=document.getElementById('wlNetBtn');
   wlButton.hidden=wls.length===0;
   if(wls.length===0&&netFilter==='weatherlink'){
@@ -5521,7 +5531,7 @@ async function loadObservations(){
     document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'))
   }
   const parts=[];if(am)parts.push(dataStampLabel(am,'AM'));if(dpcn)parts.push(dataStampLabel(dpcn,'DPCN'));
-  if(wu||catalog){
+  if(WU_ENABLED&&(wu||catalog)){
     const wuRecent=ws.filter(s=>stationParameterIsCurrent(s,'temp')).length;
     const wuBlocked=lastWuHealth?.status==='cooldown';
     parts.push((wu?dataStampLabel(wu,'WU'):'WU dati non disponibili')+
