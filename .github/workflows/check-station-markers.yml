@@ -42,6 +42,12 @@ jobs:
           )
           for snippet in required:
             assert snippet in html, 'Regressione stazioni: '+snippet
+          # WU sospesa: non caricare dati, catalogo o pulsante di rete.
+          assert 'const WU_ENABLED=false;' in html
+          assert 'data-net="wunderground" hidden style="display:none"' in html
+          assert "const ws=WU_ENABLED?mergeWuCatalog" in html
+          assert "WU_ENABLED?fetch(DATA+'wunderground.json" in html
+          assert "WU_ENABLED?fetch(DATA+'wunderground_app_api_health.json" in html
           assert 'Cerchio grigio con' not in html
           # Nessuna temperatura vecchia puo' sembrare una misura corrente.
           # Rete e catalogo conservati, mappa solo con letture recenti;
