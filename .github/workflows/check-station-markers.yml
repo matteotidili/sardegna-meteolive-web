@@ -29,11 +29,11 @@ jobs:
           html=Path('index.html').read_text(encoding='utf-8')
           required=(
             "function mapStationVisible(s){",
-            "function mapStationVisible(s){\n  return baseVisible(s)\n}",
+            "function mapStationVisible(s){\n  // I CEDOC hanno il proprio unico marker (non duplicato tra layer).\n  return s.network!=='cedoc'&&baseVisible(s)\n}",
             "stationMarkerValue(s,key=cur)",
             "function stationMarkerHistorical(s,key=cur){",
             "marks.filter(x=>mapStationVisible(x.s))",
-            "stations.filter(mapStationVisible).map(s=>",
+            "if(stationsOn)for(const st of stations.filter(mapStationVisible)){",
             "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#173b50'",
             "badge.no-data",
             "station3d-mobile-marker.no-data", 
@@ -52,7 +52,7 @@ jobs:
           # Nessuna temperatura vecchia puo' sembrare una misura corrente.
           # Rete e catalogo conservati, mappa solo con letture recenti;
           # se la rete si ferma, un avviso esplicito ne spiega la causa.
-          assert "function mapStationVisible(s){\n  return baseVisible(s)\n}" in html
+          assert "return s.network!=='cedoc'&&baseVisible(s)" in html
           assert 'station-locator-dot' in html
           assert 'station3d-mobile-marker.unavailable-dot' in html
           assert "iconSize:[14,14]" in html
@@ -62,7 +62,10 @@ jobs:
           assert "API" in html
           assert "Cerchio con trattino" not in html
           assert "i numeri con bordo arancione tratteggiato sono" not in html
-          assert "stations.filter(mapStationVisible).map(s=>" in html
+          assert "const chosen=packVisibleStationIcons(candidates);" in html
+          assert "packVisibleStationIcons(standard.concat(cedoc))" in html
+          assert "renderCedocLayer(selected.cedoc)" in html
+          assert "cedocMapCandidates()" in html
           assert "const rows=stations.filter(baseVisible).sort" in html
           assert "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#65717d'" not in html
           scripts=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',html,re.S|re.I)
