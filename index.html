@@ -646,7 +646,7 @@ header .live{margin-left:0}
     <button class="btn direct-layer-toggle" id="hydroBtn">Idrometri ARPAS <span>OFF</span></button>
     <div id="hydroCounter" class="counter direct-layer-counter">Rete fiduciaria · soft real time</div>
     <button class="btn direct-layer-toggle" id="cedocBtn" aria-pressed="false">Pluviometri CEDOC · oggi <span>OFF</span></button>
-    <div id="cedocCounter" class="counter direct-layer-counter">Rete CEDOC · controlli ogni 5 min · scansione completa circa ogni 15 min</div>
+    <div id="cedocCounter" class="counter direct-layer-counter">Rete CEDOC · controllo ogni 15 min · scansione completa circa ogni 30 min</div>
     <div id="cedocStatusHelp" class="counter direct-layer-counter" style="display:none"><a href="https://github.com/matteotidili/sardegna-meteolive-data/actions/workflows/update-cedoc.yml" target="_blank" rel="noopener noreferrer">Verifica acquisizione automatica</a> · <a href="https://www.sardegnacedoc.it/idrografico/temporeale" target="_blank" rel="noopener noreferrer">Fonte CEDOC</a></div>
 
     <div class="accordion-item" data-acc-item="precip">
@@ -2193,10 +2193,14 @@ function popup(s){
       (Number.isFinite(s.rain_48h)?cedocNumber(s.rain_48h)+' mm':'—')+'</b> (dato CEDOC)<br>Osservazione: '+ts+
       '<br><small>Misura automatica non validata ARPAS</small><br><a href="'+url+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>'
   }
-  const staleWarning=obsAgeMin(s)>LIVE_STATION_MAX_AGE_MIN?
+  const staleWarning=(obsAgeMin(s)>LIVE_STATION_MAX_AGE_MIN||
+    stationMarkerHistorical(s,cur))?
     '<br><strong style="color:#c48321">DATI NON AGGIORNATI: ultime misure disponibili, NON in tempo reale</strong>':'';
 
-  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',eco=s.network==='ecowitt',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':eco?'Ecowitt Cloud / PWS autorizzata':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br>'+stationAltitudeHtml(s)+'<br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span>'+staleWarning+'<br><b>Ultima osservazione: '+obs+'</b><br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+
+  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',eco=s.network==='ecowitt',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':eco?'Ecowitt Cloud / PWS autorizzata':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br>'+stationAltitudeHtml(s)+'<br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span>'+staleWarning+'<br><b>Ultima osservazione: '+obs+'</b><br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>'+(Number.isFinite(Date.parse(s.last||''))&&
+    stationRomeDate.format(Date.parse(s.last))===stationRomeDate.format(Date.now())?
+    'Pioggia oggi: ':'Pioggia al giorno dell’ultima osservazione: ')+
+    (Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+
 '<br>Ultime 48 ore: '+(Number.isFinite(s.rain_48h)?s.rain_48h.toFixed(1)+' mm'+(s.rain_48h_source==='estimated_from_daily_counters'?' (stima da storico)':''):'—')+
 extra+quality+'</div>'}
 function tooltipHtml(s){
@@ -2630,7 +2634,7 @@ function cedocLegendHtml(){
   return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+(cur==='rain_48h'?'accumulo ultime 48 ore':'pioggia cumulata oggi')+' · mm</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:9px">'+
     stops.map(([v,c])=>'<span style="display:flex;align-items:center;gap:3px"><i style="background:'+c+';width:9px;height:9px;border-radius:50%;display:inline-block"></i>'+v+'</span>').join('')+
-    '</div><div class="map-legend-note">'+(cur==='rain_48h'?'Totale mobile delle ultime 48 ore, dato CEDOC.':'Cumulato da inizio giornata (ora italiana).')+' Controllo ogni 5 min, scansione completa circa ogni 15 min; non validato ARPAS.</div></div>'
+    '</div><div class="map-legend-note">'+(cur==='rain_48h'?'Totale mobile delle ultime 48 ore, dato CEDOC.':'Cumulato da inizio giornata (ora italiana).')+' Controllo ogni 15 min, copertura della rete in circa 30 min quando disponibile; non validato ARPAS.</div></div>'
 }
 // Le postazioni CEDOC reali e le posizioni senza lettura costituiscono
 // un unico catalogo, soggetto ai filtri della rete e delle piogge.
@@ -2725,7 +2729,13 @@ function update3dCedoc(){
       const feature=e.features&&e.features[0];if(!feature)return;
       const p=feature.properties;
       new maplibregl.Popup({closeButton:true,offset:20}).setLngLat(feature.geometry.coordinates)
-        .setHTML('<b>'+cedocEscape(p.name||'Stazione')+'</b><br>'+stationAltitudeHtml(p)+'<br>'+(p.missing?'CEDOC · dato non aggiornato':cedocEscape(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' · CEDOC')).addTo(map3d)
+        .setHTML('<b>'+cedocEscape(p.name||'Stazione')+'</b><br>'+stationAltitudeHtml(p)+'<br>'+
+          (p.missing?'CEDOC · nessuna misura disponibile':cedocEscape(p.label)+' mm · CEDOC')+
+          (p.delayed?'<br><b style="color:#c48321">DATO NON AGGIORNATO</b>':'')+
+          '<br>Ultima osservazione: '+cedocEscape(p.last&&Number.isFinite(Date.parse(p.last))?
+            new Date(p.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',
+              day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'non disponibile'))
+          .addTo(map3d)
     })
   }
   // Nessuna doppia presenza con marker HTML: packing condiviso 3D.
@@ -2734,7 +2744,8 @@ function update3dCedoc(){
     return {
       type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
       properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,
-        label:valid?cedocNumber(value):'',color:valid?cedocColor(value):'#c8f2ff',
+        last:p.last||'',label:valid?cedocNumber(value):'',
+        color:valid?cedocColor(value):'#c8f2ff',
         missing:valid?0:1,delayed:valid&&Date.now()-Date.parse(p.last)>90*60000?1:0}
     };
   });
@@ -3031,9 +3042,10 @@ function render(zoomOnly=false){
   if(zoomOnly)return;
   const eligible=stations.filter(baseVisible).length;
   const current=stations.filter(s=>baseVisible(s)&&stationParameterIsCurrent(s,cur)).length;
+  const historical=stations.filter(s=>baseVisible(s)&&stationMarkerHistorical(s,cur)).length;
   document.getElementById('status').textContent=current===0
-    ?'NESSUNA MISURA RECENTE DISPONIBILE · '+eligible+' stazioni censite, indicate da piccoli punti · '+P[cur].n
-    :shown+' stazioni in mappa · '+current+' con dato recente · '+(eligible-current)+' senza misura recente (punti senza numero) · '+P[cur].n+
+    ?'NESSUNA MISURA RECENTE · '+historical+' ultime osservazioni storiche visibili (bordo ambra) · '+P[cur].n
+    :shown+' stazioni in mappa · '+current+' aggiornate · '+historical+' con ultimo dato storico · '+P[cur].n+
     (cur==='rain_48h'&&current===0?' · Ultime 48 ore: CEDOC / storico insufficiente per le altre reti':'')+
     (mode3d?' · vista 3D':'');
   legend();
