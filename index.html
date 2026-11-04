@@ -2792,7 +2792,10 @@ function setCedocState(on){
   }else{
     if(cedocAttribution){map.attributionControl.removeAttribution(CEDOC_ATTR);cedocAttribution=false}
   }
-  render();
+  // Durante il bootstrap viewStateReady e' ancora false: chiamare
+  // render() qui accederebbe a costanti di stazione non inizializzate
+  // e fermerebbe la creazione di menu e controlli.
+  if(viewStateReady)render();
 }
 cedocBtn.onclick=()=>setCedocState(!cedocOn);
 // Abilita la fonte CEDOC all'avvio, ma mostra i punti solo nei
