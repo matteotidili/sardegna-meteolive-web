@@ -67,6 +67,17 @@ jobs:
           assert "renderCedocLayer(selected.cedoc)" in html
           assert "cedocMapCandidates()" in html
           assert "const rows=stations.filter(baseVisible).sort" in html
+          # Regressione 04/11: durante l'inizializzazione setCedocState(true)
+          # viene eseguita prima delle costanti LIVE_STATION_PARAMS e dei
+          # pulsanti dei parametri. Non avviare render() prima del bootstrap.
+          cedoc_set=html.index('function setCedocState(on){')
+          cedoc_auto=html.index('setCedocState(true);',cedoc_set)
+          live_params=html.index('const LIVE_STATION_PARAMS=')
+          assert cedoc_set<cedoc_auto<live_params, 'Ordine init CEDOC modificato: rivedere test'
+          cedoc_body=html[cedoc_set:cedoc_auto]
+          assert 'if(viewStateReady)render();' in cedoc_body, (
+            'Regressione bootstrap: CEDOC esegue render prima dei menu'
+          )
           assert "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#65717d'" not in html
           scripts=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',html,re.S|re.I)
           inline=max(scripts,key=len,default='')
