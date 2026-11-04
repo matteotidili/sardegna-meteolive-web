@@ -1570,27 +1570,43 @@ function densestStationPacking(items,diameterWithGap){
   }
   return accepted
 }
-function station3dCandidates(spacing){
-  if(!map3d||!mode3d||!stationsOn)return [];
+// La stessa selezione in pixel e' usata dai cerchi CEDOC (MapLibre)
+// e dalle stazioni HTML in 3D, anche durante zoom, pan e pitch.
+function packed3dStationPlan(){
+  if(!map3d||!mode3d)return {standard:[],cedoc:[]};
   const canvas=map3d.getCanvas();
   const width=canvas.clientWidth||map3dEl.clientWidth;
   const height=canvas.clientHeight||map3dEl.clientHeight;
-  // La selezione usa i pixel dello schermo, non getBounds() che in 3D
-  // con pitch elevato può escludere punti effettivamente visibili.
-  const candidates=stations.filter(mapStationVisible).map(s=>{
-    const lon=Number(s.lon),lat=Number(s.lat);
-    if(!Number.isFinite(lon)||!Number.isFinite(lat))return null;
+  const diameter=station3dMarkerSize();
+  const candidates=[];
+  const project=(lon,lat,w,h)=>{
     let p;
-    try{p=map3d.project([lon,lat])}catch(e){return null}
+    try{p=map3d.project([Number(lon),Number(lat)])}catch(e){return null}
     if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)||
-       p.x< -spacing||p.x>width+spacing||p.y< -spacing||p.y>height+spacing)return null;
-    return {s,p,pri:priority(s),stable:stationKey(s),valid:stationParameterIsCurrent(s,cur)}
-  }).filter(Boolean).sort((a,b)=>
-    Number(b.stable===focusedStationKey)-Number(a.stable===focusedStationKey)||
-    a.pri-b.pri||a.stable.localeCompare(b.stable,'it')
-  );
-  // In 3D usiamo le distanze in pixel proiettate (valgono anche con pitch).
-  return densestStationPacking(candidates,spacing)
+       p.x < -w||p.x>width+w||p.y < -h||p.y>height+h)return null;
+    return p;
+  };
+  if(stationsOn)for(const st of stations.filter(mapStationVisible)){
+    const valid=stationParameterIsCurrent(st,cur);
+    const size=valid?diameter:14;
+    const p=project(st.lon,st.lat,size,size);
+    if(p)candidates.push({kind:'standard',s:st,p,w:size,h:size,valid,
+      pri:priority(st),stable:stationKey(st)});
+  }
+  for(const item of cedocMapCandidates()){
+    const valid=Number.isFinite(item.value),size=valid?38:14;
+    const p=project(item.p.lon,item.p.lat,size,size);
+    if(p)candidates.push({kind:'cedoc',item,p,w:size,h:size,valid,pri:.5,
+      stable:'cedoc|'+String(item.p.station_id)});
+  }
+  const chosen=packVisibleStationIcons(candidates);
+  return {
+    standard:chosen.filter(x=>x.kind==='standard'),
+    cedoc:chosen.filter(x=>x.kind==='cedoc').map(x=>x.item)
+  };
+}
+function station3dCandidates(spacing){
+  return packed3dStationPlan().standard;
 }
 function station3dMarkerSize(){
   const zoom=map3d?.getZoom()??7;
@@ -1600,6 +1616,7 @@ function station3dMarkerSize(){
 function renderMobile3dStations(){
   if(!map3d||!mode3d||!map3dStyleReady||!stationsOn){
     clearMobile3dStationMarkers();
+    if(map3d&&mode3d&&map3dStyleReady)update3dCedoc();
     return
   }
   // I marker MapLibre già presenti vengono riutilizzati durante gli zoom.
@@ -1661,6 +1678,7 @@ function renderMobile3dStations(){
   }
   for(const marker of existing.values())marker.remove();
   station3dMobileMarkers=retained;
+  update3dCedoc();
   const status=document.getElementById('status');
   if(status)status.textContent='Vista 3D · '+selected.length+' stazioni visibili · '+P[cur].n+' · '+stations.filter(baseVisible).length+' presenti · '+stations.filter(s=>baseVisible(s)&&stationParameterIsCurrent(s,cur)).length+' aggiornate'
 }
@@ -2689,22 +2707,17 @@ function update3dCedoc(){
         .setHTML('<b>'+cedocEscape(p.name||'Stazione')+'</b><br>'+stationAltitudeHtml(p)+'<br>'+(p.missing?'CEDOC · dato non aggiornato':cedocEscape(p.label)+' mm '+(cur==='rain_48h'?'48 ore':'oggi')+' · CEDOC')).addTo(map3d)
     })
   }
-  const measuredIds=new Set(cedocStations.map(p=>String(p.station_id)));
-  const locationOnly=cedocRainVisible()?cedocSites.filter(p=>!measuredIds.has(String(p.station_id))).map(p=>({
-    type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-    properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,
-      label:'',color:'#c8f2ff',delayed:0,missing:1}
-  })):[];
-  const features=cedocRainVisible()?cedocStations.map(p=>{
-    const value=cur==='rain_48h'?p.rain_48h:p.rain_today;
-    if(!Number.isFinite(value))return null;
+  // Nessuna doppia presenza con marker HTML: packing condiviso 3D.
+  const features=packed3dStationPlan().cedoc.map(({p,value})=>{
+    const valid=Number.isFinite(value);
     return {
       type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},
-      properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,label:cedocNumber(value),color:cedocColor(value),
-        delayed:Date.now()-Date.parse(p.last)>90*60000?1:0}
-    }
-  }).filter(Boolean):[];
-  map3d.getSource('cedoc-3d').setData(fc(features.concat(locationOnly)));
+      properties:{name:p.name,network:'cedoc',station_id:p.station_id,elev:p.elev??null,
+        label:valid?cedocNumber(value):'',color:valid?cedocColor(value):'#c8f2ff',
+        missing:valid?0:1,delayed:valid&&Date.now()-Date.parse(p.last)>90*60000?1:0}
+    };
+  });
+  map3d.getSource('cedoc-3d').setData(fc(features));
   raise3dOperationalLayers()
 }
 function cedocAsStandardStations(){
@@ -2853,7 +2866,7 @@ function baseVisible(s){
   if(!net||!q||!Number.isFinite(Number(s.lat))||!Number.isFinite(Number(s.lon)))return false;
   // Preserva il catalogo WU, DPCN e AM anche in caso di dati assenti;
   // i pluviometri CEDOC restano riservati ai parametri che misurano.
-  return s.network==='cedoc'?(cur==='rain_today'||cur==='rain_48h'):true
+  return s.network==='cedoc'?cedocRainVisible():true
 }
 // Tutte le posizioni censite restano visibili anche quando un provider e'
 // fermo. Solo le osservazioni recenti ottengono un badge numerato.
@@ -2972,7 +2985,7 @@ function render(zoomOnly=false){
   const shown=applyFilters();
   if(zoomOnly)return;
   const eligible=stations.filter(baseVisible).length;
-  const current=stations.filter(s=>mapStationVisible(s)&&stationParameterIsCurrent(s,cur)).length;
+  const current=stations.filter(s=>baseVisible(s)&&stationParameterIsCurrent(s,cur)).length;
   document.getElementById('status').textContent=current===0
     ?'NESSUNA MISURA RECENTE DISPONIBILE · '+eligible+' stazioni censite, indicate da piccoli punti · '+P[cur].n
     :shown+' stazioni in mappa · '+current+' con dato recente · '+(eligible-current)+' senza misura recente (punti senza numero) · '+P[cur].n+
@@ -2980,6 +2993,7 @@ function render(zoomOnly=false){
     (mode3d?' · vista 3D':'');
   legend();
   update3dStations();
+  update3dCedoc();
   renderStationDirectory()
 }
 function build(){
