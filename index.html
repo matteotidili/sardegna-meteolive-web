@@ -1587,7 +1587,7 @@ function packed3dStationPlan(){
     return p;
   };
   if(stationsOn)for(const st of stations.filter(mapStationVisible)){
-    const valid=stationParameterIsCurrent(st,cur);
+    const valid=stationMarkerHasValue(st,cur);
     const size=valid?diameter:14;
     const p=project(st.lon,st.lat,size,size);
     if(p)candidates.push({kind:'standard',s:st,p,w:size,h:size,valid,
@@ -1658,19 +1658,22 @@ function renderMobile3dStations(){
     }
     el._stationData=s;
     const isCurrent=stationParameterIsCurrent(s,cur);
-    el.classList.toggle('old-reading',false);
+    const hasValue=stationMarkerHasValue(s,cur);
+    el.classList.toggle('old-reading',hasValue&&!isCurrent);
     el.classList.toggle('no-data',false);
-    el.classList.toggle('unavailable-dot',!isCurrent);
+    el.classList.toggle('unavailable-dot',!hasValue);
     const darkInk=markerUseDarkInk(bg),label=el.querySelector('.station3d-mobile-value');
-    el.style.width=(isCurrent?diameter:14)+'px';
-    el.style.height=(isCurrent?diameter:14)+'px';
+    el.style.width=(hasValue?diameter:14)+'px';
+    el.style.height=(hasValue?diameter:14)+'px';
     el.style.background=bg;
     label.style.color=darkInk?'#10202b':'#ffffff';
     label.style.textShadow=darkInk?'0 1px 0 #ffffffba':'0 1px 2px #000,0 0 2px #000';
     if(label.textContent!==value)label.textContent=value;
-    label.style.display=isCurrent?'block':'none';
+    label.style.display=hasValue?'block':'none';
     label.style.fontSize=stationMarkerFontSize(diameter,value)+'px';
-    el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+(isCurrent?fmt(s[cur],cur,s):'non aggiornato o non disponibile');
+    el.title=(s.name||'Stazione')+' · '+P[cur].n+' '+
+      (hasValue?fmt(s[cur],cur,s)+' · ultimo dato '+stationObservationLabel(s,cur)+
+        (isCurrent?'':' (non attuale)'):'dato non disponibile');
     el.setAttribute('aria-label',el.title);
     const p=marker.getLngLat();
     if(p.lng!==Number(s.lon)||p.lat!==Number(s.lat))marker.setLngLat([Number(s.lon),Number(s.lat)]);
@@ -1966,7 +1969,9 @@ function renderStationDirectory(){
   });
   const timeScope=cur==='rain_48h'?' · ultime 48 ore (CEDOC dato diretto; altre reti stima campionata)':LIVE_STATION_PARAMS.has(cur)?' · rilevazioni ultimi '+LIVE_STATION_MAX_AGE_MIN+' min':DAILY_STATION_PARAMS.has(cur)?' · oggi (ora italiana)':'';
   const withCurrent=rows.filter(s=>stationParameterIsCurrent(s,cur)).length;
-  document.getElementById('directorySummary').textContent=rows.length+' stazioni presenti · '+withCurrent+' con dato valido · '+P[cur].n+' · '+P[cur].u+timeScope;
+  const withHistory=rows.filter(s=>stationMarkerHistorical(s,cur)).length;
+  document.getElementById('directorySummary').textContent=rows.length+' stazioni · '+
+    withCurrent+' aggiornate · '+withHistory+' con ultimo dato precedente · '+P[cur].n+' · '+P[cur].u+timeScope;
   document.querySelectorAll('[data-station-sort]').forEach(btn=>{
     const active=btn.dataset.stationSort===directorySort;
     btn.classList.toggle('active',active);
@@ -1984,11 +1989,15 @@ function renderStationDirectory(){
     const net=s.network==='wunderground'?'WU':s.network==='aeronautica-militare'?'AM':s.network==='weatherlink'?'WL':s.network==='ecowitt'?'Ecowitt':s.network==='cedoc'?'CEDOC':'DPCN';
     const date=s.last?new Date(s.last):null;
     const time=date&&Number.isFinite(date.getTime())?date.toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'orario non disponibile';
-    const usable=stationParameterIsCurrent(s,cur);
-    meta.textContent=net+(Number.isFinite(s.elev)?' · '+Math.round(s.elev)+' m':'')+' · '+time+(usable?'':' · DATO NON AGGIORNATO / N.D.');
+    const usable=stationMarkerHasValue(s,cur),fresh=stationParameterIsCurrent(s,cur);
+    const terrain=stationAltitudeEstimated(s);
+    meta.textContent=net+(terrain&&s.network==='ecowitt'?' · '+Math.round(terrain.elev)+' m DTM':
+      Number.isFinite(s.elev)?' · '+Math.round(s.elev)+' m':'')+
+      ' · Ultima osservazione: '+time+(fresh?'':' · DATO NON AGGIORNATO');
     const value=document.createElement('span');value.className='station-value';
     value.classList.toggle('no-reading',!usable);
     value.style.background=usable?stationMarkerColor(s):'transparent';
+    value.style.opacity=usable&&!fresh?'.7':'';
     value.textContent=usable?stationMarkerValue(s):'n.d.';
     details.append(name,meta);row.append(details,value);fragment.append(row)
   }
@@ -2128,7 +2137,7 @@ function stationMarkerFontSize(diameter,value){
   return Math.round(Math.min(19,diameter*factor)*10)/10
 }
 function ico(s){
-  if(!stationParameterIsCurrent(s,cur)){
+  if(!stationMarkerHasValue(s,cur)){
     return L.divIcon({
       className:'station-locator-icon',
       html:'<span class="station-locator-dot" title="Stazione censita · nessuna misura recente"></span>',
@@ -2137,10 +2146,11 @@ function ico(s){
   }
   const v=stationMarkerValue(s),bg=stationMarkerColor(s),m=markerMetrics();
   const suspect=s.network==='wunderground'&&s.qc_status===0;
-  const cls='badge '+(markerUseDarkInk(bg)?'light-ink':'dark-ink')+(suspect?' suspect':'');
+  const cls='badge '+(markerUseDarkInk(bg)?'light-ink':'dark-ink')+(suspect?' suspect':'')+
+    (stationMarkerHistorical(s,cur)?' old-reading':'');
   return L.divIcon({
     className:'',
-    html:'<div class="'+cls+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px"><span class="station-marker-number" style="font-size:'+stationMarkerFontSize(m.d,v)+'px">'+v+'</span></div>',
+    html:'<div class="'+cls+'" title="Ultima osservazione: '+stationObservationLabel(s,cur)+'" style="background:'+bg+';width:'+m.d+'px;height:'+m.d+'px"><span class="station-marker-number" style="font-size:'+stationMarkerFontSize(m.d,v)+'px">'+v+'</span></div>',
     iconSize:[m.d,m.d],
     iconAnchor:[m.d/2,m.d/2]
   })
@@ -2165,9 +2175,9 @@ function stationAltitudeEstimated(s){
   return row.method==='regional_dtm_10m'||row.method==='srtm30m'?row:null
 }
 function stationAltitudeHtml(s){
-  const declared=stationAltitudeDeclared(s);
-  if(declared!==null)return '<span class="station-altitude">Quota: <b>'+Math.round(declared).toLocaleString('it-IT')+' m s.l.m.</b></span>';
   const estimated=stationAltitudeEstimated(s);
+  const declared=stationAltitudeDeclared(s);
+  if(s.network!=='ecowitt'&&declared!==null)return '<span class="station-altitude">Quota: <b>'+Math.round(declared).toLocaleString('it-IT')+' m s.l.m.</b></span>';
   if(!estimated)return '<span class="station-altitude">Quota: <b>non disponibile</b></span>';
   const source=estimated.method==='regional_dtm_10m'?'DTM Regione Sardegna · 10 m':'SRTM · 30 m';
   return '<span class="station-altitude">Quota terreno stimata: <b>'+
@@ -2183,28 +2193,25 @@ function popup(s){
       (Number.isFinite(s.rain_48h)?cedocNumber(s.rain_48h)+' mm':'—')+'</b> (dato CEDOC)<br>Osservazione: '+ts+
       '<br><small>Misura automatica non validata ARPAS</small><br><a href="'+url+'" target="_blank" rel="noopener noreferrer">Scheda CEDOC</a></div>'
   }
-  if(obsAgeMin(s)>LIVE_STATION_MAX_AGE_MIN){
-    const ts=Number.isFinite(Date.parse(s.last||''))?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'non disponibile';
-    const old=stationMarkerHistorical(s,cur);
-    return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br>'+stationAltitudeHtml(s)+'<br><strong style="color:#edc784">DATI NON AGGIORNATI — VALORE NON ATTUALE</strong><br>Rete: '+cedocEscape(s.network||'')+'<br>Ultima osservazione: '+ts+
-      (old?'<br>Ultimo valore di '+cedocEscape(P[cur].n)+': <b>'+cedocEscape(fmt(s[cur],cur,s))+' '+cedocEscape(P[cur].u)+'</b> (non attuale)':'<br>Misura corrente non disponibile')+
-      '<br><small>Le osservazioni precedenti non rappresentano la situazione meteorologica attuale.</small></div>'
-  }
-  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',eco=s.network==='ecowitt',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':eco?'Ecowitt Cloud / PWS autorizzata':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br>'+stationAltitudeHtml(s)+'<br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span><br>Osservazione: '+obs+'<br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+
+  const staleWarning=obsAgeMin(s)>LIVE_STATION_MAX_AGE_MIN?
+    '<br><strong style="color:#c48321">DATI NON AGGIORNATI: ultime misure disponibili, NON in tempo reale</strong>':'';
+
+  let wu=s.network==='wunderground',am=s.network==='aeronautica-militare',wl=s.network==='weatherlink',eco=s.network==='ecowitt',source=wu?'Weather Underground / PWS':am?'Rete aeronautica / SYNOP':wl?'Davis WeatherLink':eco?'Ecowitt Cloud / PWS autorizzata':'MeteoHub / DPCN Sardegna',quality=wu?('<br>QC: '+(s.qc_status===1?'superato':s.qc_status===0?'possibile anomalia':'non verificato')):'',extra=(wu||am)?('<br>Pressione: '+(Number.isFinite(s.pressure_hpa)?s.pressure_hpa.toFixed(1)+' hPa':'—')+'<br>Dew point: '+(Number.isFinite(s.dewpoint)?s.dewpoint.toFixed(1)+' °C':'—')):'',obs=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="popup"><b>'+cedocEscape(s.name||'Stazione')+'</b><br>'+stationAltitudeHtml(s)+'<br><span style="color:#9fb4c6">'+source+(s.station_id?' · '+s.station_id:'')+'</span>'+staleWarning+'<br><b>Ultima osservazione: '+obs+'</b><br>Temperatura: '+fmt(s.temp,'temp',s)+'<br>Tmin/Tmax: '+fmt(s.tmin,'tmin',s)+' / '+fmt(s.tmax,'tmax',s)+'<br>UR: '+(Number.isFinite(s.rh)?s.rh.toFixed(wu?1:0)+'%':'—')+'<br>Vento: '+(Number.isFinite(s.wind_kmh)?s.wind_kmh.toFixed(1)+' km/h':'—')+'<br>Raffica max: '+(Number.isFinite(s.gust_kmh)?s.gust_kmh.toFixed(1)+' km/h':'—')+'<br>Pioggia oggi: '+(Number.isFinite(s.rain_today)?s.rain_today.toFixed(1)+' mm':'—')+
 '<br>Ultime 48 ore: '+(Number.isFinite(s.rain_48h)?s.rain_48h.toFixed(1)+' mm'+(s.rain_48h_source==='estimated_from_daily_counters'?' (stima da storico)':''):'—')+
 extra+quality+'</div>'}
 function tooltipHtml(s){
   const net=s.network==='cedoc'?'CEDOC Sardegna':s.network==='ecowitt'?'Ecowitt':s.network==='wunderground'?'Weather Underground':s.network==='aeronautica-militare'?'Aeronautica Militare':s.network==='weatherlink'?'Davis WeatherLink':'DPCN Sardegna';
   const usable=stationParameterIsCurrent(s,cur),historical=stationMarkerHistorical(s,cur);
-  const when=s.last?new Date(s.last).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'orario ignoto';
-  return '<div class="tip-name">'+cedocEscape(s.name||'Stazione')+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+(usable?fmt(s[cur],cur,s):historical?fmt(s[cur],cur,s)+' · DATO NON AGGIORNATO ('+when+')':'— · dato non disponibile / scaduto')+'</div>'
+  const when=stationObservationLabel(s,cur);
+  return '<div class="tip-name">'+cedocEscape(s.name||'Stazione')+'</div><div class="tip-net">'+net+'</div><div class="tip-val">'+P[cur].n+': '+
+    (usable?fmt(s[cur],cur,s)+' · '+when:historical?fmt(s[cur],cur,s)+' · ULTIMO DATO ('+when+')':'— · dato non disponibile')+'</div>'
 }
 function stationLegendHtml(){
   if(!stationsOn)return '';
   const p=P[cur];
   const grad='linear-gradient(90deg,'+p.st.map((x,i)=>col(x[0],p.st)+' '+Math.round(i/(p.st.length-1)*100)+'%').join(',')+')';
   return '<div class="map-legend-row"><div class="map-legend-title">Stazioni · '+p.n+' · '+p.u+'</div><div class="map-legend-bar" style="background:'+grad+'"></div><div class="map-legend-labels">'+p.labs.map(x=>'<span>'+x+'</span>').join('')+'</div>'+(cur==='rain_48h'?'<div class="map-legend-note">CEDOC: dato ufficiale su 48h; altre reti: stima da cumulati giornalieri, solo con storico sufficiente. AM: non disponibile.</div>':'')+
-    (stations.some(s=>baseVisible(s)&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note" style="color:#f1c27f"><b>Stazioni non aggiornate:</b> il piccolo punto senza numero indica esclusivamente la posizione censita. Non rappresenta un valore meteorologico. Le ultime osservazioni e gli orari restano consultabili nell’elenco.</div>':'')+
+    (stations.some(s=>baseVisible(s)&&!stationParameterIsCurrent(s,cur))?'<div class="map-legend-note" style="color:#f1c27f"><b>Stazioni non aggiornate:</b> i numeri con bordo ambra sono le ultime misure disponibili (non attuali); l’ora originale è nel riquadro. Solo i punti senza numero non hanno dati.</div>':'')+
     (WU_ENABLED&&lastWuHealth?.status==='cooldown'&&(netFilter==='all'||netFilter==='wunderground')?'<div class="map-legend-note" style="color:#f1c27f">Weather Underground: acquisizione temporaneamente limitata dall’API. Nessuna misura vecchia viene mostrata come attuale.</div>':'')+'</div>'
 }
 function radarLegendHtml(){
@@ -2848,20 +2855,29 @@ function stationParameterIsCurrent(s,key){
 // La rete non scompare quando uno scheduler non gira. I valori fuori dalla
 // soglia "live" sono distinguibili con bordo ambra tratteggiato e legenda.
 // Non attribuiamo mai alle osservazioni precedenti un nuovo timestamp.
-const HISTORICAL_MARKER_MAX_AGE_MIN=12*60;
+function stationObservationTime(s,key=cur){
+  return Date.parse(key==='rain_48h'?(s.rain_48h_last||s.last||''):(s.last||''));
+}
+function stationMarkerHasValue(s,key=cur){
+  const obs=stationObservationTime(s,key);
+  return Number.isFinite(s[key])&&Number.isFinite(obs)&&obs<=Date.now()+5*60000
+}
 function stationMarkerHistorical(s,key=cur){
-  if(stationParameterIsCurrent(s,key)||!Number.isFinite(s[key]))return false;
-  const obs=Date.parse(key==='rain_48h'?(s.rain_48h_last||s.last||''):(s.last||''));
-  const age=(Date.now()-obs)/60000;
-  if(!Number.isFinite(age)||age<0||age>HISTORICAL_MARKER_MAX_AGE_MIN)return false;
-  if(DAILY_STATION_PARAMS.has(key)&&stationRomeDate.format(obs)!==stationRomeDate.format(Date.now()))return false;
-  return true
+  // Anche un ritardo di molte ore non deve far sparire l'ultima misura.
+  // Per gli accumuli giornalieri il popup riporta sempre il giorno effettivo.
+  return stationMarkerHasValue(s,key)&&!stationParameterIsCurrent(s,key)
+}
+function stationObservationLabel(s,key=cur){
+  const ts=stationObservationTime(s,key);
+  return Number.isFinite(ts)?new Date(ts).toLocaleString('it-IT',{
+    timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
+  }):'non disponibile'
 }
 function stationMarkerValue(s,key=cur){
-  return stationParameterIsCurrent(s,key)?fmtMarker(s[key],key):''
+  return stationMarkerHasValue(s,key)?fmtMarker(s[key],key):''
 }
 function stationMarkerColor(s,key=cur){
-  return stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#173b50'
+  return stationMarkerHasValue(s,key)?col(s[key],P[key].st):'#173b50'
 }
 function baseVisible(s){
   const net=netFilter==='all'||s.network===netFilter;
@@ -2918,7 +2934,7 @@ function packVisibleStationIcons(items){
 function selectedMarkers(){
   const zoom=map.getZoom(),diameter=markerMetrics().d;
   const standard=stationsOn?marks.filter(x=>mapStationVisible(x.s)).map(x=>{
-    const valid=stationParameterIsCurrent(x.s,cur);
+    const valid=stationMarkerHasValue(x.s,cur);
     return {kind:'standard',x,p:map.project(x.m.getLatLng(),zoom),
       w:valid?diameter:14,h:valid?diameter:14,valid,pri:priority(x.s),
       stable:stationKey(x.s)};
@@ -2952,7 +2968,8 @@ function syncStationMarker(x){
   const suspect=s.network==='wunderground'&&s.qc_status===0;
   const ink=markerUseDarkInk(bg)?'light-ink':'dark-ink';
   const isCurrent=stationParameterIsCurrent(s,cur);
-  const stamp=[cur,m.d,v,bg,suspect,ink,isCurrent].join('|');
+  const hasValue=stationMarkerHasValue(s,cur);
+  const stamp=[cur,m.d,v,bg,suspect,ink,isCurrent,hasValue].join('|');
   if(x.iconStamp!==stamp){
     const icon=ico(s);
     x.m.options.icon=icon;
@@ -2960,7 +2977,7 @@ function syncStationMarker(x){
     // Quando una stazione passa da "recente" a "non aggiornata",
     // sostituisci il badge numerato con il punto da 14px: non basta
     // cambiare il testo della vecchia icona Leaflet gia' montata.
-    if(!isCurrent){
+    if(!hasValue){
       x.m.setIcon(icon);
     }else if(node){
       const badge=node.querySelector('.badge');
@@ -2970,14 +2987,15 @@ function syncStationMarker(x){
         node.style.marginLeft=(-m.d/2)+'px';node.style.marginTop=(-m.d/2)+'px';
         badge.style.width=m.d+'px';badge.style.height=m.d+'px';
         badge.style.background=bg;
-        badge.className='badge '+ink+(suspect?' suspect':'')+(isCurrent?'':' no-data');
+        badge.className='badge '+ink+(suspect?' suspect':'')+(isCurrent?'':' old-reading');
+        badge.title='Ultima osservazione: '+stationObservationLabel(s,cur);
         number.textContent=v;
         number.style.fontSize=stationMarkerFontSize(m.d,v)+'px'
       }else x.m.setIcon(icon)
     }
     x.iconStamp=stamp
   }
-  const tipStamp=[cur,s.name,s[cur],s.last,stationParameterIsCurrent(s,cur)].join('|');
+  const tipStamp=[cur,s.name,s[cur],s.last,stationMarkerHasValue(s,cur),stationParameterIsCurrent(s,cur)].join('|');
   if(x.tooltipStamp!==tipStamp){
     x.m.setTooltipContent(tooltipHtml(s));
     x.tooltipStamp=tipStamp
@@ -5603,11 +5621,11 @@ async function loadObservations(){
   const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,wl=lastWlData,eco=lastEcowittData;
   const r48=lastRain48Data;
   const now=Date.now(),generated=Date.parse(r48?.generated_at||'');
-  const rain48Fresh=Number.isFinite(generated)&&generated<=now+300000&&now-generated<=90*60000;
+  const rain48Fresh=Number.isFinite(generated)&&generated<=now+300000;
   const estimated48=new Map(rain48Fresh?(r48?.stations||[]).filter(v=>
     v&&Number.isFinite(v.rain_48h)&&v.rain_48h>=0&&v.rain_48h<=1800&&
     v.method==='estimated_from_daily_counters'&&
-    Number.isFinite(Date.parse(v.last||''))&&now-Date.parse(v.last)<=95*60000
+    Number.isFinite(Date.parse(v.last||''))&&Date.parse(v.last)<=now+300000
   ).map(v=>[v.network+'|'+v.station_id,v]):[]);
   const append48=(s,network)=>{
     const id=String(s.station_id||s.name||'');
@@ -5621,12 +5639,13 @@ async function loadObservations(){
   const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare',rain_48h:null}));
   const ws=WU_ENABLED?mergeWuCatalog(wu?.stations||[],catalog).map(s=>append48(s,'wunderground')):[];
   const wls=(wl?.stations||[]).map(s=>append48(s,'weatherlink'));
-  // Evita stazioni senza letture recenti: nessun pallino grigio Ecowitt.
+  // La PWS resta visibile anche se l'API non aggiorna: data e ora originali.
   const es=(eco?.stations||[]).filter(s=>s&&s.network==='ecowitt'&&
     Number.isFinite(s.lat)&&Number.isFinite(s.lon)&&
-    Number.isFinite(s.temp)&&Number.isFinite(Date.parse(s.last||''))&&
-    Date.now()-Date.parse(s.last)<=90*60000&&
-    Date.now()-Date.parse(s.last)>=-5*60000).map(s=>append48(s,'ecowitt'));
+    Number.isFinite(Date.parse(s.last||''))&&
+    Date.parse(s.last)<=Date.now()+5*60000).map(s=>append48({
+      ...s,name:s.station_id==='ba209016a64287'?'Villaspeciosa':s.name
+    },'ecowitt'));
   stations=[...as,...ds,...ws,...wls,...es,...cedocAsStandardStations()];
   // Una selezione WU conservata in pagina non deve produrre una rete vuota.
   if(!WU_ENABLED&&netFilter==='wunderground'){
