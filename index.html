@@ -2608,6 +2608,16 @@ function cedocLiveStations(raw){
       Number.isFinite(s.rain_today)&&s.rain_today>=0&&s.rain_today<=1800
   })
 }
+function cedocHistoricalStations(raw){
+  if(!raw||raw.parameter!=='rain_today'||!Array.isArray(raw.stations))return [];
+  return raw.stations.filter(s=>{
+    const dt=Date.parse(s.last||'');
+    return Number.isFinite(dt)&&dt<=Date.now()+5*60000&&
+      Number.isFinite(s.lat)&&Number.isFinite(s.lon)&&
+      s.lat>=38.6&&s.lat<=41.5&&s.lon>=7.5&&s.lon<=10.4&&
+      Number.isFinite(s.rain_today)&&s.rain_today>=0&&s.rain_today<=1800
+  }).map(s=>({...s,historical:true}));
+}
 function cedocRainVisible(){
   // CEDOC appare esclusivamente selezionando Pioggia o 48 ore.
   // Resta nascosta per temperatura, vento, raffiche, umidita' e rain rate.
@@ -2652,7 +2662,9 @@ function renderCedocLayer(selected=[]){
       const p=item.p,value=item.value,hasValue=Number.isFinite(value);
       const id=String(p.station_id||p.name),key=id;
       wanted.add(key);
-      const delayed=hasValue&&Date.now()-Date.parse(p.last)>90*60000;
+      const delayed=hasValue&&
+        (Date.now()-Date.parse(p.last)>90*60000||
+         cedocRomeDay(new Date(p.last))!==cedocRomeDay(new Date()));
       const stamp=hasValue?new Date(p.last).toLocaleString('it-IT',{
         timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'
       }):'';
@@ -2661,8 +2673,10 @@ function renderCedocLayer(selected=[]){
           '<span title="CEDOC: postazione censita, dato non disponibile" style="display:block;box-sizing:border-box;width:16px;height:16px;border:2px solid #1595c3;border-radius:50%;background:rgba(0,160,215,.12)"></span>',
         iconSize:hasValue?[46,30]:[16,16],iconAnchor:hasValue?[23,15]:[8,8]});
       const href='https://www.sardegnacedoc.it/idrografico/stazione/'+encodeURIComponent(id);
-      const details=hasValue?'<div><b>'+cedocNumber(value)+' mm</b> '+(cur==='rain_48h'?'nelle ultime 48 ore':'accumulati oggi')+'</div><div>Rilevamento: '+stamp+'</div>'+
-          (delayed?'<div style="color:#b16a10;font-weight:800">Attenzione: misura vecchia di oltre 90 minuti</div>':''):
+      const details=hasValue?'<div><b>'+cedocNumber(value)+' mm</b> '+
+          (delayed?'(ultima misura registrata, NON attuale)':cur==='rain_48h'?'nelle ultime 48 ore':'accumulati oggi')+
+          '</div><div><b>Ultima osservazione: '+stamp+'</b></div>'+
+          (delayed?'<div style="color:#b16a10;font-weight:800">DATO NON AGGIORNATO · consultare data e ora della misura</div>':''):
           '<div>Postazione CEDOC censita: misura attuale non disponibile.</div><div>Nessun accumulo pluviometrico attribuito.</div>';
       const popupHtml='<div class="cedoc-popup"><strong>'+cedocEscape(p.name)+'</strong><div>'+stationAltitudeHtml(p)+'</div>'+details+
         '<div class="cedoc-source">CEDOC / Regione Sardegna · non validato ARPAS</div><a href="'+href+'" target="_blank" rel="noopener noreferrer">Scheda ufficiale</a></div>';
@@ -2746,9 +2760,12 @@ async function loadCedocData(force=false){
   cedocLoading=true;
   try{
     const stamp=Date.now();
-    const [obsResult,siteResult]=await Promise.allSettled([
+    const [obsResult,siteResult,previousResult]=await Promise.allSettled([
       fetch(CEDOC_META+'?t='+stamp,{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('CEDOC '+r.status);return r.json()}),
-      fetch(CEDOC_SITES+'?t='+stamp,{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('Anagrafica CEDOC '+r.status);return r.json()})
+      fetch(CEDOC_SITES+'?t='+stamp,{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw Error('Anagrafica CEDOC '+r.status);return r.json()}),
+      fetch(CEDOC_META.replace('/cedoc.json','/cedoc_last_valid.json')+
+        '?t='+Math.floor(stamp/(15*60000)),{cache:'no-store',signal:AbortSignal.timeout(12000)})
+        .then(r=>r.ok?r.json():null)
     ]);
     if(siteResult.status==='fulfilled'&&Array.isArray(siteResult.value.stations)){
       cedocSites=siteResult.value.stations.filter(p=>p&&p.station_id&&Number.isFinite(p.lat)&&Number.isFinite(p.lon)&&
@@ -2757,16 +2774,23 @@ async function loadCedocData(force=false){
     if(obsResult.status!=='fulfilled')throw obsResult.reason;
     const data=obsResult.value;
     cedocStatus=data.status||'unavailable';
-    cedocStations=cedocLiveStations(data);
+    const current=cedocLiveStations(data);
+    const archived=previousResult.status==='fulfilled'?
+      cedocHistoricalStations(previousResult.value):[];
+    cedocStations=current.length?current:(archived.length?archived:cedocStations);
     cedocLastLoad=Date.now();
     if(cedocStations.length){
-      const ts=new Date(data.source_time).toLocaleString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+      const latest=cedocStations.reduce((v,p)=>Math.max(v,Date.parse(p.last||'')||0),0);
+      const ts=latest?new Date(latest).toLocaleString('it-IT',{
+        timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'
+      }):'non disponibile';
       const recent=cedocStations.filter(st=>Date.now()-Date.parse(st.last)<=90*60000).length;
       const delayed=cedocStations.length-recent;
       const acquired=new Date(data.generated_at).toLocaleTimeString('it-IT',{timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit'});
-      cedocCounter.textContent='CEDOC · '+cedocStations.length+' pluviometri · '+recent+' recenti, '+delayed+' con rilevamento oltre 90 min · ultimo rilevamento '+ts+' · acquisiti '+acquired;
-      cedocBtn.firstChild.textContent='Pluviometri CEDOC · oggi ('+cedocStations.length+') ';
-      cedocStatusHelp.style.display='none';
+      cedocCounter.textContent='CEDOC · '+cedocStations.length+' pluviometri · '+recent+' recenti, '+delayed+' con ultimo dato precedente · ultima osservazione '+ts+' · ultimo controllo '+acquired+
+        (current.length?'':' · FONTE NON DISPONIBILE');
+      cedocBtn.firstChild.textContent='Pluviometri CEDOC ('+cedocStations.length+') ';
+      cedocStatusHelp.style.display=current.length?'none':'block';
     }else{
       const published=data.generated_at&&Number.isFinite(Date.parse(data.generated_at))?
         new Date(data.generated_at).toLocaleString('it-IT',{timeZone:'Europe/Rome',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'non disponibile';
@@ -2778,7 +2802,7 @@ async function loadCedocData(force=false){
       cedocStatusHelp.style.display='block'
     }
   }catch(e){
-    cedocStations=[];
+    // Non cancellare le osservazioni gia' caricate durante una interruzione.
     cedocStatus='unavailable';
     cedocCounter.textContent='CEDOC · '+cedocSites.length+' postazioni censite · misure non disponibili; controllare il workflow di raccolta.';
     cedocStatusHelp.style.display='block';
