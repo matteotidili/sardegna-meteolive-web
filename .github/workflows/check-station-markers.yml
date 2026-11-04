@@ -34,7 +34,7 @@ jobs:
             "function stationMarkerHistorical(s,key=cur){",
             "marks.filter(x=>mapStationVisible(x.s))",
             "if(stationsOn)for(const st of stations.filter(mapStationVisible)){",
-            "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#173b50'",
+            "stationMarkerHasValue(s,key)?col(s[key],P[key].st):'#173b50'",
             "badge.no-data",
             "station3d-mobile-marker.no-data", 
             "value.classList.toggle('no-reading',!usable)",
@@ -49,16 +49,19 @@ jobs:
           assert "WU_ENABLED?fetch(DATA+'wunderground.json" in html
           assert "WU_ENABLED?fetch(DATA+'wunderground_app_api_health.json" in html
           assert 'Cerchio grigio con' not in html
-          # Nessuna temperatura vecchia puo' sembrare una misura corrente.
-          # Rete e catalogo conservati, mappa solo con letture recenti;
-          # se la rete si ferma, un avviso esplicito ne spiega la causa.
+          # Ultima misura conservata ma distinta dalle misure correnti con
+          # bordo ambra e data/ora originali in tooltip e popup.
           assert "return s.network!=='cedoc'&&baseVisible(s)" in html
           assert 'station-locator-dot' in html
           assert 'station3d-mobile-marker.unavailable-dot' in html
           assert "iconSize:[14,14]" in html
-          assert "label.style.display=isCurrent?'block':'none'" in html
+          assert "label.style.display=hasValue?'block':'none'" in html
           assert "NESSUNA MISURA RECENTE DISPONIBILE" in html
           assert "Stazioni non aggiornate:" in html
+          assert "function stationMarkerHasValue(s,key=cur)" in html
+          assert "stationMarkerHistorical(s,cur)?' old-reading':''" in html
+          assert "Ultima osservazione: " in html
+          assert "cedoc_last_valid.json" in html
           assert "API" in html
           assert "Cerchio con trattino" not in html
           assert "i numeri con bordo arancione tratteggiato sono" not in html
@@ -83,7 +86,7 @@ jobs:
           inline=max(scripts,key=len,default='')
           assert len(inline)>100000, 'Script principale non trovato'
           Path('/tmp/sardegna-meteolive-inline.js').write_text(inline,encoding='utf-8')
-          print('OK: solo dati recenti numerati; postazioni non aggiornate come piccoli punti senza numeri in 2D/3D')
+          print('OK: dati correnti e ultime misure storiche numerati ma distinguibili; CEDOC in archivio')
           PY
       - name: Controlla sintassi JavaScript
         run: node --check /tmp/sardegna-meteolive-inline.js
