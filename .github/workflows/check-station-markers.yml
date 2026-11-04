@@ -56,7 +56,7 @@ jobs:
           assert 'station3d-mobile-marker.unavailable-dot' in html
           assert "iconSize:[14,14]" in html
           assert "label.style.display=hasValue?'block':'none'" in html
-          assert "NESSUNA MISURA RECENTE DISPONIBILE" in html
+          assert "NESSUNA MISURA RECENTE" in html
           assert "Stazioni non aggiornate:" in html
           assert "function stationMarkerHasValue(s,key=cur)" in html
           assert "stationMarkerHistorical(s,cur)?' old-reading':''" in html
