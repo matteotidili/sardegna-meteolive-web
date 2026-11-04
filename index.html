@@ -2631,10 +2631,15 @@ function cedocLegendHtml(){
   if(!cedocRainVisible()||(!cedocStations.length&&!cedocSites.length))return '';
   if(!cedocStations.length)return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+cedocSites.length+' postazioni censite</div><div class="map-legend-note">Anelli azzurri: postazioni senza misure attuali; diradati in base allo zoom per non sovrapporsi ai marker delle altre reti.</div></div>';
   const stops=[['0','#1d9aca'],['0–15','#248dc2'],['15–30','#3baa81'],['30–60','#d1aa17'],['60–100','#f27927'],['100–150','#d13142'],['150+','#b02dab']];
-  return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+(cur==='rain_48h'?'accumulo ultime 48 ore':'pioggia cumulata oggi')+' · mm</div>'+
+  const recent=cedocStations.some(s=>Number.isFinite(Date.parse(s.last||''))&&
+    Date.now()-Date.parse(s.last)<=90*60000&&
+    s.observed_day===cedocRomeDay(new Date()));
+  return '<div class="map-legend-row"><div class="map-legend-title">CEDOC · '+
+    (recent?(cur==='rain_48h'?'accumulo ultime 48 ore':'pioggia cumulata oggi'):
+      'ULTIMI CUMULATI ARCHIVIATI · DATI NON ATTUALI')+' · mm</div>'+
     '<div style="display:flex;flex-wrap:wrap;gap:6px;font-size:9px">'+
     stops.map(([v,c])=>'<span style="display:flex;align-items:center;gap:3px"><i style="background:'+c+';width:9px;height:9px;border-radius:50%;display:inline-block"></i>'+v+'</span>').join('')+
-    '</div><div class="map-legend-note">'+(cur==='rain_48h'?'Totale mobile delle ultime 48 ore, dato CEDOC.':'Cumulato da inizio giornata (ora italiana).')+' Controllo ogni 15 min, copertura della rete in circa 30 min quando disponibile; non validato ARPAS.</div></div>'
+    '</div><div class="map-legend-note">'+(recent?(cur==='rain_48h'?'Totale mobile delle ultime 48 ore, dato CEDOC.':'Cumulato da inizio giornata (ora italiana).'):'Le misure archiviate NON si riferiscono alle precipitazioni odierne: verificare data e ora di ciascun valore.')+' Controllo ogni 15 min, copertura della rete in circa 30 min quando disponibile; non validato ARPAS.</div></div>'
 }
 // Le postazioni CEDOC reali e le posizioni senza lettura costituiscono
 // un unico catalogo, soggetto ai filtri della rete e delle piogge.
