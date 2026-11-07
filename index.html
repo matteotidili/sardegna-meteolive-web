@@ -5595,6 +5595,7 @@ const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-da
 // e stato API; mantenere archivio e codice per futura riattivazione.
 const WU_ENABLED=false;
 let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,lastRain48Data=null,lastWuHealth=null,lastEcowittData=null,observationsLoading=false;
+let observationsRefreshQueued=false,lastStationResumeCheck=0;
 // Il catalogo WU è indipendente dalla disponibilità dell'API osservazioni.
 // Nuove PWS scoperta vengono mostrate anche con chiave momentaneamente bloccata.
 let lastWuCatalog=null,wuCatalogCheckedAt=0,wuCatalogPromise=null;
@@ -5649,8 +5650,13 @@ function dataStampLabel(d,label){
       (age>=30?' · '+Math.floor(age)+' min fa ⚠':'');
   return label+' '+(d.stations?.length||0)+' · '+stamp+(age>90?' ⚠':'')
 }
-async function loadObservations(){
-  if(observationsLoading)return;
+async function loadObservations(forceAfterCurrent=false){
+  // Al ritorno da background un'eventuale richiesta gia' in corso
+  // deve essere seguita da un nuovo controllo, non ignorata.
+  if(observationsLoading){
+    if(forceAfterCurrent)observationsRefreshQueued=true;
+    return;
+  }
   observationsLoading=true;
   try{
   const results=await Promise.allSettled([
@@ -5768,7 +5774,14 @@ async function loadObservations(){
     // Il packing comune e' gia' applicato da build()/render().
     update3dCedoc()
   }
-  }finally{observationsLoading=false}
+  }finally{
+    observationsLoading=false;
+    if(observationsRefreshQueued&&!document.hidden){
+      observationsRefreshQueued=false;
+      // Una sola ripetizione, evitando cicli di polling concatenati.
+      setTimeout(()=>loadObservations(),0)
+    }
+  }
 }
 loadObservations();
 loadMeteoalarm(false);
@@ -5777,7 +5790,32 @@ loadFrpData(false);
 // Nessuna richiesta diretta alle API MeteoHub/AM dal browser.
 // L'ora e la validità delle misure restano quelle originali del fornitore.
 setInterval(()=>{if(!document.hidden)loadObservations()},15*1000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){loadObservations();if(hydroOn)loadHydroData(true)}});
+function onStationAppResume(){
+  if(document.hidden)return;
+  const now=Date.now();
+  // visibilitychange, focus e pageshow possono scattare insieme.
+  if(now-lastStationResumeCheck<2500)return;
+  lastStationResumeCheck=now;
+  // Aggiorna subito badge e segnalazioni dei valori diventati storici
+  // mentre la pagina era sospesa; poi leggi i JSON senza cache.
+  if(stations.length)render();
+  const counter=document.getElementById('counter');
+  if(counter)counter.setAttribute('aria-busy','true');
+  loadObservations(true).then(()=>{
+    if(counter)counter.removeAttribute('aria-busy')
+  }).catch(()=>{
+    if(counter)counter.removeAttribute('aria-busy')
+  });
+  if(typeof loadCedocData==='function'&&cedocOn)loadCedocData(true);
+  if(hydroOn)loadHydroData(true)
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)onStationAppResume()});
+// pageshow(persisted) riattiva i tab ripristinati dalla cache BFCache
+// su iOS Safari/Android, anche senza visibilitychange.
+window.addEventListener('pageshow',event=>{if(event.persisted)onStationAppResume()});
+window.addEventListener('focus',onStationAppResume);
+window.addEventListener('online',onStationAppResume);
+// Anche senza interazione, riesamina ogni minuto la freschezza reale.
 setInterval(()=>{if(stations.length)render()},60*1000);
 
 // Safari iOS: alcuni slider nativi annullano il trascinamento quando la
