@@ -625,7 +625,6 @@ header .live{margin-left:0}
       <button class="netbtn" data-net="cedoc">CEDOC</button>
       <button class="netbtn" data-net="aeronautica-militare">AM</button>
       <button class="netbtn" data-net="wunderground" hidden style="display:none" aria-hidden="true">WU</button>
-      <button class="netbtn" data-net="weatherlink" id="wlNetBtn" hidden>WL</button>
       <button class="netbtn" data-net="ecowitt" id="ecowittNetBtn" hidden>Ecowitt</button>
     </div>
   </div>
@@ -5594,7 +5593,7 @@ const DATA='https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-da
 // Sospensione temporanea WU: non caricare neppure catalogo, osservazioni
 // e stato API; mantenere archivio e codice per futura riattivazione.
 const WU_ENABLED=false;
-let lastDpcnData=null,lastAmData=null,lastWuData=null,lastWlData=null,lastRain48Data=null,lastWuHealth=null,lastEcowittData=null,observationsLoading=false;
+let lastDpcnData=null,lastAmData=null,lastWuData=null,lastRain48Data=null,lastWuHealth=null,lastEcowittData=null,observationsLoading=false;
 let observationsRefreshQueued=false,lastStationResumeCheck=0;
 // Il catalogo WU è indipendente dalla disponibilità dell'API osservazioni.
 // Nuove PWS scoperta vengono mostrate anche con chiave momentaneamente bloccata.
@@ -5663,7 +5662,8 @@ async function loadObservations(forceAfterCurrent=false){
     fetch(DATA+'stations.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('DPCN '+r.status);return r.json()}),
     fetch(DATA+'am.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('AM '+r.status);return r.json()}),
     WU_ENABLED?fetch(DATA+'wunderground.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WU '+r.status);return r.json()}):Promise.resolve(null),
-    fetch(DATA+'weatherlink.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(20000)}).then(r=>{if(!r.ok)throw new Error('WL '+r.status);return r.json()}),
+    // WeatherLink sospesa: nessuna acquisizione finche' non saranno accessibili osservazioni autorizzate.
+    Promise.resolve(null),
     fetch(DATA+'rain_48h.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)}).then(r=>{if(!r.ok)throw new Error('RAIN48 '+r.status);return r.json()}),
     fetchWuCatalog(),
     WU_ENABLED?fetch(DATA+'wunderground_app_api_health.json?t='+Date.now(),{cache:'no-store',signal:AbortSignal.timeout(12000)})
@@ -5684,7 +5684,6 @@ async function loadObservations(forceAfterCurrent=false){
   if(results[0].status==='fulfilled')lastDpcnData=results[0].value;
   if(results[1].status==='fulfilled')lastAmData=results[1].value;
   if(results[2].status==='fulfilled')lastWuData=results[2].value;
-  if(results[3].status==='fulfilled')lastWlData=results[3].value;
   if(results[4].status==='fulfilled')lastRain48Data=results[4].value;
   if(results[6].status==='fulfilled')lastWuHealth=results[6].value;
   if(results[8].status==='fulfilled')lastEcowittData=results[8].value;
@@ -5700,7 +5699,7 @@ async function loadObservations(forceAfterCurrent=false){
       .map(s=>[String(s.network)+'|'+String(s.station_id),s]));
   }
   const catalog=results[5].status==='fulfilled'?results[5].value:lastWuCatalog;
-  const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,wl=lastWlData,eco=lastEcowittData;
+  const dpcn=lastDpcnData,am=lastAmData,wu=lastWuData,eco=lastEcowittData;
   const r48=lastRain48Data;
   const now=Date.now(),generated=Date.parse(r48?.generated_at||'');
   const rain48Fresh=Number.isFinite(generated)&&generated<=now+300000;
@@ -5720,7 +5719,6 @@ async function loadObservations(forceAfterCurrent=false){
   const ds=(dpcn?.stations||[]).map(s=>append48(s,s.network||'dpcn-sardegna'));
   const as=(am?.stations||[]).map(s=>({...s,network:'aeronautica-militare',rain_48h:null}));
   const ws=WU_ENABLED?mergeWuCatalog(wu?.stations||[],catalog).map(s=>append48(s,'wunderground')):[];
-  const wls=(wl?.stations||[]).map(s=>append48(s,'weatherlink'));
   // La PWS resta visibile anche se l'API non aggiorna: data e ora originali.
   const es=(eco?.stations||[]).filter(s=>s&&s.network==='ecowitt'&&
     Number.isFinite(s.lat)&&Number.isFinite(s.lon)&&
@@ -5728,17 +5726,16 @@ async function loadObservations(forceAfterCurrent=false){
     Date.parse(s.last)<=Date.now()+5*60000).map(s=>append48({
       ...s,name:s.station_id==='ba209016a64287'?'Villaspeciosa':s.name
     },'ecowitt'));
-  stations=[...as,...ds,...ws,...wls,...es,...cedocAsStandardStations()];
+  stations=[...as,...ds,...ws,...es,...cedocAsStandardStations()];
   // Una selezione WU conservata in pagina non deve produrre una rete vuota.
   if(!WU_ENABLED&&netFilter==='wunderground'){
     netFilter='all';
     document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'));
   }
-  const wlButton=document.getElementById('wlNetBtn');
-  wlButton.hidden=wls.length===0;
-  if(wls.length===0&&netFilter==='weatherlink'){
+  // Rimuovi anche una eventuale selezione WeatherLink rimasta in sessione.
+  if(netFilter==='weatherlink'){
     netFilter='all';
-    document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'))
+    document.querySelectorAll('[data-net]').forEach(btn=>btn.classList.toggle('active',btn.dataset.net==='all'));
   }
   const ecoButton=document.getElementById('ecowittNetBtn');
   ecoButton.hidden=es.length===0;
@@ -5756,7 +5753,6 @@ async function loadObservations(forceAfterCurrent=false){
       (wuBlocked?' · API LIMITATA':''));
   }
 
-  if(wls.length)parts.push(dataStampLabel(wl,'WL'));
   if(es.length)parts.push('Ecowitt '+es.length+' · '+new Date(es.reduce((a,b)=>
     Date.parse(a.last)>Date.parse(b.last)?a:b).last).toLocaleTimeString('it-IT',
     {timeZone:'Europe/Rome',hour:'2-digit',minute:'2-digit'}));
