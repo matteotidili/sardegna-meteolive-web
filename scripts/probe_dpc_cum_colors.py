@@ -15,16 +15,18 @@ def get(url):
 def tilexy(lat,lon,z):
     return (int((lon+180)/360*(2**z)), int((1-math.asinh(math.tan(math.radians(lat)))/math.pi)/2*(2**z)))
 
-for key in ["SRT1","CUM3","CUM6","CUM12","CUM24","VMI"]:
+for key in ["SRT1","CUM3","CUM6","CUM12","CUM24"]:
     try:
         api=json.loads(get(URL.format(key=key)))
         lst=api.get("lastProducts") or []
         if not lst:print(key,"no latest",str(api)[:100]);continue
         ts=int(lst[0]["time"])
-        day=datetime.datetime.fromtimestamp(ts/1000,datetime.timezone.utc)
-        print("KEY",key,"stamp",day.isoformat())
-        for z in [6,7]:
-            for lat,lon in [(40.02,9.02),(39.25,9.10),(40.9,9.5),(40.52,8.52)]:
+        latest=datetime.datetime.fromtimestamp(ts/1000,datetime.timezone.utc)
+        for day in [datetime.datetime(2026,11,5,12,tzinfo=datetime.timezone.utc),
+                    datetime.datetime(2026,11,5,18,tzinfo=datetime.timezone.utc),latest]:
+          print("KEY",key,"stamp",day.isoformat())
+          for z in [6,7]:
+            for lat,lon in [(40.95,9.51),(40.02,9.02),(39.25,9.10),(40.52,8.52),(44.5,11.3)]:
                 x,y=tilexy(lat,lon,z)
                 name=key.lower() if key!="SRT1" else "srt1"
                 url=f"{BASE}/{key}/{day:%Y/%m/%d/%H%M}/{z}/{x}/{y}/{name}.webp"
