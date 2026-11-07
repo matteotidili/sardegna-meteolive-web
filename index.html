@@ -1132,6 +1132,15 @@ const DPC_SRI_BANDS=[
   [.47,[151,216,75]],[.60,[246,221,60]],
   [.73,[248,154,43]],[.86,[229,70,60]],[1,[142,55,174]]
 ];
+// Palette qualitativa per i WebP SRT1/CUM DPC in formato monobanda.
+ // La componente rossa del WebP e' un valore codificato, non un colore.
+ // La palette non e' una LUT quantitativa ufficiale: non associarle
+ // soglie millimetriche non documentate.
+const DPC_CUM_BANDS=[
+  [0,[135,218,246]],[.04,[79,191,237]],[.10,[42,147,225]],
+  [.18,[44,191,135]],[.30,[166,217,76]],[.43,[246,216,62]],
+  [.58,[249,141,52]],[.76,[228,69,62]],[1,[168,49,152]]
+];
 function dpcPaletteAt(t,bands){
   const x=Math.min(1,Math.max(0,t));
   for(let j=1;j<bands.length;j++){
@@ -1145,16 +1154,38 @@ function dpcPaletteAt(t,bands){
 }
 function dpcDecodeTile(ctx,productKey,w=256,h=256){
   const image=ctx.getImageData(0,0,w,h),pix=image.data;
-  // Le cumulate DPC sono WebP RGB già colorati: NON applicare la
-  // decodifica monobanda VMI/SRI, né attenuare i pixel scuri validi.
-  // Si rende trasparente soltanto lo sfondo nero/nodata.
+  // I WebP Radar-DPC v2 SRT1/CUM3/6/12/24 osservati sono mono-banda:
+  // le misure sono codificate nel canale rosso (G=B=0), e NON rappresentano
+  // un'immagine rossa scurissima. R=0 indica nessuna misura / nodata;
+  // anche i valori R=1..9 sono validi e non vanno cancellati.
+  // Rileva il formato per tile, così un futuro WebP gia' RGB colorato
+  // rimane intatto. Sia il 2D sia il mosaico 3D usano questa funzione.
   if(productKey==='SRT1'||productKey.startsWith('CUM')){
-    let changed=false,visible=false;
+    let colored=0,redEncoded=0;
     for(let i=0;i<pix.length;i+=4){
       if(pix[i+3]===0)continue;
       const r=pix[i],g=pix[i+1],b=pix[i+2];
-      if(r<=9&&g<=9&&b<=9){pix[i+3]=0;changed=true}
-      else visible=true
+      if(r===0&&g===0&&b===0)continue;
+      colored++;
+      if(r>0&&g<=2&&b<=2)redEncoded++;
+    }
+    const encoded=colored>0&&redEncoded/colored>=.95;
+    let changed=false,visible=false;
+    for(let i=0;i<pix.length;i+=4){
+      const alpha=pix[i+3];if(alpha===0)continue;
+      const r=pix[i],g=pix[i+1],b=pix[i+2];
+      if(r===0&&g===0&&b===0){
+        pix[i+3]=0;changed=true;
+        continue
+      }
+      if(encoded){
+        const rgb=dpcPaletteAt(r/255,DPC_CUM_BANDS);
+        pix[i]=rgb[0];pix[i+1]=rgb[1];pix[i+2]=rgb[2];
+        // Intensita' deboli visibili senza oscurare la cartografia.
+        pix[i+3]=Math.round(alpha*Math.min(1,.65+r/75));
+        changed=true
+      }
+      if(pix[i+3]>0)visible=true
     }
     if(changed)ctx.putImageData(image,0,0);
     return visible
@@ -2240,9 +2271,13 @@ function cumLegendHtml(){
   // non quello ancora in fase di acquisizione.
   const displayedCode=cumDisplayedCode||cumActive;
   const product=CUM_PRODUCTS[displayedCode];
+  const grad='linear-gradient(90deg,'+DPC_CUM_BANDS.map(([t,c])=>
+    'rgb('+c.join(',')+') '+Math.round(100*t)+'%').join(',')+')';
   return '<div class="map-legend-row"><div class="map-legend-title">Cumulate Radar-DPC · '+(product?.label||displayedCode.toUpperCase())+' · mm</div>'+
-    '<div class="map-legend-note">Colori RGB originali DPC, senza palette ricostruite; sfondo nodata trasparente. '+
-    '<a href="https://radar.protezionecivile.it/" target="_blank" rel="noopener noreferrer">Legenda ufficiale delle cumulate</a>.</div></div>'
+    '<div class="map-legend-bar" style="background:'+grad+'"></div>'+
+    '<div class="map-legend-labels"><span>Deboli</span><span>Moderate</span><span>Intense</span><span>Molto intense</span></div>'+
+    '<div class="map-legend-note">Palette grafica qualitativa applicata ai dati monobanda DPC; il colore non e\' una scala in mm certificata. '+
+    '<a href="https://radar.protezionecivile.it/" target="_blank" rel="noopener noreferrer">Consulta i valori e la legenda ufficiale DPC</a>.</div></div>'
 }
 function lightningLegendHtml(){
   if(!lightningOn)return '';
