@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box } from "lucide-react";
+import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box, MonitorPlay, PanelLeftOpen, PanelLeftClose } from "lucide-react";
+import OpsClock from "@/components/OpsClock";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import MapView, { type Basemap, type MapViewState } from "@/components/MapView";
@@ -41,6 +42,27 @@ export default function Home() {
   const [boundariesOn, setBoundariesOn] = usePersistentState<boolean>("boundaries", true);
   const [subregionsOn, setSubregionsOn] = usePersistentState<boolean>("subregions", false);
   const [municipalOn, setMunicipalOn] = usePersistentState<boolean>("municipalities", true);
+  const [wall, setWall] = usePersistentState<boolean>("wallMode", false);
+  const [wallLayers, setWallLayers] = useState(false);
+  const wallOn = wall && isDesktop;
+
+  // Big-screen mode: fullscreen + keep the display awake while the room is monitoring
+  useEffect(() => {
+    if (!wallOn) return;
+    let lock: { release: () => Promise<void> } | null = null;
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } };
+    const acquire = () => { if (document.visibilityState === "visible") nav.wakeLock?.request("screen").then((l) => { lock = l; }).catch(() => {}); };
+    acquire();
+    document.addEventListener("visibilitychange", acquire);
+    return () => { document.removeEventListener("visibilitychange", acquire); void lock?.release().catch(() => {}); };
+  }, [wallOn]);
+  const toggleWall = () => {
+    const next = !wall;
+    setWall(next);
+    setWallLayers(false);
+    if (next) void document.documentElement.requestFullscreen?.().catch(() => {});
+    else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  };
   const [bbox, setBbox] = useState<[number, number, number, number] | null>(null);
   const [satIdx, setSatIdx] = useState<number | null>(null);
 
@@ -217,7 +239,7 @@ export default function Home() {
   );
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#0B0F17]">
+    <div data-testid="app-root" data-wall={wallOn ? "on" : "off"} className={cn("fixed inset-0 overflow-hidden bg-[#0B0F17]", wallOn && "wall")}>
       {mode3d
         ? <MapView3D key={`3d-${basemap}`} {...mapProps} />
         : <MapView key="2d" {...mapProps} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
@@ -229,7 +251,7 @@ export default function Home() {
             <div className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-sky-500 to-cyan-700 font-heading text-sm font-bold text-white shadow-lg shadow-sky-900/50">SM</div>
             <div className="hidden leading-tight sm:block">
               <div className="font-heading text-[15px] font-semibold tracking-tight">Sardegna MeteoLive</div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Meteo Monitor</div>
+              <div data-testid="app-header-subtitle" className="text-[10px] uppercase tracking-[0.18em] text-slate-400">Sala operativa · Nowcasting</div>
             </div>
           </div>
           <div data-testid="parameter-selector-bar" className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg border border-slate-800/80 bg-slate-950/60 p-1">
@@ -241,7 +263,15 @@ export default function Home() {
               </button>
             ))}
           </div>
+          {wallOn && <OpsClock />}
           <div className="flex shrink-0 items-center gap-1.5">
+            {isDesktop && (
+              <button data-testid="wall-mode-toggle" aria-pressed={wallOn} onClick={toggleWall} title={wallOn ? "Esci dalla modalità sala" : "Modalità sala: schermo intero per monitor di sala operativa"}
+                className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs transition-colors",
+                  wallOn ? "border-sky-600 bg-sky-600/20 text-sky-200 hover:bg-sky-600/30" : "border-slate-700 bg-slate-950/50 text-slate-300 hover:bg-slate-800 hover:text-sky-300")}>
+                <MonitorPlay className="size-3.5" /><span className="hidden xl:inline">{wallOn ? "Esci sala" : "Modalità sala"}</span>
+              </button>
+            )}
             <Select value={basemap} onValueChange={(v: string) => setBasemap(v as Basemap)}>
               <SelectTrigger data-testid="basemap-selector-dropdown" size="sm" className="h-8 border-slate-700 bg-slate-950/50 text-xs">
                 <MapIcon className="size-3.5" />
@@ -269,9 +299,15 @@ export default function Home() {
       {/* ---------- desktop panels ---------- */}
       {isDesktop && (
         <>
-          <aside className="thin-scroll fixed bottom-4 left-4 top-[124px] z-20 w-72 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/92 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl" data-testid="desktop-layer-panel" style={{ maxHeight: "calc(100vh - 140px - 90px)" }}>
+          {wallOn && (
+            <button data-testid="wall-layers-toggle" aria-pressed={wallLayers} onClick={() => setWallLayers(!wallLayers)}
+              className="fixed left-4 top-[124px] z-30 inline-flex h-9 items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/92 px-3 text-xs text-slate-200 shadow-xl backdrop-blur-xl transition-colors hover:border-sky-700 hover:text-sky-200">
+              {wallLayers ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />} Layer {anim !== "none" && <span className="size-1.5 rounded-full bg-sky-400" />}
+            </button>
+          )}
+          {(!wallOn || wallLayers) && <aside className={cn("thin-scroll fixed bottom-4 left-4 z-20 w-72", "overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/92 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl", wallOn ? "top-[170px]" : "top-[124px]")} data-testid="desktop-layer-panel" style={{ maxHeight: wallOn ? "calc(100vh - 186px - 90px)" : "calc(100vh - 140px - 90px)" }}>
             {layerPanel}
-          </aside>
+          </aside>}
           <aside className="fixed bottom-4 right-4 top-[124px] z-20 flex w-[340px] flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/92 shadow-2xl shadow-black/60 backdrop-blur-xl" data-testid="desktop-station-panel">
             {selected && <StationCard station={selected} param={param} onClose={() => setSelectedId(null)} className="m-2 mb-0 shrink-0 rounded-xl" />}
             {stationList}

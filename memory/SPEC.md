@@ -49,3 +49,7 @@ No 3D wind streamlines; WU / WeatherLink intentionally not integrated.
 ## Subregions + municipal boundaries (iteration 5)
 - "Subregioni storiche" toggle (layer-toggle-subregions, key `subregions`, default OFF): 35 polygons from repo data/subregioni-storiche.geojson (GeoNue/Nordai credit shown under toggle), dashed cyan lines + name labels from zoom 7.8 (2D divIcon .subregions-label, 3D HTML markers), popup "non è un limite amministrativo".
 - "Confini comunali" toggle (layer-toggle-municipalities, key `municipalities`, default ON): 377 Sardinian municipalities from geojson-italy limits_R_20_municipalities, thin grey lines, loaded lazily and shown only from Leaflet zoom 9 (3D minzoom 8).
+
+## Operations-room positioning (iteration 6)
+- Purpose: online operations room for monitoring and nowcasting. Header subtitle "Sala operativa · Nowcasting"; index.html title/description updated.
+- "Modalità sala" (wall-mode-toggle, desktop only, key `wallMode`): browser fullscreen + screen Wake Lock, ops clock (local Europe/Rome + UTC, ops-clock), larger station badges (.wall), layer panel collapsed behind wall-layers-toggle. Exiting restores normal layout and leaves fullscreen.
