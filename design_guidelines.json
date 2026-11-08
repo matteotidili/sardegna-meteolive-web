@@ -1,0 +1,242 @@
+{
+  "theme": "dark-first operational meteorological monitoring system (with high-contrast light mode toggle)",
+  "emotional_tone": "Precision meteorological command-center: calm, tactical, scientific, highly legible under critical operational stress",
+  "design_archetype": "Archetype 2: The Performance Pro / Tactical Scientific Monitor (Deep slate-obsidian base, crisp high-density data typography, scientific color ramps for temperature/rain/wind/radar, dedicated staleness and network health indicators)",
+  "language": "it-IT",
+  "typography": {
+    "primary_font": "Geist Variable",
+    "heading_font": "Outfit Variable",
+    "mono_font": "JetBrains Mono Variable",
+    "import_statements": [
+      "@import \"@fontsource-variable/geist\";",
+      "@import \"@fontsource-variable/outfit\";",
+      "@import \"@fontsource-variable/jetbrains-mono\";"
+    ],
+    "scale_px": {
+      "display": 48,
+      "h1": 32,
+      "h2": 24,
+      "h3": 18,
+      "body": 14,
+      "caption": 12
+    },
+    "rules": {
+      "headings": "font-['Outfit_Variable',sans-serif] tracking-tight font-semibold",
+      "body": "font-['Geist_Variable',sans-serif] text-sm leading-relaxed",
+      "metrics_and_numbers": "font-['JetBrains_Mono_Variable',monospace] tracking-tight font-medium tabular-nums",
+      "overlines": "text-xs uppercase tracking-[0.18em] font-medium"
+    }
+  },
+  "colors": {
+    "surfaces": [
+      {
+        "name": "page",
+        "kind": "solid",
+        "bg": "#0B0F17",
+        "on_bg": "#F1F5F9",
+        "on_bg_muted": "#94A3B8"
+      },
+      {
+        "name": "panel",
+        "kind": "solid",
+        "bg": "#111827",
+        "on_bg": "#F8FAFC",
+        "on_bg_muted": "#94A3B8"
+      },
+      {
+        "name": "panel_secondary",
+        "kind": "solid",
+        "bg": "#1E293B",
+        "on_bg": "#F8FAFC",
+        "on_bg_muted": "#CBD5E1"
+      },
+      {
+        "name": "inverse",
+        "kind": "solid",
+        "bg": "#F8FAFC",
+        "on_bg": "#0F172A",
+        "on_bg_muted": "#475569"
+      },
+      {
+        "name": "glass_overlay",
+        "kind": "glass",
+        "contrast_against": "#0F172A",
+        "guarantee": "backdrop-blur-xl bg-slate-950/80 border border-slate-800/80 shadow-2xl",
+        "on_bg": "#F8FAFC",
+        "on_bg_muted": "#94A3B8",
+        "roles": {
+          "link": "#38BDF8",
+          "error": "#F87171",
+          "success": "#4ADE80",
+          "warning": "#FBBF24"
+        }
+      },
+      {
+        "name": "badge_stale_station",
+        "kind": "solid",
+        "bg": "#1F2937",
+        "on_bg": "#9CA3AF",
+        "on_bg_muted": "#6B7280"
+      },
+      {
+        "name": "badge_fresh_station",
+        "kind": "solid",
+        "bg": "#0F172A",
+        "on_bg": "#FFFFFF",
+        "on_bg_muted": "#E2E8F0"
+      },
+      {
+        "name": "alert_red",
+        "kind": "solid",
+        "bg": "#7F1D1D",
+        "on_bg": "#FEF2F2",
+        "on_bg_muted": "#FECACA"
+      },
+      {
+        "name": "alert_orange",
+        "kind": "solid",
+        "bg": "#78350F",
+        "on_bg": "#FFFBEB",
+        "on_bg_muted": "#FDE68A"
+      },
+      {
+        "name": "alert_yellow",
+        "kind": "solid",
+        "bg": "#713F12",
+        "on_bg": "#FEFCE8",
+        "on_bg_muted": "#FEF08A"
+      }
+    ],
+    "accent": "#0284C7",
+    "on_accent": "#FFFFFF",
+    "meteorological_ramps": {
+      "temperature_celsius": [
+        { "max": 0, "color": "#3B82F6", "label": "Gelo / <0°C" },
+        { "max": 8, "color": "#06B6D4", "label": "Freddo 0-8°C" },
+        { "max": 15, "color": "#10B981", "label": "Fresco 8-15°C" },
+        { "max": 22, "color": "#84CC16", "label": "Mite 15-22°C" },
+        { "max": 28, "color": "#EAB308", "label": "Caldo 22-28°C" },
+        { "max": 35, "color": "#F97316", "label": "Molto caldo 28-35°C" },
+        { "max": 45, "color": "#EF4444", "label": "Torrido >35°C" }
+      ],
+      "rain_mm": [
+        { "max": 0.2, "color": "#64748B", "label": "Tracce / 0" },
+        { "max": 5.0, "color": "#38BDF8", "label": "Debole <5mm" },
+        { "max": 20.0, "color": "#2563EB", "label": "Moderata 5-20mm" },
+        { "max": 50.0, "color": "#7C3AED", "label": "Forte 20-50mm" },
+        { "max": 150.0, "color": "#DB2777", "label": "Estrema >50mm" }
+      ],
+      "wind_kmh": [
+        { "max": 15, "color": "#059669", "label": "Debole <15km/h" },
+        { "max": 35, "color": "#0284C7", "label": "Moderato 15-35km/h" },
+        { "max": 60, "color": "#D97706", "label": "Teso 35-60km/h" },
+        { "max": 90, "color": "#DC2626", "label": "Burrasca 60-90km/h" },
+        { "max": 180, "color": "#9333EA", "label": "Tempesta >90km/h" }
+      ]
+    }
+  },
+  "entry_surfaces": {
+    "/": "full-screen interactive meteorological GIS map with floating frosted glass command bar top, collapsible sidebar/bottom-sheet station matrix, and interactive weather timeline player bottom"
+  },
+  "layout_and_architecture": {
+    "concept": "Map-Centric Professional Meteorological Workstation (Modular Floating HUD + Leaflet 2D Engine)",
+    "viewport_structure": {
+      "map_canvas": "Absolute inset-0 z-0 w-full h-full overflow-hidden bg-slate-950",
+      "top_header_hud": "Fixed top-3 left-3 right-3 md:left-4 md:right-4 z-30 pointer-events-none flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2",
+      "top_header_inner": "pointer-events-auto flex items-center justify-between bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-xl px-4 py-2.5 shadow-2xl shadow-black/50 text-slate-100",
+      "floating_side_panel": "Fixed top-18 bottom-24 right-4 z-20 w-80 md:w-96 hidden lg:flex flex-col bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden pointer-events-auto",
+      "mobile_bottom_sheet": "Fixed bottom-0 left-0 right-0 z-30 lg:hidden flex flex-col bg-slate-900/95 backdrop-blur-2xl border-t border-slate-800 rounded-t-2xl shadow-2xl max-h-[82vh] transition-transform duration-300",
+      "bottom_timeline_player": "Fixed bottom-4 left-3 right-3 md:left-1/2 md:-translate-x-1/2 md:max-w-3xl z-20 pointer-events-auto bg-slate-900/95 backdrop-blur-xl border border-slate-800 rounded-2xl p-3 shadow-2xl text-slate-100",
+      "floating_layer_controls": "Fixed top-20 left-4 z-20 flex flex-col gap-2 pointer-events-auto"
+    },
+    "key_panels": [
+      {
+        "name": "ParameterBar",
+        "description": "Horizontal scrollable chip-selector for live parameters: Temperatura (°C), T. Minima (°C), T. Massima (°C), Umidità (%), Vento (km/h), Raffiche (km/h), Rain Rate (mm/h), Pioggia Oggi (mm), Pressione (hPa).",
+        "ui_token": "flex gap-1.5 p-1 bg-slate-950/60 rounded-lg border border-slate-800/80"
+      },
+      {
+        "name": "NetworkFilter",
+        "description": "Toggle pills with badge counts: MeteoHub/DPCN (94), AM - Aeronautica Militare (8), Ecowitt (1), CEDOC Idrografico (118). Includes visual health status dot per network.",
+        "ui_token": "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full transition-colors"
+      },
+      {
+        "name": "StationMatrixList",
+        "description": "Searchable list with instant filter, sorting by value (asc/desc), elevation, observation age, network badge, and click-to-flyto coordinates on map.",
+        "ui_token": "overflow-y-auto divide-y divide-slate-800/60 font-mono text-xs"
+      },
+      {
+        "name": "StationMarkerBadge",
+        "description": "Leaflet DivIcon rendering small rounded numeric badge: background colored according to meteorological color ramp, high-contrast text, with distinct visual border/dimming if observation is STALE (>60 min for synoptic, historic snapshot for CEDOC) or UNAVAILABLE.",
+        "staleness_rules": "Fresh: crisp vivid bg + white text + subtle glow. Stale: striped/dashed border + 50% opacity muted bg + warning dot. CEDOC historic: amber outline tag [CEDOC-STALE]."
+      },
+      {
+        "name": "StationPopup",
+        "description": "Rich dark card showing: Station Name, Municipality/Province, Network Tag, Elevation (m s.l.m.), Live Measurement with unit, Observation Timestamp in Europe/Rome, Freshness Indicator (🟢 Live / 🟡 Aggiornato 2h fa / 🔴 Obsoleto), 24h mini sparkline / min-max values.",
+        "ui_token": "leaflet-popup-custom-dark p-3 bg-slate-900 text-slate-100 rounded-xl border border-slate-700 font-sans"
+      },
+      {
+        "name": "RadarAndModelPlayer",
+        "description": "Timeline scrubber with Play/Pause, 1x/2x/3x speed, step forward/back, timestamp display (Europe/Rome), layer opacity slider (0-100%), and color scale legend.",
+        "layers_supported": [
+          "DPC Radar VMI (Vertical Maximum Intensity)",
+          "DPC Radar SRI (Surface Rain Intensity)",
+          "AROME HD Forecast (21 params, H+1 to H+51)",
+          "EFFIS / MODIS Fire FRP Detections",
+          "MeteoAlarm Sardegna Criticality Zones"
+        ]
+      },
+      {
+        "name": "DataSourceStatusModal",
+        "description": "Operational diagnostics view showing API response latency, last fetched synoptic timestamp, CEDOC snapshot notice, station count online vs degraded vs offline.",
+        "ui_token": "dialog-content bg-slate-900 border-slate-800 text-slate-100 max-w-xl"
+      }
+    ]
+  },
+  "interactive_states": {
+    "hover_button": "hover:bg-slate-800 hover:text-sky-300 transition-colors duration-150 active:scale-95",
+    "active_pill": "bg-sky-600 text-white font-medium shadow-sm shadow-sky-500/30",
+    "inactive_pill": "bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 hover:text-slate-100",
+    "stale_badge": "border border-amber-500/50 bg-slate-900/80 text-slate-400 opacity-75 ring-1 ring-amber-500/20",
+    "critical_alert": "animate-pulse bg-red-950/80 border-red-800 text-red-200"
+  },
+  "testing_attributes": {
+    "header_brand": "data-testid=\"app-header-brand\"",
+    "parameter_selector": "data-testid=\"parameter-selector-bar\"",
+    "network_filter_prefix": "data-testid=\"network-filter-\"",
+    "station_search_input": "data-testid=\"station-search-input\"",
+    "station_sort_select": "data-testid=\"station-sort-select\"",
+    "station_list_container": "data-testid=\"station-list-container\"",
+    "station_list_item_prefix": "data-testid=\"station-item-\"",
+    "station_popup_card": "data-testid=\"station-popup-card\"",
+    "layer_toggle_prefix": "data-testid=\"layer-toggle-\"",
+    "radar_play_button": "data-testid=\"radar-timeline-play-btn\"",
+    "radar_speed_button": "data-testid=\"radar-speed-btn\"",
+    "radar_slider": "data-testid=\"radar-timeline-slider\"",
+    "opacity_slider": "data-testid=\"layer-opacity-slider\"",
+    "basemap_selector": "data-testid=\"basemap-selector-dropdown\"",
+    "data_health_button": "data-testid=\"data-health-status-btn\"",
+    "alert_banner": "data-testid=\"meteo-alert-banner\"",
+    "mobile_sheet_trigger": "data-testid=\"mobile-stations-sheet-trigger\""
+  },
+  "libraries_and_setup": {
+    "frontend_dependencies_needed": [
+      "leaflet",
+      "@types/leaflet"
+    ],
+    "install_command": "cd /app/frontend && yarn add leaflet @types/leaflet",
+    "leaflet_css_rule": "Ensure `import 'leaflet/dist/leaflet.css';` is imported in `frontend/src/main.tsx` or `frontend/src/index.css`",
+    "icons": "Use `lucide-react` (Radio, CloudRain, Thermometer, Wind, Gauge, Compass, Eye, ShieldAlert, Layers, MapPin, Activity, Play, Pause, FastForward, RotateCcw, AlertTriangle, CheckCircle2, XCircle, Info, Search, SlidersHorizontal, ChevronUp, ChevronDown, RefreshCw)."
+  },
+  "instructions_to_main_agent": [
+    "Rebuild the frontend as an ultra-modern, high-performance operational meteorological workstation with Italian interface labels (e.g. 'Stazioni Live', 'Radar DPC', 'Modello AROME', 'Allerta Meteo', 'Rete CEDOC', 'Aeronautica Militare').",
+    "Full-screen Leaflet map MUST initialize centered over Sardinia (coords ~ [40.05, 9.08], zoom 8 or 9) with minimum zoom 7 and max bounds preventing panning away to the world map.",
+    "Implement rich mock & real-like station datasets covering all requested networks: 94 MeteoHub/DPCN stations across all Sardinian provinces (Cagliari, Sassari, Nuoro, Oristano, Sud Sardegna), 8 Aeronautica Militare official synoptic stations (Decimomannu, Cagliari Elmas, Alghero Fertilia, Olbia Costa Smeralda, Capo Bellavista, Capo Caccia, Capo Carbonara, Guardiavecchia), 1 Ecowitt station, and 118 CEDOC historic rain gauge snapshot stations.",
+    "Station marker badges MUST display numeric live values (e.g., '24.2°', '12mm', '45km/h') with background colored via meteorologist-grade ramps. CRITICAL: Provide clear visual contrast for STALE (>60 min) or historic CEDOC data (dashed borders, muted saturation, explicit 'DATO STORICO/NON IN LINEA' tag in popup).",
+    "Provide interactive Weather Layers: 1) DPC Radar VMI/SRI with full timeline slider, play/pause (1x, 2x, 3x) and radar color scale legend; 2) AROME HD model overlays with parameter switcher and run timestamp; 3) Fire FRP hotspot detections; 4) MeteoAlarm Sardinia alert bar (with simulated yellow/orange thunderstorm/wind alerts for sub-zones like Campidano, Iglesiente, Gallura).",
+    "Include Data Source Status dialog accessible from the top bar (showing freshness of DPCN, AM, Ecowitt, and marking CEDOC as 'Archivio Storico / Portale Regionale Sconnesso').",
+    "Provide 4 high-quality Tile Basemaps: Dark Operational (CartoDB Dark Matter / Stadia Dark), Satellite Hybrid (Esri World Imagery + labels), Topo/Relief (OpenTopoMap / Esri NatGeo), and Light Clean (CartoDB Positron).",
+    "Ensure mobile excellence: clean collapsible bottom sheet for the station list, touch-friendly timeline slider, no overlapping UI elements, and fast search filtering.",
+    "Ensure all data-testid attributes are faithfully applied to all interactive controls, buttons, inputs, sliders, and panels."
+  ]
+}
