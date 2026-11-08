@@ -3,9 +3,9 @@ name: Deploy Sardegna MeteoLive (GitHub Pages)
 # Builds the React app (frontend/) as a fully static site and publishes it to GitHub Pages.
 # The previous monolithic site is published unchanged under /classic/.
 # Repository setting required once: Settings → Pages → Source = "GitHub Actions".
+# Runs on every push to the repository's DEFAULT branch (whatever its name) or manually.
 on:
   push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,21 +19,21 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: yarn
-          cache-dependency-path: frontend/yarn.lock
       - name: Build static site
         working-directory: frontend
         env:
           DISABLE_VISUAL_EDITS: "true"
           DISABLE_EMERGENT_OVERLAY: "true"
         run: |
-          yarn install --frozen-lockfile
+          # yarn.lock may be omitted by the export tool: use it when present, otherwise resolve package.json
+          if [ -f yarn.lock ]; then yarn install --frozen-lockfile; else yarn install --network-timeout 600000; fi
           yarn build
       - name: Add classic site
         run: |
