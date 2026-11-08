@@ -6,7 +6,7 @@ import type { WindGrid } from "@/lib/types";
  * U/V in m/s on a 0.1° sub-sampled grid. The animation speed is ILLUSTRATIVE:
  * it is not a real-time simulation of atmospheric transport.
  */
-export interface WindField { grid: WindGrid; vec: Float32Array }
+export interface WindField { grid: WindGrid; vec: Float32Array; /** optional higher-resolution nested field, sampled first */ fine?: WindField }
 
 export function decodeWind(buf: ArrayBuffer, grid: WindGrid): WindField {
   if (grid.encoding !== "interleaved_signed_int16_little_endian" || buf.byteLength !== grid.width * grid.height * 4) {
@@ -21,6 +21,7 @@ export function decodeWind(buf: ArrayBuffer, grid: WindGrid): WindField {
 }
 
 export function sampleWind(f: WindField, lon: number, lat: number): [number, number] | null {
+  if (f.fine) { const v = sampleWind(f.fine, lon, lat); if (v) return v; }
   const g = f.grid;
   if (lon < g.west || lon > g.east || lat < g.south || lat > g.north) return null;
   const gx = (lon - g.west) / g.step_degrees, gy = (g.north - lat) / g.step_degrees;
@@ -45,6 +46,11 @@ export interface WindFlowOptions {
   testid?: string;
   /** Per-particle colour from wind speed (m/s); white streamlines when omitted. */
   colorFor?: (speedMs: number) => string;
+  lineWidth?: number;
+  /** screen px² per particle (smaller = denser); default fixed count 330/130 */
+  pxPerParticle?: number;
+  /** trail persistence 0..1 (higher = longer trails) */
+  fade?: number;
 }
 
 export class WindFlowLayer {
@@ -63,10 +69,12 @@ export class WindFlowLayer {
   private onVis = () => (document.hidden ? this.stop() : this.start());
 
   private colorFor: ((ms: number) => string) | undefined;
+  private opts: WindFlowOptions;
 
   constructor(map: L.Map, opts: WindFlowOptions = {}) {
     this.map = map;
     this.colorFor = opts.colorFor;
+    this.opts = opts;
     const name = opts.pane ?? "aromeFlow";
     const pane = map.getPane(name) ?? map.createPane(name);
     pane.style.zIndex = String(opts.zIndex ?? 370);
@@ -136,14 +144,16 @@ export class WindFlowLayer {
     this.last = t;
     const ctx = this.ctx, f = this.field;
     ctx.globalCompositeOperation = "destination-in";
-    ctx.fillStyle = "rgba(0,0,0,0.915)";
+    ctx.fillStyle = `rgba(0,0,0,${this.opts.fade ?? 0.915})`;
     ctx.fillRect(0, 0, this.w, this.h);
     ctx.globalCompositeOperation = "source-over";
     ctx.lineWidth = 1.25; ctx.lineCap = "round";
     ctx.strokeStyle = "rgba(247,252,255,.8)";
     const byColor = this.colorFor ? new Map<string, number[]>() : null;
     ctx.shadowColor = "rgba(0,16,27,.8)"; ctx.shadowBlur = 1.6;
-    const target = window.innerWidth <= 800 ? 130 : 330;
+    const target = this.opts.pxPerParticle
+      ? Math.min(window.innerWidth <= 800 ? 700 : 2200, Math.round((this.w * this.h) / this.opts.pxPerParticle))
+      : window.innerWidth <= 800 ? 130 : 330;
     if (this.particles.length > target) this.particles.length = target;
     while (this.particles.length < target) { const p = this.spawn(); if (!p) break; this.particles.push(p); }
     for (let n = 0; n < this.particles.length; n++) {
@@ -170,7 +180,7 @@ export class WindFlowLayer {
       p.lat = lat; p.lon = lon; p.age += 1;
     }
     if (byColor) {
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = this.opts.lineWidth ?? 1.6;
       for (const [c, seg] of byColor) {
         ctx.strokeStyle = c;
         ctx.beginPath();

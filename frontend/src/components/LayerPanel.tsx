@@ -158,7 +158,7 @@ export default function LayerPanel(p: Props) {
         sub={p.is3d ? "Disponibile solo in 2D" : p.liveWindSub} />
       {p.liveWind && !p.is3d && (
         <p data-testid="live-wind-note" className="px-1 text-[10px] leading-snug text-slate-400">
-          Analisi ItaliaMeteo-ARPAE ICON-2I (~2 km) del quarto d'ora corrente via Open-Meteo: modello, non osservazione. Colori per velocità; animazione illustrativa.
+          Analisi del quarto d'ora corrente via Open-Meteo: Mediterraneo con griglia 1° (best match, ICON-EU/globali, agg. orario), Sardegna con ItaliaMeteo-ARPAE ICON-2I ~2 km (agg. 30 min). Modello, non osservazione. Colori per velocità; animazione illustrativa.
         </p>
       )}
       {p.liveWind && !p.is3d && (

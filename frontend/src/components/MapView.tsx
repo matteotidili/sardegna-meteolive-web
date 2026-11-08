@@ -98,7 +98,7 @@ export default function MapView(props: Props) {
     const m = L.map(el.current, {
       center: props.initialView.center, zoom: props.initialView.zoom,
       minZoom: 5, maxZoom: 13, zoomControl: false, worldCopyJump: false,
-      maxBounds: L.latLngBounds([30, -15], [52, 25]), preferCanvas: false,
+      maxBounds: L.latLngBounds([26, -20], [54, 42]), preferCanvas: false,
     });
     m.createPane("weather").style.zIndex = "350";
     m.createPane("bounds").style.zIndex = "370";
@@ -333,7 +333,7 @@ export default function MapView(props: Props) {
     const m = mapRef.current;
     if (!m) return;
     if (!props.liveWind) { liveWindRef.current?.destroy(); liveWindRef.current = null; return; }
-    if (!liveWindRef.current) liveWindRef.current = new WindFlowLayer(m, { pane: "liveFlow", zIndex: 372, testid: "live-wind-canvas", colorFor: liveWindColor });
+    if (!liveWindRef.current) liveWindRef.current = new WindFlowLayer(m, { pane: "liveFlow", zIndex: 372, testid: "live-wind-canvas", colorFor: liveWindColor, lineWidth: 0.9, pxPerParticle: 520, fade: 0.94 });
     liveWindRef.current.setField(props.liveWind);
   }, [props.liveWind]);
 

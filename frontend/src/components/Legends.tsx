@@ -77,7 +77,7 @@ export function LiveWindLegend({ time }: { time: string | null }) {
           <div key={s.label} className="min-w-9 flex-1 py-0.5 text-center font-num text-[9px] font-medium text-slate-950" style={{ background: s.color }}>{s.label}</div>
         ))}
       </div>
-      <p data-testid="live-wind-legend-time" className="mt-1 text-[9px] text-slate-500">Analisi modello ICON-2I · {time ?? "in caricamento"} · non è una misura</p>
+      <p data-testid="live-wind-legend-time" className="mt-1 text-[9px] text-slate-500">Analisi modello · Mediterraneo + ICON-2I Sardegna · {time ?? "in caricamento"} · non è una misura</p>
     </div>
   );
 }

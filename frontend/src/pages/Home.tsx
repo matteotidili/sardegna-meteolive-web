@@ -48,7 +48,7 @@ export default function Home() {
   const [stationArrowsOn, setStationArrowsOn] = usePersistentState<boolean>("stationArrows", true);
   const liveWindTime = liveWindQ.data?.time ? `${fmtTime(liveWindQ.data.time)} · ${new Date(liveWindQ.data.time).toISOString().slice(11, 16)} UTC` : null;
   const liveWindSub = liveWindQ.isError ? "Analisi non disponibile ora · nessun flusso mostrato"
-    : liveWindQ.data ? `ICON-2I · valido ${liveWindTime} · ${liveWindQ.data.points} punti` : liveWindOn ? "Caricamento analisi…" : "Analisi modello del quarto d'ora corrente";
+    : liveWindQ.data ? `Mediterraneo + ICON-2I Sardegna · valido ${liveWindTime}${liveWindQ.partial ? " · parziale" : ""}` : liveWindOn ? "Caricamento analisi…" : "Analisi modello del quarto d'ora corrente";
   const [wall, setWall] = usePersistentState<boolean>("wallMode", false);
   const [wallLayers, setWallLayers] = useState(false);
   const wallOn = wall && isDesktop;
