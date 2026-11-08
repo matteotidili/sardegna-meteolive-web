@@ -65,6 +65,20 @@ export function LightningLegend({ live, count }: { live: boolean; count: number 
   );
 }
 
+const OPERA_COLORS = ["120,200,255", "60,160,255", "30,110,240", "40,190,120", "30,150,80", "255,220,60", "255,170,40", "255,110,30", "235,50,35", "200,20,90", "170,40,200", "250,120,250", "255,255,255"];
+export function OperaLegend() {
+  return (
+    <div className="mt-2" data-testid="opera-legend">
+      <div className="grid h-2 grid-cols-13 overflow-hidden rounded-full" style={{ gridTemplateColumns: "repeat(13, 1fr)" }}>
+        {OPERA_COLORS.map((c) => <span key={c} style={{ background: `rgb(${c})` }} />)}
+      </div>
+      <div className="mt-0.5 flex justify-between font-num text-[9px] text-slate-400">
+        {["0,1", "0,3", "1,3", "5,6", "24", "100", ">200"].map((l) => <span key={l}>{l}</span>)}<span className="text-slate-500">mm/h</span>
+      </div>
+    </div>
+  );
+}
+
 export function RadarLegend({ product }: { product: string }) {
   return (
     <div className="mt-2" data-testid="radar-legend">

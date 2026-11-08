@@ -2,9 +2,17 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
 import { decodeWind } from "@/lib/windFlow";
 import {
-  getAlerts, getArome, getFrp, getModelPoint, getRadar, getRain48, getSatellite, getStations, getWindMeta,
+  getAlerts, getArome, getDemElevation, getFrp, getModelPoint, getOpera, getRadar, getRain48, getSatellite, getStationHistory,
+  getStations, getWindMeta,
 } from "@/lib/clientData";
-import type { RadarFrames, WindGrid } from "@/lib/types";
+import type { RadarFrames, Station, WindGrid } from "@/lib/types";
+
+export const useStationHistory = (s: Station | null) =>
+  useQuery({ queryKey: ["history", s?.id, s?.last], queryFn: () => getStationHistory(s!), enabled: !!s, staleTime: 5 * 60_000, retry: 1 });
+
+/** Only for stations with neither a network elevation nor a published DTM estimate. */
+export const useDemElevation = (s: Station | null) =>
+  useQuery({ queryKey: ["dem", s?.id], queryFn: () => getDemElevation(s!.lat, s!.lon), enabled: !!s && s.elev === null, staleTime: Infinity, retry: false });
 
 // All data is read directly by the browser (works as a static site on GitHub Pages).
 // Observations: fast polling while the app is open; immediate refetch on tab focus
@@ -28,8 +36,8 @@ export const useArome = (enabled = true) =>
 export const useRadar = (product: string | null) =>
   useQuery({
     queryKey: ["radar", product],
-    // direct DPC API (allowed for the GitHub Pages origin); same-origin /api as fallback where a backend exists
-    queryFn: () => getRadar(product!).catch(() => apiGet<RadarFrames>(`/radar/${product}`)),
+    // OPERA: RadarEU tiles probed in the browser. DPC: direct API (allowed for GitHub Pages), /api as fallback.
+    queryFn: () => (product === "OPERA" ? getOpera() : getRadar(product!).catch(() => apiGet<RadarFrames>(`/radar/${product}`))),
     enabled: !!product,
     refetchInterval: 2 * 60_000,
     refetchOnWindowFocus: "always",

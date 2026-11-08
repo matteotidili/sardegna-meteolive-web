@@ -6,7 +6,7 @@ import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
 import type { LightningStatus } from "@/lib/lightning";
 import { cn } from "@/lib/utils";
 
-export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "arome" | `sat-${string}`;
+export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | `sat-${string}`;
 
 export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
   { key: "truecolour", title: "MTG True Colour RGB", sub: "FCI 1 km · solo diurno" },
@@ -83,6 +83,8 @@ export default function LayerPanel(p: Props) {
         icon={<Radar className="size-4" />} title="Radar DPC · VMI" sub="Massima riflettività verticale (dBZ)" />
       <Toggle testid="layer-toggle-radar-sri" on={p.anim === "radar-SRI"} onClick={() => toggleAnim("radar-SRI")}
         icon={<Radar className="size-4" />} title="Radar DPC · SRI" sub="Intensità di precipitazione al suolo (mm/h)" />
+      <Toggle testid="layer-toggle-radar-opera" on={p.anim === "radar-OPERA"} onClick={() => toggleAnim("radar-OPERA")}
+        icon={<Radar className="size-4" />} title="Radar Europa · OPERA" sub="EUMETNET NIMBUS rain rate (mm/h) · passo 15 min" />
 
       <div className={SECTION}>Satelliti EUMETSAT</div>
       <div className="grid grid-cols-1 gap-1.5">

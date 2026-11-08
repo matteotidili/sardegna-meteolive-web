@@ -30,4 +30,13 @@ health dialog (CEDOC status shown ONLY there — user asked not to show it on th
 monolithic site is copied in `classic/` and published at /classic/. Requires repo Settings → Pages → Source = GitHub Actions.
 
 ## Known deviations
-No OPERA radar, no DTM elevation estimate; wind streamlines 2D only; WU / WeatherLink intentionally not integrated.
+No 3D wind streamlines; WU / WeatherLink intentionally not integrated.
+
+## Added (iteration 3)
+- OPERA (anim "radar-OPERA"): RadarEU NIMBUS rain-rate tiles `tiles.radareu.cz/tiles/nimbus/rate/<YYYYMMDDTHHMM>/{z}/{x}/{y}.png`,
+  15-min step, 12 frames probed for existence (getOpera), same TimelinePlayer as DPC, 2D + 3D.
+- Elevation: network value wins ("rete"); else `data/station_elevations.json` (DTM 10 m Regione Sardegna → "dtm10", SRTM → "srtm30");
+  else Mapterhorn terrarium DEM z12 sampled in browser (labelled "stima DEM Mapterhorn"). Always labelled terrain ≠ sensor.
+- 24 h chart (StationHistoryChart): `data/station_history_24h.json` (station_history_v1: [epoch_min, temp10, rain10]) produced by
+  `data-repo-patch/` (script + test + workflow to copy into sardegna-meteolive-data). Until published: rain only, from
+  `rain_history.json` (DPCN daily counters), with explicit note. A 404 for station_history_24h.json is EXPECTED until the patch is applied.

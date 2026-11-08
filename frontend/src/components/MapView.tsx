@@ -7,6 +7,7 @@ import { mercatorImage } from "@/lib/mercator";
 import { WindFlowLayer, type WindField } from "@/lib/windFlow";
 import { lightningColor } from "@/lib/lightning";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
+import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 
 export type Basemap = "dark" | "satellite" | "light" | "relief";
 export interface MapViewState { center: [number, number]; zoom: number }
@@ -178,7 +179,12 @@ export default function MapView(props: Props) {
     }
     radarPendingRef.current?.remove();
     const { product, time } = props.radar;
-    const layer = createDpcLayer(product, time, props.opacity, "weather");
+    const layer: L.GridLayer = product === "OPERA"
+      ? L.tileLayer(`${OPERA_TILE_BASE}${operaStamp(time)}/{z}/{x}/{y}.png`, {
+          pane: "weather", opacity: props.opacity, tileSize: 256, maxNativeZoom: 7, maxZoom: 15, updateWhenZooming: false, keepBuffer: 2,
+          bounds: L.latLngBounds([30, -15], [55, 28]), attribution: "Radar: EUMETNET OPERA NIMBUS · CC BY 4.0 · tiles RadarEU",
+        })
+      : createDpcLayer(product, time, props.opacity, "weather");
     radarPendingRef.current = layer;
     layer.once("load", () => {
       if (radarPendingRef.current !== layer) return;

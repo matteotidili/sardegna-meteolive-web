@@ -6,6 +6,14 @@ import {
 } from "@/lib/meteo";
 import { cn } from "@/lib/utils";
 import ModelCompare from "@/components/ModelCompare";
+import StationHistoryChart from "@/components/StationHistoryChart";
+import { useDemElevation } from "@/hooks/useMeteo";
+
+const ELEV_SOURCE: Record<string, string> = {
+  rete: "dichiarata dalla rete originale",
+  dtm10: "stima terreno DTM 10 m Regione Sardegna (non quota del sensore)",
+  srtm30: "stima terreno SRTM 30 m (non quota del sensore)",
+};
 
 interface Props { station: Station; param: ParamDef; onClose: () => void; className?: string }
 
@@ -14,6 +22,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
   const f = freshnessFor(s, param);
   const v = valueOf(s, param);
   const rows = PARAMS.filter((p) => p.key !== param.key && valueOf(s, p) !== null);
+  const dem = useDemElevation(s);
   return (
     <div data-testid="station-popup-card" className={cn("hud-in rounded-xl border border-slate-700/80 bg-slate-900/95 p-3.5 text-slate-100 shadow-2xl shadow-black/60 backdrop-blur-xl", className)}>
       <div className="flex items-start gap-2">
@@ -51,9 +60,13 @@ export default function StationCard({ station: s, param, onClose, className }: P
           <Clock className="size-3" /> {fmtTime(s.last)} <span className="text-slate-500">({fmtAge(s.age_min)})</span>
         </span>
       </div>
-      <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-400" data-testid="station-card-elev">
-        <Mountain className="size-3" />
-        {s.elev != null ? <>Quota {Math.round(s.elev)} m s.l.m. <span className="text-slate-500">· fonte: {s.elev_source === "rete" ? "rete originale" : s.elev_source}</span></> : "Quota non disponibile"}
+      <div className="mt-1.5 flex items-start gap-1 text-[11px] text-slate-400" data-testid="station-card-elev">
+        <Mountain className="mt-0.5 size-3 shrink-0" />
+        <span>
+          {s.elev != null ? <>Quota {Math.round(s.elev)} m s.l.m. <span className="text-slate-500">· {ELEV_SOURCE[s.elev_source ?? ""] ?? `fonte: ${s.elev_source}`}</span></>
+            : dem.data != null ? <>Quota ~{dem.data} m s.l.m. <span className="text-slate-500">· stima DEM Mapterhorn (terreno, non sensore)</span></>
+            : dem.isLoading ? "Stima quota dal DEM…" : "Quota non disponibile"}
+        </span>
       </div>
 
       {rows.length > 0 && (
@@ -76,6 +89,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
       )}
       {rows.some((p) => p.dayBound) && !s.is_today && <p className="mt-1 text-[10px] text-slate-500">* valori del {fmtDay(s.obs_day)}</p>}
       {s.raw_message && <p className="mt-2 break-all rounded bg-slate-950/70 p-1.5 font-num text-[10px] text-slate-400" data-testid="station-card-raw">{s.raw_message}</p>}
+      <StationHistoryChart station={s} />
       <ModelCompare station={s} />
       {s.source_url && (
         <a href={s.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-sky-300 hover:underline" data-testid="station-card-source-link">

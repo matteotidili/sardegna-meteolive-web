@@ -10,7 +10,7 @@ import LayerPanel, { SAT_OPTIONS, type AnimLayer } from "@/components/LayerPanel
 import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
-import { AromeLegend, LightningLegend, RadarLegend, StationLegend } from "@/components/Legends";
+import { AromeLegend, LightningLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
 import { useAlerts, useArome, useFrp, useRadar, useRain48, useSatellite, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
 import { AROME_PRECIP_KEY, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
@@ -151,11 +151,13 @@ export default function Home() {
   const aromeMeta = arome?.parameters.find((p) => p.key === aromeParam);
   const timeline = radarLayer ? (
     <TimelinePlayer
-      title={`Radar DPC ${radarProduct} · osservato`}
+      title={radarProduct === "OPERA" ? "Radar Europa EUMETNET OPERA · osservato" : `Radar DPC ${radarProduct} · osservato`}
       labels={radarFrames.map((t) => fmtTime(t))}
       index={rIdx} setIndex={setRadarIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
-      loading={!frameReady} legend={<RadarLegend product={radarProduct!} />}
-      note="Ultime 3 ore, passo 5 min. © Dipartimento della Protezione Civile."
+      loading={!frameReady} legend={radarProduct === "OPERA" ? <OperaLegend /> : <RadarLegend product={radarProduct!} />}
+      note={radarProduct === "OPERA"
+        ? `Ultime 3 ore, passo 15 min, ${radarFrames.length} frame verificati. NIMBUS rain rate (Z–R Marshall–Palmer) · EUMETNET OPERA CC BY 4.0 · tiles RadarEU.`
+        : "Ultime 3 ore, passo 5 min. © Dipartimento della Protezione Civile."}
     />
   ) : aromeUrl && arome ? (
     <TimelinePlayer

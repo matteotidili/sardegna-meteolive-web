@@ -8,6 +8,7 @@ import { dpcTilePng } from "@/lib/dpcRadar";
 import { mercatorImage } from "@/lib/mercator";
 import { lightningColor } from "@/lib/lightning";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
+import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 
 /*
  * 3D view (MapLibre GL + Mapterhorn terrain). MapLibre zoom = Leaflet zoom − 1 (512 px tiles).
@@ -175,7 +176,9 @@ export default function MapView3D(props: Props) {
     }
     const id = `radar-${r.product}-${r.time}`;
     if (id === prev) return;
-    m.addSource(id, { type: "raster", tiles: [`dpc://${r.product}/${encodeURIComponent(r.time)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 7, bounds: [5, 35, 20, 48] });
+    m.addSource(id, r.product === "OPERA"
+      ? { type: "raster", tiles: [`${OPERA_TILE_BASE}${operaStamp(r.time)}/{z}/{x}/{y}.png`], tileSize: 256, maxzoom: 7, bounds: [-15, 30, 28, 55], attribution: "EUMETNET OPERA NIMBUS · CC BY 4.0" }
+      : { type: "raster", tiles: [`dpc://${r.product}/${encodeURIComponent(r.time)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 7, bounds: [5, 35, 20, 48] });
     m.addLayer({ id, type: "raster", source: id, paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, "overlay");
     radarIdRef.current = id;
     const done = () => {

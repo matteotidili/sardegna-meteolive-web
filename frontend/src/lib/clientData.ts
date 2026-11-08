@@ -105,11 +105,17 @@ function status(key: string, label: string, source: string, rows: Station[], p: 
 export async function getStations(): Promise<StationsResponse> {
   const now = new Date(), today = romeDay(now);
   const stations: Station[] = [], networks: NetworkStatus[] = [];
-  const results = await Promise.all(NETWORKS.map(([, , path]) => getJson(path)));
+  const [results, elev] = await Promise.all([Promise.all(NETWORKS.map(([, , path]) => getJson(path))), getElevations()]);
+  const withDtm = (s: Station, raw: Json) => {
+    if (s.elev !== null) return s; // network-declared elevation always wins
+    const e = elev.get(`${s.network}|${raw.station_id ?? ""}`) ?? elev.get(`${s.network}|${raw.name ?? ""}`);
+    if (e) { s.elev = e.elev; s.elev_source = e.source; }
+    return s;
+  };
   NETWORKS.forEach(([key, label], i) => {
     const { data, retained } = results[i];
     const p = (data ?? {}) as Json;
-    const rows = ((p.stations as Json[]) ?? []).map((r) => normalize(r, key, now, today)).filter(Boolean) as Station[];
+    const rows = ((p.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, key, now, today); return s ? [withDtm(s, r)] : []; });
     stations.push(...rows);
     networks.push(status(key, label, (p.source as string) ?? label, rows, p, {
       using_last_valid: retained,
@@ -118,12 +124,12 @@ export async function getStations(): Promise<StationsResponse> {
   });
   // CEDOC: live file, otherwise last valid snapshot explicitly marked as such
   const live = ((await getJson("data/cedoc.json")).data ?? {}) as Json;
-  let rows = ((live.stations as Json[]) ?? []).map((r) => normalize(r, "cedoc", now, today, true)).filter(Boolean) as Station[];
+  let rows = ((live.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
   let opts: Partial<NetworkStatus> = { warning: (live.warning as string) ?? null };
   let payload = live;
   if (!rows.length) {
     const lv = ((await getJson("data/cedoc_last_valid.json", 600)).data ?? {}) as Json;
-    rows = ((lv.stations as Json[]) ?? []).map((r) => normalize(r, "cedoc", now, today, true)).filter(Boolean) as Station[];
+    rows = ((lv.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
     if (rows.length) {
       payload = { ...lv, checked_at: live.generated_at };
       opts = { status: "degraded", using_last_valid: true,
@@ -321,6 +327,109 @@ export async function getRain48(): Promise<Rain48Response> {
   const d = ((await getJson<Json>("data/rain_48h.json", 300)).data ?? {}) as Json;
   const n = ((d.stations as unknown[]) ?? []).length;
   return { generated_at: (d.generated_at as string) ?? null, description: (d.description as string) ?? null, coverage_note: (d.coverage_note as string) ?? null, station_count: n, operational: n > 0 };
+}
+
+// ---------------------------------------------------------------- terrain elevation estimates
+// station_elevations.json (published by the data repo): ground elevation at the coordinates from the
+// Regione Sardegna DTM 10 m (fallback SRTM 30 m) — terrain height, NOT the declared sensor elevation.
+let elevPromise: Promise<Map<string, { elev: number; source: string }>> | null = null;
+function getElevations() {
+  if (!elevPromise) {
+    elevPromise = getJson<Json>("data/station_elevations.json", 86400).then(({ data }) => {
+      const m = new Map<string, { elev: number; source: string }>();
+      for (const s of ((data?.stations as Json[]) ?? [])) {
+        const e = num(s.elev);
+        if (e === null) continue;
+        const v = { elev: e, source: s.method === "regional_dtm_10m" ? "dtm10" : s.method === "srtm30m" ? "srtm30" : String(s.method ?? "stima") };
+        if (s.station_id) m.set(`${s.network}|${s.station_id}`, v);
+        if (s.name) m.set(`${s.network}|${s.name}`, v);
+      }
+      return m;
+    }).catch(() => { elevPromise = null; return new Map(); });
+  }
+  return elevPromise;
+}
+
+/** Last-resort terrain estimate for stations absent from the published dataset: Mapterhorn terrarium DEM (z12). */
+export async function getDemElevation(lat: number, lon: number): Promise<number | null> {
+  const z = 12, size = 512, n = 2 ** z;
+  const px = ((lon + 180) / 360) * n * size;
+  const latR = (lat * Math.PI) / 180;
+  const py = ((1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2) * n * size;
+  const tx = Math.floor(px / size), ty = Math.floor(py / size);
+  const r = await fetch(`https://tiles.mapterhorn.com/${z}/${tx}/${ty}.webp`);
+  if (!r.ok) return null;
+  const bmp = await createImageBitmap(await r.blob());
+  const c = document.createElement("canvas");
+  c.width = bmp.width; c.height = bmp.height;
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(bmp, 0, 0);
+  const [R, G, B, A] = ctx.getImageData(Math.floor(px - tx * size), Math.floor(py - ty * size), 1, 1).data;
+  if (A === 0) return null;
+  return Math.round(R * 256 + G + B / 256 - 32768);
+}
+
+// ---------------------------------------------------------------- station 24 h history
+export interface HistoryPoint { t: number; temp: number | null; rain: number | null }
+export interface StationHistory {
+  points: HistoryPoint[]; // epoch ms, °C, daily rain counter mm
+  tempSource: string | null; rainSource: string | null; generatedAt: string | null; tempPublished: boolean;
+}
+
+export async function getStationHistory(s: Station): Promise<StationHistory> {
+  const key = s.id.replace(/^([^:]+):/, "$1|");
+  const [hist, rain] = await Promise.all([getJson<Json>("data/station_history_24h.json", 300), getJson<Json>("data/rain_history.json", 300)]);
+  const cut = Date.now() - 24 * 3600_000;
+  const points = new Map<number, HistoryPoint>();
+  const at = (t: number) => points.get(t) ?? points.set(t, { t, temp: null, rain: null }).get(t)!;
+  // station_history_v1: [epoch_min, temp_tenths|null, rain_today_tenths|null] — real observation times
+  const hs = (hist.data?.series as Record<string, (number | null)[][]> | undefined)?.[key] ?? [];
+  for (const [m, t10, r10] of hs) {
+    const t = Number(m) * 60000;
+    if (t < cut) continue;
+    if (t10 != null) at(t).temp = t10 / 10;
+    if (r10 != null) at(t).rain = r10 / 10;
+  }
+  let rainSource: string | null = hs.some((p) => p[2] != null) ? "station_history_24h.json" : null;
+  if (!rainSource) {
+    // daily_counter_timeseries_v1 (rain 48 h chain): [epoch_min, rain_today_tenths]
+    const rs = ((rain.data?.series ?? {}) as Record<string, number[][]>);
+    const series = rs[key] ?? rs[`${s.network}|${s.name}`] ?? [];
+    for (const [m, r10] of series) { const t = m * 60000; if (t >= cut) at(t).rain = r10 / 10; }
+    if (series.length) rainSource = "rain_history.json";
+  }
+  return {
+    points: [...points.values()].sort((a, b) => a.t - b.t),
+    tempSource: hs.some((p) => p[1] != null) ? "station_history_24h.json" : null, rainSource,
+    generatedAt: (hist.data?.generated_at as string) ?? (rain.data?.generated_at as string) ?? null,
+    tempPublished: !!hist.data,
+  };
+}
+
+// ---------------------------------------------------------------- EUMETNET OPERA (RadarEU NIMBUS rain-rate tiles)
+export const OPERA_TILE_BASE = "https://tiles.radareu.cz/tiles/nimbus/rate/";
+export const operaStamp = (iso: string) => {
+  const x = new Date(iso), p = (n: number) => String(n).padStart(2, "0");
+  return `${x.getUTCFullYear()}${p(x.getUTCMonth() + 1)}${p(x.getUTCDate())}T${p(x.getUTCHours())}${p(x.getUTCMinutes())}`;
+};
+const operaProbe = (d: Date) => new Promise<boolean>((res) => {
+  const im = new Image();
+  const t = window.setTimeout(() => res(false), 4000);
+  im.onload = () => { clearTimeout(t); res(im.naturalWidth > 0); };
+  im.onerror = () => { clearTimeout(t); res(false); };
+  im.src = `${OPERA_TILE_BASE}${operaStamp(d.toISOString())}/0/0/0.png?probe=${Math.floor(Date.now() / 60000)}`;
+});
+
+export async function getOpera(): Promise<RadarFrames> {
+  const step = 15 * 60000, start = Math.floor(Date.now() / step) * step;
+  let latest: Date | null = null;
+  for (let i = 0; i < 16 && !latest; i++) { const d = new Date(start - i * step); if (await operaProbe(d)) latest = d; }
+  if (!latest) throw new Error("OPERA: nessun frame disponibile");
+  const cands = Array.from({ length: 12 }, (_, i) => new Date(latest!.getTime() - (11 - i) * step));
+  const ok = await Promise.all(cands.map((d, i) => (i === 11 ? true : operaProbe(d))));
+  const frames = cands.filter((_, i) => ok[i]).map((d) => iso(d)!); // only frames that really exist
+  return { product: "OPERA", latest_time: iso(latest)!, step_minutes: 15, frames };
 }
 
 // ---------------------------------------------------------------- EUMETSAT MTG
