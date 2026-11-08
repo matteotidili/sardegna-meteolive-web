@@ -122,3 +122,22 @@ export function createDpcLayer(product: string, iso: string, opacity: number, pa
 export const DPC_LEGEND = (product: string) =>
   `linear-gradient(90deg, ${(product === "VMI" ? DPC_VMI_BANDS : DPC_SRI_BANDS)
     .map(([t, c]) => `rgb(${c.join(",")}) ${t * 100}%`).join(", ")})`;
+
+/** Decoded DPC tile as PNG bytes (used by the MapLibre 3D custom protocol). Missing tiles → transparent PNG. */
+export async function dpcTilePng(product: string, iso: string, z: number, x: number, y: number): Promise<ArrayBuffer> {
+  const s = sourceTile({ z, x, y } as L.Coords);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 256;
+  const im = await loadImage(tileUrl(product, iso, s.z, s.x, s.y));
+  if (im) {
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+      const sz = 256 / s.scale;
+      ctx.drawImage(im, s.ox * sz, s.oy * sz, sz, sz, 0, 0, 256, 256);
+      try { decode(ctx, product); } catch { /* leave raw */ }
+    }
+  }
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+  return blob ? blob.arrayBuffer() : new ArrayBuffer(0);
+}

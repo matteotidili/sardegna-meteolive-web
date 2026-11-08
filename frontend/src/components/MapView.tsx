@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import L from "leaflet";
-import type { AlertWarning, FireDetection, Station } from "@/lib/types";
+import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
 import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
 import { createDpcLayer } from "@/lib/dpcRadar";
 import { mercatorImage } from "@/lib/mercator";
+import { WindFlowLayer, type WindField } from "@/lib/windFlow";
+import { lightningColor } from "@/lib/lightning";
+import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
 
 export type Basemap = "dark" | "satellite" | "light" | "relief";
 export interface MapViewState { center: [number, number]; zoom: number }
 
-const BASEMAPS: Record<Basemap, { url: string; attr: string; labels?: string }> = {
+export const BASEMAPS: Record<Basemap, { url: string; attr: string; labels?: string }> = {
   dark: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
@@ -41,7 +44,10 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   radar: { product: string; time: string } | null;
-  arome: { url: string; bounds: [number, number][] } | null;
+  overlay: { url: string; bounds: [number, number][]; warp: boolean; attribution: string } | null;
+  wind: WindField | null;
+  strokes: Stroke[] | null;
+  onBounds: (b: [number, number, number, number]) => void;
   opacity: number;
   onLayerReady: (key: string) => void;
   fires: FireDetection[] | null;
@@ -64,7 +70,9 @@ export default function MapView(props: Props) {
   const aromeTokenRef = useRef(0);
   const firesRef = useRef<L.LayerGroup | null>(null);
   const alertsRef = useRef<L.GeoJSON | null>(null);
-  const [zoomTick, setZoomTick] = useZoomTick();
+  const windRef = useRef<WindFlowLayer | null>(null);
+  const strokesRef = useRef<L.LayerGroup | null>(null);
+  const canvasRef = useRef<L.Canvas | null>(null);
   const cb = useRef(props);
   cb.current = props;
 
@@ -82,15 +90,26 @@ export default function MapView(props: Props) {
     m.getPane("labels")!.style.pointerEvents = "none";
     markersRef.current = L.layerGroup().addTo(m);
     firesRef.current = L.layerGroup().addTo(m);
-    m.on("zoomend", () => setZoomTick());
+    m.createPane("lightning").style.zIndex = "445";
+    m.getPane("lightning")!.style.pointerEvents = "none";
+    canvasRef.current = L.canvas({ pane: "lightning", padding: 0.5 });
+    strokesRef.current = L.layerGroup().addTo(m);
+    const emitBounds = () => {
+      const b = m.getBounds(), r = (v: number) => Math.round(v * 10) / 10;
+      cb.current.onBounds([r(b.getNorth()), r(b.getEast()), r(b.getSouth()), r(b.getWest())]);
+    };
+    emitBounds();
     m.on("moveend", () => {
       const c = m.getCenter();
       cb.current.onViewChange({ center: [+c.lat.toFixed(4), +c.lng.toFixed(4)], zoom: m.getZoom() });
+      emitBounds();
     });
     m.on("click", () => cb.current.onSelect(null));
     mapRef.current = m;
-    (window as unknown as { __map?: L.Map }).__map = m;
-    return () => { m.remove(); mapRef.current = null; };
+    mapControls.zoomIn = () => m.zoomIn();
+    mapControls.zoomOut = () => m.zoomOut();
+    mapControls.reset = () => m.flyTo(DEFAULT_CENTER, DEFAULT_ZOOM, { duration: 0.6 });
+    return () => { windRef.current?.destroy(); windRef.current = null; m.remove(); mapRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -106,8 +125,11 @@ export default function MapView(props: Props) {
   }, [props.basemap]);
 
   // fly to
+  const flySeqRef = useRef(props.flyTo?.seq ?? 0); // ignore a fly request that predates this mount
   useEffect(() => {
-    if (props.flyTo && mapRef.current) mapRef.current.flyTo([props.flyTo.lat, props.flyTo.lon], Math.max(mapRef.current.getZoom(), 10), { duration: 0.6 });
+    if (!props.flyTo || !mapRef.current || props.flyTo.seq === flySeqRef.current) return;
+    flySeqRef.current = props.flyTo.seq;
+    mapRef.current.flyTo([props.flyTo.lat, props.flyTo.lon], Math.max(mapRef.current.getZoom(), 10), { duration: 0.6 });
   }, [props.flyTo]);
 
   // station markers with zoom-aware decluttering (all networks share one placement pass)
@@ -123,38 +145,27 @@ export default function MapView(props: Props) {
       (b.s.id === props.selectedId ? 1 : 0) - (a.s.id === props.selectedId ? 1 : 0) ||
       FRESH_PRIORITY[a.f] - FRESH_PRIORITY[b.f] ||
       (NET_PRIORITY[a.s.network] ?? 9) - (NET_PRIORITY[b.s.network] ?? 9));
-    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
-    const z = m.getZoom();
-    for (const { s, v, f } of items) {
+    // Every station is always drawn as a value badge (never collapsed to a dot), at any zoom.
+    // Overlaps are resolved only by stacking order: selected > fresh > stale > historic, then network priority.
+    const total = items.length;
+    items.forEach(({ s, v, f }, rank) => {
       const text = fmtValue(v, p);
       const w = text.length * 7 + 12, h = 20;
-      const pt = m.project([s.lat, s.lon], z);
-      const box = { x0: pt.x - w / 2 - 1, y0: pt.y - h / 2 - 1, x1: pt.x + w / 2 + 1, y1: pt.y + h / 2 + 1 };
-      const overlaps = placed.some((b) => box.x0 < b.x1 && box.x1 > b.x0 && box.y0 < b.y1 && box.y1 > b.y0);
       const color = colorFor(p, v);
       const sel = s.id === props.selectedId ? " stn-sel" : "";
       const tid = `station-marker-${slug(s.id)}`;
-      let icon: L.DivIcon;
-      if (!overlaps) {
-        placed.push(box);
-        icon = L.divIcon({
-          className: "stn-icon",
-          html: `<div class="stn stn-${f} ${NET_CLASS[s.network] ?? ""}${sel}" style="--c:${color}" data-testid="${tid}">${text}</div>`,
-          iconSize: [w, h], iconAnchor: [w / 2, h / 2],
-        });
-      } else {
-        icon = L.divIcon({
-          className: "stn-icon",
-          html: `<div class="stn-dot stn-${f}${sel}" style="--c:${color}" data-testid="${tid}"></div>`,
-          iconSize: [9, 9], iconAnchor: [4.5, 4.5],
-        });
-      }
-      const mk = L.marker([s.lat, s.lon], { icon, zIndexOffset: overlaps ? -500 : 500 - FRESH_PRIORITY[f] * 100, keyboard: false });
+      const icon = L.divIcon({
+        className: "stn-icon",
+        html: `<div class="stn stn-${f} ${NET_CLASS[s.network] ?? ""}${sel}" style="--c:${color}" data-testid="${tid}">${text}</div>`,
+        iconSize: [w, h], iconAnchor: [w / 2, h / 2],
+      });
+      // zIndexOffset must dominate Leaflet's latitude-based ordering (≈ pixel y), hence the large step
+      const mk = L.marker([s.lat, s.lon], { icon, zIndexOffset: (total - rank) * 1000, keyboard: false });
       mk.bindTooltip(`${s.name} · ${text} ${p.unit}`, { direction: "top", offset: [0, -10], className: "" });
       mk.on("click", (e) => { L.DomEvent.stopPropagation(e); cb.current.onSelect(s.id); });
       g.addLayer(mk);
-    }
-  }, [props.stations, props.param, props.selectedId, zoomTick]);
+    });
+  }, [props.stations, props.param, props.selectedId]);
 
   // DPC radar — the new frame is added on top and the old one removed only when every tile is ready
   useEffect(() => {
@@ -180,30 +191,54 @@ export default function MapView(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.radar?.product, props.radar?.time]);
 
-  // AROME overlay — swap only after the warped image is ready (no blank flashes)
-  const aromeUrl = props.arome?.url;
+  // Image overlay (AROME lat/lon rasters → warped to Mercator; satellite WMS already in EPSG:3857).
+  // Swap only after the new image is ready (no blank flashes); failed frames are never shown.
+  const overlayUrl = props.overlay?.url;
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
     const token = ++aromeTokenRef.current;
-    if (!props.arome) { aromeRef.current?.remove(); aromeRef.current = null; return; }
-    const [[s, w], [n, e]] = props.arome.bounds;
-    const src = props.arome.url;
-    mercatorImage(src, s, n).then((url) => {
+    if (!props.overlay) { aromeRef.current?.remove(); aromeRef.current = null; return; }
+    const [[s, w], [n, e]] = props.overlay.bounds;
+    const { url: src, warp, attribution } = props.overlay;
+    (warp ? mercatorImage(src, s, n) : Promise.resolve(src)).then((url) => {
       if (token !== aromeTokenRef.current || !mapRef.current) return;
-      if (!url) { cb.current.onLayerReady(`arome:${src}`); return; }
-      const ov = L.imageOverlay(url, [[s, w], [n, e]], { pane: "weather", opacity: cb.current.opacity, interactive: false,
-        attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)" });
+      if (!url) { cb.current.onLayerReady(`overlay:${src}`); return; }
+      const ov = L.imageOverlay(url, [[s, w], [n, e]], { pane: "weather", opacity: cb.current.opacity, interactive: false, attribution });
       ov.once("load", () => {
         if (token !== aromeTokenRef.current) { ov.remove(); return; }
         aromeRef.current?.remove();
         aromeRef.current = ov;
-        cb.current.onLayerReady(`arome:${src}`);
+        cb.current.onLayerReady(`overlay:${src}`);
       });
+      ov.once("error", () => { ov.remove(); if (token === aromeTokenRef.current) cb.current.onLayerReady(`overlay-error:${src}`); });
       ov.addTo(mapRef.current);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aromeUrl]);
+  }, [overlayUrl]);
+
+  // AROME wind streamlines
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    if (!props.wind) { windRef.current?.destroy(); windRef.current = null; return; }
+    if (!windRef.current) windRef.current = new WindFlowLayer(m);
+    windRef.current.setField(props.wind);
+  }, [props.wind]);
+
+  // lightning strokes (canvas, colour by age)
+  useEffect(() => {
+    const g = strokesRef.current, r = canvasRef.current;
+    if (!g || !r) return;
+    g.clearLayers();
+    const now = Date.now();
+    (props.strokes ?? []).forEach((s) => {
+      const age = (now - s.time) / 60000;
+      g.addLayer(L.circleMarker([s.lat, s.lon], {
+        renderer: r, radius: age < 5 ? 5 : 3.5, weight: 1, color: "#111", fillColor: lightningColor(age), fillOpacity: 0.95, interactive: false,
+      }));
+    });
+  }, [props.strokes]);
 
   // opacity
   useEffect(() => {
@@ -247,9 +282,4 @@ export default function MapView(props: Props) {
   }, [props.alerts]);
 
   return <div ref={el} className="absolute inset-0 z-0" data-testid="map-canvas" />;
-}
-
-function useZoomTick(): [number, () => void] {
-  const [n, setN] = useState(0);
-  return [n, () => setN((x) => x + 1)];
 }

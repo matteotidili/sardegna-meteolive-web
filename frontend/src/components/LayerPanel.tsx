@@ -1,10 +1,21 @@
-import { Radar, CloudSun, Flame, ShieldAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
+import type { LightningStatus } from "@/lib/lightning";
 import { cn } from "@/lib/utils";
 
-export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "arome";
+export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "arome" | `sat-${string}`;
+
+export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
+  { key: "truecolour", title: "MTG True Colour RGB", sub: "FCI 1 km · solo diurno" },
+  { key: "ir105", title: "MTG IR10.5 µm", sub: "FCI HRFI · giorno e notte" },
+  { key: "cloudphase", title: "MTG Cloud Phase RGB", sub: "Microfisica nubi · diurno" },
+  { key: "snowfog", title: "MTG Day Snow Fog RGB", sub: "Neve, nebbia, nubi basse · diurno" },
+  { key: "preciprate", title: "H SAF H40B", sub: "Precipitation rate · prodotto derivato" },
+  { key: "li", title: "MTG Lightning Imager", sub: "Archivio satellitare · passo 5 min" },
+];
 
 interface Props {
   anim: AnimLayer;
@@ -19,16 +30,25 @@ interface Props {
   alerts: boolean;
   setAlerts: (b: boolean) => void;
   fireCount: number | null;
+  wind: boolean;
+  setWind: (b: boolean) => void;
+  windWarning: string | null;
+  is3d: boolean;
+  lightning: boolean;
+  setLightning: (b: boolean) => void;
+  lightningStatus: LightningStatus;
+  strokeCount: number;
 }
 
-function Toggle({ on, onClick, icon, title, sub, testid }: { on: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string; testid: string }) {
+function Toggle({ on, onClick, icon, title, sub, testid, disabled }: { on: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string; testid: string; disabled?: boolean }) {
   return (
     <button
       data-testid={testid}
       aria-pressed={on}
+      disabled={disabled}
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors duration-150",
+        "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50",
         on ? "border-sky-600/70 bg-sky-950/50 text-slate-50" : "border-slate-800 bg-slate-950/40 text-slate-300 hover:border-slate-700 hover:bg-slate-800/60",
       )}
     >
@@ -42,21 +62,38 @@ function Toggle({ on, onClick, icon, title, sub, testid }: { on: boolean; onClic
   );
 }
 
+const SECTION = "pt-1 text-[10px] uppercase tracking-[0.18em] text-slate-500";
+const LSTATUS: Record<LightningStatus, string> = { off: "Blitzortung / LightningMaps · ultimi 60 min", connecting: "Connessione al feed…", live: "LIVE", error: "Feed interrotto · nuovo tentativo…" };
+
 export default function LayerPanel(p: Props) {
   const groups = new Map<string, AromeResponse["parameters"]>();
   (p.arome?.parameters ?? []).forEach((x) => groups.set(x.group, [...(groups.get(x.group) ?? []), x]));
   const labelOf = (k: string) => (k === AROME_PRECIP_KEY ? "Precipitazione oraria" : p.arome?.parameters.find((x) => x.key === k)?.label ?? k);
+  const toggleAnim = (a: AnimLayer) => p.setAnim(p.anim === a ? "none" : a);
+
+  // Opacity: local state while dragging, committed on release (no re-render storm on mobile)
+  const [op, setOp] = useState(p.opacity);
+  const dragging = useRef(false);
+  useEffect(() => { if (!dragging.current) setOp(p.opacity); }, [p.opacity]);
 
   return (
     <div className="space-y-3" data-testid="layer-panel">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Osservazioni radar</div>
-      <Toggle testid="layer-toggle-radar-vmi" on={p.anim === "radar-VMI"} onClick={() => p.setAnim(p.anim === "radar-VMI" ? "none" : "radar-VMI")}
+      <div className={SECTION}>Osservazioni radar</div>
+      <Toggle testid="layer-toggle-radar-vmi" on={p.anim === "radar-VMI"} onClick={() => toggleAnim("radar-VMI")}
         icon={<Radar className="size-4" />} title="Radar DPC · VMI" sub="Massima riflettività verticale (dBZ)" />
-      <Toggle testid="layer-toggle-radar-sri" on={p.anim === "radar-SRI"} onClick={() => p.setAnim(p.anim === "radar-SRI" ? "none" : "radar-SRI")}
+      <Toggle testid="layer-toggle-radar-sri" on={p.anim === "radar-SRI"} onClick={() => toggleAnim("radar-SRI")}
         icon={<Radar className="size-4" />} title="Radar DPC · SRI" sub="Intensità di precipitazione al suolo (mm/h)" />
 
-      <div className="pt-1 text-[10px] uppercase tracking-[0.18em] text-slate-500">Modello numerico</div>
-      <Toggle testid="layer-toggle-arome" on={p.anim === "arome"} onClick={() => p.setAnim(p.anim === "arome" ? "none" : "arome")}
+      <div className={SECTION}>Satelliti EUMETSAT</div>
+      <div className="grid grid-cols-1 gap-1.5">
+        {SAT_OPTIONS.map((s) => (
+          <Toggle key={s.key} testid={`layer-toggle-sat-${s.key}`} on={p.anim === `sat-${s.key}`} onClick={() => toggleAnim(`sat-${s.key}`)}
+            icon={<Satellite className="size-4" />} title={s.title} sub={s.sub} />
+        ))}
+      </div>
+
+      <div className={SECTION}>Modello numerico</div>
+      <Toggle testid="layer-toggle-arome" on={p.anim === "arome"} onClick={() => toggleAnim("arome")}
         icon={<CloudSun className="size-4" />} title="AROME-France HD"
         sub={p.arome ? `Corsa ${p.arome.run_time.slice(11, 16)} UTC · età ${p.arome.run_age_hours.toString().replace(".", ",")} h` : "Previsione 0,01° · H+1…H+51"} />
       {p.anim === "arome" && (
@@ -82,18 +119,28 @@ export default function LayerPanel(p: Props) {
           </Select>
           {AROME_NOTES[p.aromeParam] && <p className="text-[10px] leading-snug text-amber-200/80" data-testid="arome-param-note">{AROME_NOTES[p.aromeParam]}</p>}
           {p.arome && !p.arome.complete && <p className="text-[10px] text-red-300">Corsa incompleta: {p.arome.frames.length}/{p.arome.horizon_hours} scadenze.</p>}
+          <Toggle testid="layer-toggle-wind-flow" on={p.wind && !p.is3d} disabled={p.is3d} onClick={() => p.setWind(!p.wind)}
+            icon={<Wind className="size-4" />} title="Linee di flusso vento 10 m"
+            sub={p.is3d ? "Disponibili solo in 2D" : "Sincronizzate con la scadenza · velocità illustrativa"} />
+          {p.wind && p.windWarning && <p className="text-[10px] text-amber-200/90" data-testid="wind-flow-warning">{p.windWarning}</p>}
         </div>
       )}
 
       {p.anim !== "none" && (
         <label className="block pt-1">
-          <span className="flex justify-between text-[11px] text-slate-400">Opacità layer <span className="font-num">{Math.round(p.opacity * 100)}%</span></span>
-          <input data-testid="layer-opacity-slider" type="range" min={0.3} max={1} step={0.05} value={p.opacity}
-            onChange={(e) => p.setOpacity(Number(e.target.value))} className="meteo-range" />
+          <span className="flex justify-between text-[11px] text-slate-400">Opacità layer <span className="font-num">{Math.round(op * 100)}%</span></span>
+          <input data-testid="layer-opacity-slider" type="range" min={0.3} max={1} step={0.05} value={op}
+            onPointerDown={() => { dragging.current = true; }}
+            onChange={(e) => { setOp(Number(e.target.value)); if (!dragging.current) p.setOpacity(Number(e.target.value)); }}
+            onPointerUp={() => { dragging.current = false; p.setOpacity(op); }}
+            className="meteo-range" />
         </label>
       )}
 
-      <div className="pt-1 text-[10px] uppercase tracking-[0.18em] text-slate-500">Sovrapposizioni</div>
+      <div className={SECTION}>Fulmini e sovrapposizioni</div>
+      <Toggle testid="layer-toggle-lightning" on={p.lightning} onClick={() => p.setLightning(!p.lightning)} icon={<Zap className="size-4" />}
+        title="Fulmini in tempo reale"
+        sub={p.lightning && p.lightningStatus === "live" ? `LIVE · ${p.strokeCount} scariche negli ultimi 60 min` : LSTATUS[p.lightning ? p.lightningStatus : "off"]} />
       <Toggle testid="layer-toggle-alerts" on={p.alerts} onClick={() => p.setAlerts(!p.alerts)} icon={<ShieldAlert className="size-4" />}
         title="Aree allerta MeteoAlarm" sub="Poligoni avvisi ufficiali Sardegna" />
       <Toggle testid="layer-toggle-frp" on={p.fires} onClick={() => p.setFires(!p.fires)} icon={<Flame className="size-4" />}

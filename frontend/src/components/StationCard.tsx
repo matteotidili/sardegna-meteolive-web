@@ -5,6 +5,7 @@ import {
   valueOf, windDirLabel, type ParamDef,
 } from "@/lib/meteo";
 import { cn } from "@/lib/utils";
+import ModelCompare from "@/components/ModelCompare";
 
 interface Props { station: Station; param: ParamDef; onClose: () => void; className?: string }
 
@@ -75,6 +76,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
       )}
       {rows.some((p) => p.dayBound) && !s.is_today && <p className="mt-1 text-[10px] text-slate-500">* valori del {fmtDay(s.obs_day)}</p>}
       {s.raw_message && <p className="mt-2 break-all rounded bg-slate-950/70 p-1.5 font-num text-[10px] text-slate-400" data-testid="station-card-raw">{s.raw_message}</p>}
+      <ModelCompare station={s} />
       {s.source_url && (
         <a href={s.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-sky-300 hover:underline" data-testid="station-card-source-link">
           Scheda sensore <ExternalLink className="size-3" />

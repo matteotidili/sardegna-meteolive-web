@@ -50,6 +50,21 @@ export function AromeLegend({ meta, isPrecip }: { meta: AromeParameter | undefin
   );
 }
 
+export function LightningLegend({ live, count }: { live: boolean; count: number }) {
+  const items: [string, string][] = [["#fff34d", "<5′"], ["#ff9f1a", "5–15′"], ["#ef5b35", "15–30′"], ["#b53b4b", "30–45′"], ["#6f3a44", "45–60′"]];
+  return (
+    <div data-testid="lightning-legend" className="pointer-events-auto mt-1.5 rounded-xl border border-slate-800 bg-slate-900/90 px-2.5 py-2 text-slate-200 shadow-xl backdrop-blur-xl">
+      <div className="mb-1 flex justify-between text-[10px] uppercase tracking-[0.16em] text-slate-400">
+        <span>Fulmini · età scarica</span><span className="font-num normal-case">{live ? `LIVE · ${count}` : "in connessione"}</span>
+      </div>
+      <div className="flex gap-2 text-[9px] text-slate-300">
+        {items.map(([c, l]) => <span key={l} className="inline-flex items-center gap-1"><span className="size-2.5 rounded-full border border-black" style={{ background: c }} />{l}</span>)}
+      </div>
+      <p className="mt-1 text-[9px] text-slate-500">© Blitzortung.org / LightningMaps.org · rilevazioni di rete in tempo reale</p>
+    </div>
+  );
+}
+
 export function RadarLegend({ product }: { product: string }) {
   return (
     <div className="mt-2" data-testid="radar-legend">

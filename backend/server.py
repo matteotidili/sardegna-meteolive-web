@@ -64,7 +64,9 @@ async def get_status_checks():
     return [StatusCheck(**status_check) for status_check in status_checks]
 
 from routers.meteo import router as meteo_router  # noqa: E402
+from routers.products import router as products_router  # noqa: E402
 api_router.include_router(meteo_router)
+api_router.include_router(products_router)
 
 # Include the router in the main app
 app.include_router(api_router)

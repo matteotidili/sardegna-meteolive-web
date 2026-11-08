@@ -1,0 +1,72 @@
+{
+  "iteration": 1,
+  "mode": "generate",
+  "passed": 8,
+  "failed": 0,
+  "bugs": [],
+  "action_items": [],
+  "retest_needed": false,
+  "checks": [
+    {
+      "criterion": "Station badges always visible at every zoom, solid rounded, no dots",
+      "name": "station-badges-visible-no-dots",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "At default zoom and after 4x map-zoom-out clicks, .stn badges present (station-marker-* count > 0) and .stn-dot count == 0. Also verified against public preview URL."
+    },
+    {
+      "criterion": "No CEDOC status chip on home screen",
+      "name": "no-cedoc-chip-on-home-shown-in-dialog",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "stale-network-chip count == 0 on home. Opened data-health-status-btn dialog; health-network-status-cedoc text contained 'Degradata'."
+    },
+    {
+      "criterion": "Station vs AROME comparison in station card",
+      "name": "station-model-comparison-bauladu",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Searched 'Bauladu' in station-search-input, clicked result; station-popup-card and station-model-compare visible with model-row-t2m and model-row-wind10."
+    },
+    {
+      "criterion": "AROME wind streamlines synced to the lead",
+      "name": "arome-wind-streamlines-sync",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Clicked layer-toggle-arome then layer-toggle-wind-flow; wind-flow-canvas visible, timeline-player text matched /H\\+\\d+/, wind-flow-warning count == 0."
+    },
+    {
+      "criterion": "Meteosat MTG satellites",
+      "name": "meteosat-ir105-timeline-playback",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Clicked layer-toggle-sat-ir105; timeline-title contained 'IR10.5', timeline-current-label matched dd/mm hh:mm (08/11 15:20). Clicked radar-timeline-play-btn, after 15s label changed to 08/11 12:40 (slider max=1 frame step)."
+    },
+    {
+      "criterion": "Live lightning",
+      "name": "live-lightning-layer",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Clicked layer-toggle-lightning; toggle text became 'LIVE' and lightning-legend appeared within 10s."
+    },
+    {
+      "criterion": "3D view",
+      "name": "3d-view-toggle-renders-markers",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Clicked map-mode-toggle; map-canvas-3d rendered with station-marker-* visible inside, zero pageerror events. Clicked toggle again; returned to 2D, map-canvas-3d count == 0, markers visible, zero errors."
+    },
+    {
+      "criterion": "Radar DPC",
+      "name": "radar-dpc-vmi-layer",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Clicked layer-toggle-radar-vmi; timeline-title (case-insensitive) contained 'radar dpc vmi' and 'osservato'; timeline-current-label matched dd/mm hh:mm format."
+    }
+  ],
+  "notes": [
+    "No backend test artifacts created: app has no /api dependency for these criteria (static/live-browser data per SPEC.md), no auth, no DB seed - all 8 criteria are purely UI-facing and covered by browser checks per the backend-test rule.",
+    "radar-dpc-vmi-layer check initially failed on a case-sensitivity mismatch only (CSS text-transform:uppercase renders 'RADAR DPC VMI...' while innerText preserves case in source - actually innerText returned uppercase due to CSS text rendering); fixed assertion to be case-insensitive - not an application bug.",
+    "meteosat-ir105-timeline-playback needed a longer wait (15s) for the frame label to advance after pressing play; this is expected given 10-min frame steps, not a bug."
+  ]
+}

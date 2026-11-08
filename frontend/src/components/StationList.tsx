@@ -109,8 +109,8 @@ export default function StationList({ stations, param, selectedId, onPick, netwo
               </span>
               {v !== null ? (
                 <span
-                  className={cn("rounded px-1.5 py-0.5 font-num text-xs font-semibold", f === "historic" ? "border border-dashed border-slate-600 text-slate-400" : f === "stale" ? "border border-dashed border-amber-500/60 text-slate-100" : "text-white")}
-                  style={f === "fresh" ? { background: colorFor(param, v) } : undefined}
+                  className={cn("rounded-full px-2 py-0.5 font-num text-xs font-semibold text-white", f === "historic" && "text-slate-200")}
+                  style={{ background: f === "fresh" ? colorFor(param, v) : `color-mix(in srgb, ${colorFor(param, v)} ${f === "stale" ? 85 : 62}%, #1F2937)` }}
                 >
                   {fmtValue(v, param)}
                 </span>

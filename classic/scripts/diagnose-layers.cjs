@@ -1,0 +1,226 @@
+const { chromium }=require('playwright-core');
+(async()=>{
+ const executablePath=process.env.CHROME_PATH||'/usr/bin/google-chrome';
+ const browser=await chromium.launch({headless:true,executablePath,args:['--no-sandbox','--disable-dev-shm-usage']});
+ const page=await browser.newPage({viewport:{width:1365,height:900},ignoreHTTPSErrors:false});
+ const errors=[],failed=[],logs=[];
+ page.on('pageerror',e=>errors.push('PAGEERROR '+e.message+' '+e.stack?.slice(0,400)));
+ page.on('console',m=>{if(m.type()==='error')logs.push(m.text().slice(0,280))});
+ page.on('requestfailed',r=>{if(failed.length<30)failed.push(r.url().slice(0,130)+' '+r.failure()?.errorText)});
+ const url='https://matteotidili.github.io/sardegna-meteolive-web/?test='+Date.now();
+ try{const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000});console.log('NAV',response?.status());}
+ catch(e){console.log('NAV ERROR',e.message)}
+ await page.waitForTimeout(3200);
+ for(let attempt=0;attempt<5;attempt++){
+  if(await page.locator('#aromeFlowBtn').count())break;
+  console.log('WAIT DEPLOY WIND FLOW',attempt);
+  await page.waitForTimeout(12000);
+  await page.reload({waitUntil:'domcontentloaded',timeout:45000});
+ }
+ if(await page.locator('#aromeFlowBtn').count()!==1)process.exitCode=1;
+ // All controls are in the second sidebar tab (hidden until explicitly opened).
+ await page.locator('#controlsTab').click({timeout:10000});
+ await page.waitForTimeout(250);
+ console.log('INIT',JSON.stringify(await page.evaluate(()=>({
+  map:!!document.querySelector('#map .leaflet-container'),
+  leaflet:typeof window.L,
+  panels:document.querySelectorAll('[data-acc-item]').length,
+  status:document.querySelector('#status')?.textContent,
+  subregions:document.querySelector('#subregionsBtn')?.textContent,
+  controls:document.querySelectorAll('#radarBtn,#lightningBtn,#satMetBtn,#frpBtn,#meteoalarmBtn').length,
+  leafletImgs:document.querySelectorAll('.leaflet-tile-loaded').length,
+  ready:document.readyState
+ }))));
+ // Verifica il caricamento proattivo: 22 scelte disponibili PRIMA dell'attivazione AROME.
+ try{
+  await page.waitForFunction(()=>document.querySelectorAll('#aromeProductSelect option').length===22,{timeout:20000});
+ }catch(e){console.log('AROME PRELOAD TIMEOUT',e.message.slice(0,160))}
+ const preload=await page.evaluate(()=>({
+  choices:document.querySelectorAll('#aromeProductSelect option').length,
+  status:document.getElementById('aromeProductsCount')?.textContent,
+  layerOff:document.getElementById('aromeBtn')?.lastElementChild?.textContent
+ }));
+ console.log('AROME PRELOAD',JSON.stringify(preload));
+ if(preload.choices!==22||preload.layerOff!=='OFF')process.exitCode=1;
+ const tests=[
+  ['base','boundariesBtn'],
+  ['base','subregionsBtn'],
+  ['precip','radarBtn'],
+  ['forecast','aromeBtn'],
+  ['precip','operaBtn'],
+  ['satellite','satMetBtn'],
+  ['satellite','satIr105Btn'],
+  ['fires','frpBtn'],
+  ['lightning','lightningBtn'],
+  ['alerts','meteoalarmBtn']
+ ];
+ for(const [accordion,id] of tests){
+  try{
+   const head=page.locator('[data-acc="'+accordion+'"]');
+   if((await head.getAttribute('aria-expanded'))!=='true')await head.click({timeout:5000});
+   const button=page.locator('#'+id);
+   const before=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
+   if(await button.isDisabled()){console.log('TEST '+id+' DISABLED '+before);continue}
+   await button.click({timeout:7000});
+   await page.waitForTimeout(id==='aromeBtn'?4300:850);
+   if(id==='aromeBtn'){
+    const ar=await page.evaluate(()=>{
+     const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img')).find(x=>x.src.includes('data/arome/precip_h'));
+     return {overlayOn:!!img,imageWidth:img?.naturalWidth,imageHeight:img?.naturalHeight,
+       sliderMax:document.getElementById('aromeRange')?.max,
+       forecastStamp:document.getElementById('aromeInfoStatus')?.textContent,
+       mapMinZoom:typeof map!=='undefined'?map.getMinZoom():null,
+       forecastMenuActive:document.getElementById('accAromeState')?.textContent,
+       modelVisible:document.getElementById('aromeTimeline')?.classList.contains('on')};
+    });
+    console.log('AROME',JSON.stringify(ar));
+    if(!ar.overlayOn||ar.imageWidth<2700||!ar.modelVisible||Number(ar.sliderMax)!==50||ar.mapMinZoom!==3||ar.forecastMenuActive!=='ATTIVO')process.exitCode=1;
+    const productCount=await page.locator('#aromeProductSelect option').count();
+    console.log('AROME PRODUCTS',productCount);
+    if(productCount<22)process.exitCode=1;
+    if(productCount>=22){
+     const floating=await page.evaluate(()=>({
+       visible:document.getElementById('aromeQuickPicker').classList.contains('on'),
+       options:document.querySelectorAll('#aromeQuickSelect option').length
+     }));
+     console.log('AROME FLOATING',JSON.stringify(floating));
+     if(!floating.visible||floating.options!==22)process.exitCode=1;
+     await page.locator('#aromeQuickSelect').selectOption('td2m');
+     await page.waitForTimeout(1350);
+     const quick=await page.evaluate(()=>({
+       synced:document.getElementById('aromeProductSelect').value,
+       imageWidth:Array.from(document.querySelectorAll('.leaflet-weather-pane img'))
+        .find(x=>x.src.includes('/products/td2m/'))?.naturalWidth
+     }));
+     console.log('AROME QUICK SWITCH',JSON.stringify(quick));
+     if(quick.synced!=='td2m'||quick.imageWidth<2700)process.exitCode=1;
+     for(const product of ['t2m','wind10','cape','sim_refl','precip_phase','sim_ir']){
+      await page.locator('#aromeProductSelect').selectOption(product);
+      await page.waitForTimeout(1700);
+      const check=await page.evaluate(id=>{
+       const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img'))
+         .find(x=>x.src.includes('/products/'+id+'/'));
+       return {product:id,imageURL:img?.currentSrc,imageWidth:img?.naturalWidth,
+         notes:document.getElementById('aromeProductNote')?.textContent,
+         select:document.getElementById('aromeProductSelect')?.value};
+      },product);
+      console.log('AROME PRODUCT CHECK',JSON.stringify(check));
+      if(!check.imageWidth||check.imageWidth<2700||check.select!==product)process.exitCode=1;
+      if(product==='wind10'){
+       try{
+        await page.waitForFunction(()=>typeof aromeWindFlow!=='undefined'&&
+          aromeWindFlow.enabled&&aromeWindFlow.data?.length===281*101*2&&
+          aromeWindCurrentKey.endsWith(':'+aromeForecast.frames[aromeIndex].lead_hours),{timeout:18000});
+       }catch(e){console.log('AROME WIND START TIMEOUT',e.message.slice(0,180));process.exitCode=1}
+       await page.waitForTimeout(1800);
+       const flow=await page.evaluate(()=>({
+        status:document.getElementById('aromeFlowStatus').textContent,
+        active:aromeWindFlow.enabled,hasVectors:!!aromeWindFlow.data,
+        vectorAtSardinia:aromeWindFlow.sample(9,40),
+        particles:aromeWindFlow.particles.filter(Boolean).length,
+        canvasWidth:aromeWindFlow.canvas.width,
+        canvasHeight:aromeWindFlow.canvas.height,
+        linesOn:document.getElementById('aromeFlowBtn').lastElementChild.textContent
+       }));
+       console.log('AROME WIND VECTORS',JSON.stringify(flow));
+       if(!flow.active||!flow.vectorAtSardinia||flow.particles<5||flow.linesOn!=='ON')process.exitCode=1;
+       await page.locator('#aromeFlowBtn').click();
+       const off=await page.evaluate(()=>({enabled:aromeWindFlow.enabled,text:document.getElementById('aromeFlowBtn').lastElementChild.textContent}));
+       console.log('AROME WIND TOGGLE OFF',JSON.stringify(off));
+       if(off.enabled||off.text!=='OFF')process.exitCode=1;
+       await page.locator('#aromeFlowBtn').click();
+       await page.waitForFunction(()=>aromeWindFlow.enabled,{timeout:6000}).catch(()=>process.exitCode=1);
+       await page.locator('#aromeRange').evaluate(el=>{el.value='11';el.dispatchEvent(new Event('input',{bubbles:true}))});
+       await page.waitForFunction(()=>aromeWindCurrentKey.endsWith(':12')&&aromeWindFlow.enabled,{timeout:12000}).catch(e=>{console.log('AROME WIND H12 ERROR',e.message.slice(0,250));process.exitCode=1});
+       const h12=await page.evaluate(()=>({key:aromeWindCurrentKey,enabled:aromeWindFlow.enabled,time:document.getElementById('aromeTime').textContent}));
+       console.log('AROME WIND H12',JSON.stringify(h12));
+       if(!h12.enabled||!h12.time.includes('H+12'))process.exitCode=1;
+      }
+     }
+     await page.locator('#aromeProductSelect').selectOption('precip_1h');
+     await page.waitForTimeout(600);
+    }else console.log('AROME PRODUCTS ERROR: incomplete catalog in forecast.json');
+    await page.locator('#aromeRange').evaluate(el=>{
+      el.value=el.max;
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    await page.waitForTimeout(1900);
+    const last=await page.evaluate(()=>{
+      const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img')).find(x=>x.src.includes('data/arome/precip_h51.png'));
+      return {lastFrame:!!img,imageWidth:img?.naturalWidth,
+        time:document.getElementById('aromeTime')?.textContent,
+        sliderValue:document.getElementById('aromeRange')?.value};
+    });
+    console.log('AROME H51',JSON.stringify(last));
+    if(!last.lastFrame||last.imageWidth<2700||!last.time?.includes('H+51')||last.sliderValue!=='50')process.exitCode=1;
+   }
+   const after=(await button.innerText()).replace(/\s+/g,' ').slice(0,90);
+   const css=await button.evaluate(el=>({active:el.classList.contains('active'),display:getComputedStyle(el).display,visibility:getComputedStyle(el).visibility}));
+   const status=await page.locator('#status').innerText();
+   console.log('TEST '+id+' '+JSON.stringify({before,after,css,status:status.slice(0,140),newPageErrors:errors.slice(-2)}));
+   if(after.includes('ON'))await button.click({timeout:5000}).catch(()=>{});
+  }catch(e){console.log('TEST '+id+' ERROR '+e.message.slice(0,300))}
+ }
+ console.log('PAGEERRORS',JSON.stringify(errors.slice(0,30)));
+ console.log('CONSOLEERRORS',JSON.stringify(logs.slice(0,20)));
+ console.log('REQUESTFAILED',JSON.stringify(failed.slice(0,25)));
+ // Verifica responsiva: il layer AROME deve essere disponibile su mobile senza menu invasivi.
+ const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+ const mobileErrors=[];
+ mobile.on('pageerror',e=>mobileErrors.push(e.message));
+ try{
+  await mobile.goto('https://matteotidili.github.io/sardegna-meteolive-web/?mobile-arome='+Date.now(),{waitUntil:'domcontentloaded',timeout:45000});
+  await mobile.waitForTimeout(2100);
+  // GitHub Pages può pubblicare dopo l'avvio del test: attendi il codice corrente.
+  for(let retry=0;retry<5;retry++){
+   const fresh=await mobile.evaluate(()=>!!document.querySelector('#aromeFlowBtn'));
+   if(fresh)break;
+   console.log('MOBILE WAIT DEPLOY '+retry);
+   await mobile.waitForTimeout(12000);
+   await mobile.reload({waitUntil:'domcontentloaded',timeout:35000});
+  }
+  await mobile.locator('#mobileMenu').click({timeout:10000});
+  await mobile.locator('#controlsTab').click({timeout:10000});
+  const forecast=mobile.locator('[data-acc="forecast"]');
+  if((await forecast.getAttribute('aria-expanded'))!=='true')await forecast.click({timeout:5000});
+  await mobile.locator('#aromeBtn').click({timeout:10000});
+  await mobile.waitForTimeout(3600);
+  const state=await mobile.evaluate(()=>{
+   const img=Array.from(document.querySelectorAll('.leaflet-weather-pane img')).find(x=>x.src.includes('precip_h'));
+   return {menuClosed:!document.querySelector('.panel.left').classList.contains('open'),
+     viewportWidth:window.innerWidth,
+     codeFresh:!!document.querySelector('[data-acc="forecast"]'),
+     imageWidth:img?.naturalWidth||0,forecastInfo:document.getElementById('aromeInfoStatus').textContent,
+     timelineVisible:document.getElementById('aromeTimeline').classList.contains('on')};
+  });
+  console.log('MOBILE AROME',JSON.stringify({state,mobileErrors}));
+  if(!state.menuClosed||state.imageWidth<2700||!state.timelineVisible||mobileErrors.length)process.exitCode=1;
+  await mobile.locator('#aromeQuickSelect').selectOption('wind10',{timeout:10000});
+  await mobile.waitForTimeout(2300);
+  const quickMobile=await mobile.evaluate(()=>({
+    pickerShown:getComputedStyle(document.getElementById('aromeQuickPicker')).display,
+    selected:document.getElementById('aromeQuickSelect').value,
+    sidebarValue:document.getElementById('aromeProductSelect').value,
+    imageWidth:Array.from(document.querySelectorAll('.leaflet-weather-pane img'))
+       .find(x=>x.src.includes('/products/wind10/'))?.naturalWidth
+  }));
+  console.log('MOBILE QUICK AROME',JSON.stringify(quickMobile));
+  if(quickMobile.pickerShown==='none'||quickMobile.imageWidth<2700||
+    quickMobile.selected!=='wind10'||quickMobile.sidebarValue!=='wind10')process.exitCode=1;
+  try{
+   await mobile.waitForFunction(()=>typeof aromeWindFlow!=='undefined'&&aromeWindFlow.enabled&&
+     aromeWindFlow.data?.length===281*101*2,{timeout:18000});
+   const mobileFlow=await mobile.evaluate(()=>({
+     enabled:aromeWindFlow.enabled,
+     particles:aromeWindFlow.particles.filter(Boolean).length,
+     canvasHeight:aromeWindFlow.canvas.height,
+     flowInfo:document.getElementById('aromeFlowStatus').textContent,
+     flowSettingVisible:!document.getElementById('aromeFlowControls').hidden
+   }));
+   console.log('MOBILE WIND FLOW',JSON.stringify(mobileFlow));
+   if(!mobileFlow.enabled||mobileFlow.particles<5||!mobileFlow.flowSettingVisible)process.exitCode=1;
+  }catch(e){console.log('MOBILE WIND FLOW ERROR',e.message.slice(0,300));process.exitCode=1}
+ }catch(e){console.log('MOBILE ERROR',e.message.slice(0,600));process.exitCode=1}
+ await mobile.close();
+ await browser.close();
+})().catch(e=>{console.log('FATAL',e.stack);process.exitCode=1});

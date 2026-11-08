@@ -151,3 +151,25 @@ export interface Rain48Response {
   station_count: number;
   operational: boolean;
 }
+
+// backend/models/products.py
+export interface WindFrame { lead_hours: number; valid_time: string; url: string }
+export interface WindGrid {
+  west: number; east: number; north: number; south: number; step_degrees: number;
+  width: number; height: number; encoding: string; missing: number;
+}
+export interface WindMeta { run_time: string; grid: WindGrid; frames: WindFrame[] }
+
+export interface PointValue {
+  key: string; label: string; unit: string; value: number | null; direction_deg: number | null; method: string;
+}
+export interface ModelPoint {
+  run_time: string; lead_hours: number; valid_time: string; offset_min: number; values: PointValue[]; note: string;
+}
+
+export interface SatelliteFrames {
+  product: string; label: string; layer: string; attribution: string; format: string; step_minutes: number;
+  wms_url: string; bounds: [number, number][]; frames: string[]; latest: string | null; daytime_only: boolean;
+}
+
+export interface Stroke { lat: number; lon: number; time: number }

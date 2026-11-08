@@ -37,6 +37,8 @@ if (!hotReloadDisabled) {
 export default defineConfig(async () => {
   const emergentOverlay = await loadEmergentOverlay();
   return {
+    // relative asset paths: the same build works at / (preview), /sardegna-meteolive-web/ (GitHub Pages)
+    base: "./",
     plugins: [
       react(),
       tailwindcss(),

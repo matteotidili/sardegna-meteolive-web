@@ -1,0 +1,92 @@
+name: Verifica stazioni senza marker grigi
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '.github/workflows/check-station-markers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  markers:
+    name: Verifica dati validi su mappe 2D e 3D
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Controlla marker, colori e filtri di validita
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('index.html').read_text(encoding='utf-8')
+          required=(
+            "function mapStationVisible(s){",
+            "function mapStationVisible(s){\n  // I CEDOC hanno il proprio unico marker (non duplicato tra layer).\n  return s.network!=='cedoc'&&baseVisible(s)\n}",
+            "stationMarkerValue(s,key=cur)",
+            "function stationMarkerHistorical(s,key=cur){",
+            "marks.filter(x=>mapStationVisible(x.s))",
+            "if(stationsOn)for(const st of stations.filter(mapStationVisible)){",
+            "stationMarkerHasValue(s,key)?col(s[key],P[key].st):'#173b50'",
+            "badge.no-data",
+            "station3d-mobile-marker.no-data", 
+            "value.classList.toggle('no-reading',!usable)",
+            "if(mapStationVisible(item.s)&&layer.hasLayer(item.m))",
+          )
+          for snippet in required:
+            assert snippet in html, 'Regressione stazioni: '+snippet
+          # WU sospesa: non caricare dati, catalogo o pulsante di rete.
+          assert 'const WU_ENABLED=false;' in html
+          assert 'data-net="wunderground" hidden style="display:none"' in html
+          assert "const ws=WU_ENABLED?mergeWuCatalog" in html
+          assert "WU_ENABLED?fetch(DATA+'wunderground.json" in html
+          assert "WU_ENABLED?fetch(DATA+'wunderground_app_api_health.json" in html
+          assert 'Cerchio grigio con' not in html
+          # Ultima misura conservata ma distinta dalle misure correnti con
+          # bordo ambra e data/ora originali in tooltip e popup.
+          assert "return s.network!=='cedoc'&&baseVisible(s)" in html
+          assert 'station-locator-dot' in html
+          assert 'station3d-mobile-marker.unavailable-dot' in html
+          assert "iconSize:[14,14]" in html
+          assert "label.style.display=hasValue?'block':'none'" in html
+          assert "NESSUNA MISURA RECENTE" in html
+          assert "Stazioni non aggiornate:" in html
+          assert "function stationMarkerHasValue(s,key=cur)" in html
+          assert "stationMarkerHistorical(s,cur)?' old-reading':''" in html
+          assert "Ultima osservazione: " in html
+          assert "cedoc_last_valid.json" in html
+          assert "API" in html
+          assert "Cerchio con trattino" not in html
+          assert "i numeri con bordo arancione tratteggiato sono" not in html
+          assert "const chosen=packVisibleStationIcons(candidates);" in html
+          assert "packVisibleStationIcons(standard.concat(cedoc))" in html
+          assert "renderCedocLayer(selected.cedoc)" in html
+          assert "cedocMapCandidates()" in html
+          assert "const rows=stations.filter(baseVisible).sort" in html
+          # Regressione 04/11: durante l'inizializzazione setCedocState(true)
+          # viene eseguita prima delle costanti LIVE_STATION_PARAMS e dei
+          # pulsanti dei parametri. Non avviare render() prima del bootstrap.
+          cedoc_set=html.index('function setCedocState(on){')
+          cedoc_auto=html.index('setCedocState(true);',cedoc_set)
+          live_params=html.index('const LIVE_STATION_PARAMS=')
+          assert cedoc_set<cedoc_auto<live_params, 'Ordine init CEDOC modificato: rivedere test'
+          cedoc_body=html[cedoc_set:cedoc_auto]
+          assert 'if(viewStateReady)render();' in cedoc_body, (
+            'Regressione bootstrap: CEDOC esegue render prima dei menu'
+          )
+          assert "stationParameterIsCurrent(s,key)?col(s[key],P[key].st):'#65717d'" not in html
+          scripts=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',html,re.S|re.I)
+          inline=max(scripts,key=len,default='')
+          assert len(inline)>100000, 'Script principale non trovato'
+          Path('/tmp/sardegna-meteolive-inline.js').write_text(inline,encoding='utf-8')
+          print('OK: dati correnti e ultime misure storiche numerati ma distinguibili; CEDOC in archivio')
+          PY
+      - name: Controlla sintassi JavaScript
+        run: node --check /tmp/sardegna-meteolive-inline.js

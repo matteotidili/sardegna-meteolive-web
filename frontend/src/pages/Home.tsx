@@ -1,24 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed } from "lucide-react";
+import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import MapView, { type Basemap, type MapViewState } from "@/components/MapView";
+import MapView3D from "@/components/MapView3D";
 import StationList from "@/components/StationList";
 import StationCard from "@/components/StationCard";
-import LayerPanel, { type AnimLayer } from "@/components/LayerPanel";
+import LayerPanel, { SAT_OPTIONS, type AnimLayer } from "@/components/LayerPanel";
 import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
-import { AromeLegend, RadarLegend, StationLegend } from "@/components/Legends";
-import { useAlerts, useArome, useFrp, useRadar, useRain48, useStations } from "@/hooks/useMeteo";
+import { AromeLegend, LightningLegend, RadarLegend, StationLegend } from "@/components/Legends";
+import { useAlerts, useArome, useFrp, useRadar, useRain48, useSatellite, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
-import { AROME_PRECIP_KEY, NETWORK_META, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
+import { AROME_PRECIP_KEY, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
+import { useLightning } from "@/lib/lightning";
+import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls, satelliteUrl } from "@/lib/mapControls";
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const BASEMAP_LABEL: Record<Basemap, string> = { dark: "Operativa scura", satellite: "Satellite", light: "Chiara", relief: "Rilievo" };
-const DEFAULT_VIEW: MapViewState = { center: [40.08, 9.03], zoom: 8 };
+const DEFAULT_VIEW: MapViewState = { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
 const BASE_DELAY = 900; // ms per frame at 1×
 
 export default function Home() {
@@ -32,7 +35,11 @@ export default function Home() {
   const [firesOn, setFiresOn] = usePersistentState<boolean>("fires", false);
   const [alertsOn, setAlertsOn] = usePersistentState<boolean>("alertsLayer", true);
   const [view, setView] = usePersistentState<MapViewState>("view", DEFAULT_VIEW);
-  const [initialView] = useState(view);
+  const [mode3d, setMode3d] = usePersistentState<boolean>("mode3d", false);
+  const [windOn, setWindOn] = usePersistentState<boolean>("windFlow", false);
+  const [lightningOn, setLightningOn] = usePersistentState<boolean>("lightning", false);
+  const [bbox, setBbox] = useState<[number, number, number, number] | null>(null);
+  const [satIdx, setSatIdx] = useState<number | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; seq: number } | null>(null);
@@ -51,6 +58,9 @@ export default function Home() {
   const aromeQ = useArome(true);
   const frpQ = useFrp(firesOn);
   const rain48Q = useRain48();
+  const satProduct = anim.startsWith("sat-") ? anim.slice(4) : null;
+  const satQ = useSatellite(satProduct);
+  const lightning = useLightning(lightningOn, bbox);
 
   const all = useMemo(() => (stationsQ.isError ? [] : stationsQ.data?.stations ?? []), [stationsQ.data, stationsQ.isError]);
   const counts = useMemo(() => {
@@ -84,30 +94,53 @@ export default function Home() {
 
   const radarLayer = radarProduct && radarFrames.length ? { product: radarProduct, time: radarFrames[rIdx] } : null;
   const aromeUrl = anim === "arome" ? aromeUrlAt(lIdx) : null;
-  const aromeLayer = aromeUrl && arome ? { url: aromeUrl, bounds: arome.bounds } : null;
-  const currentKey = radarLayer ? `radar:${radarLayer.time}` : aromeLayer ? `arome:${aromeLayer.url}` : "";
-  const frameReady = currentKey !== "" && readyKey === currentKey;
+  const sat = satQ.data && satProduct && !satQ.isError ? satQ.data : null;
+  const satFrames = sat?.frames ?? [];
+  const sIdx = satFrames.length ? Math.min(satIdx ?? satFrames.length - 1, satFrames.length - 1) : 0;
+  const satUrlAt = useCallback((i: number) => (sat && satFrames[i]
+    ? satelliteUrl(sat.wms_url, sat.layer, sat.format, sat.bounds, satFrames[i], isDesktop ? 1400 : 900) : null), [sat, satFrames, isDesktop]);
+  const overlay = aromeUrl && arome
+    ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)" }
+    : sat && satUrlAt(sIdx) ? { url: satUrlAt(sIdx)!, bounds: sat.bounds, warp: false, attribution: sat.attribution } : null;
+  const currentKey = radarLayer ? `radar:${radarLayer.time}` : overlay ? `overlay:${overlay.url}` : "";
+  const frameFailed = !!overlay && readyKey === `overlay-error:${overlay.url}`;
+  const frameReady = currentKey !== "" && (readyKey === currentKey || frameFailed);
+
+  // AROME wind streamlines: only with the same run as the displayed AROME field, synced to its lead
+  const windMetaQ = useWindMeta(anim === "arome" && windOn && !mode3d);
+  const windMeta = windMetaQ.data;
+  const windRunOk = !!windMeta && !!arome && windMeta.run_time === arome.run_time;
+  const windFrame = windRunOk ? windMeta!.frames.find((f) => f.lead_hours === aromeFrames[lIdx]?.lead_hours) : undefined;
+  const windQ = useWindField(anim === "arome" && windOn && !mode3d && windFrame ? windFrame.url : null, windMeta?.grid);
+  const windWarning = !windOn || anim !== "arome" ? null
+    : windMetaQ.isError ? "Vettori vento non disponibili."
+    : windMeta && arome && !windRunOk ? `Vettori della corsa ${fmtTime(windMeta.run_time)} diversa dal campo AROME mostrato: linee non visualizzate.`
+    : windMeta && !windFrame ? "Scadenza senza vettori vento pubblicati." : windQ.isError ? "File vettoriale non valido." : null;
 
   // reset timeline when the animated layer changes
-  useEffect(() => { setPlaying(false); setRadarIdx(null); }, [anim]);
+  useEffect(() => { setPlaying(false); setRadarIdx(null); setSatIdx(null); }, [anim]);
 
   // playback: advance only once the current frame is fully drawn (no partial frames)
   useEffect(() => {
     if (!playing || !frameReady) return;
     const t = window.setTimeout(() => {
       if (radarLayer) setRadarIdx((rIdx + 1) % radarFrames.length);
-      else if (aromeLayer) setLeadIdx((lIdx + 1) % aromeFrames.length);
+      else if (aromeUrl) setLeadIdx((lIdx + 1) % aromeFrames.length);
+      else if (sat) setSatIdx((sIdx + 1) % satFrames.length);
     }, BASE_DELAY / speed);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, frameReady, speed, rIdx, lIdx]);
+  }, [playing, frameReady, speed, rIdx, lIdx, sIdx]);
 
-  // prefetch the next AROME frames
+  // prefetch the next frames (AROME warped images / satellite images)
   useEffect(() => {
-    if (anim !== "arome" || !arome) return;
-    const [[s], [n]] = arome.bounds;
-    [1, 2].forEach((d) => { const u = aromeUrlAt((lIdx + d) % aromeFrames.length); if (u) void mercatorImage(u, s, n); });
-  }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length]);
+    if (anim === "arome" && arome) {
+      const [[s], [n]] = arome.bounds;
+      [1, 2].forEach((d) => { const u = aromeUrlAt((lIdx + d) % aromeFrames.length); if (u) void mercatorImage(u, s, n); });
+    } else if (sat && satFrames.length) {
+      [1, 2].forEach((d) => { const u = satUrlAt((sIdx + d) % satFrames.length); if (u) { const im = new Image(); im.crossOrigin = "anonymous"; im.src = u; } });
+    }
+  }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length, sat, sIdx, satUrlAt, satFrames.length]);
 
   const pick = (s: Station) => {
     setSelectedId(s.id);
@@ -124,14 +157,28 @@ export default function Home() {
       loading={!frameReady} legend={<RadarLegend product={radarProduct!} />}
       note="Ultime 3 ore, passo 5 min. © Dipartimento della Protezione Civile."
     />
-  ) : aromeLayer && arome ? (
+  ) : aromeUrl && arome ? (
     <TimelinePlayer
       title={`AROME HD · previsione · ${aromeParam === AROME_PRECIP_KEY ? "precipitazione oraria" : aromeMeta?.label ?? aromeParam}`}
       labels={aromeFrames.map((f) => `H+${String(f.lead_hours).padStart(2, "0")} · ${fmtDayTime(f.valid_time)}`)}
       index={lIdx} setIndex={setLeadIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady} legend={<AromeLegend meta={aromeMeta} isPrecip={aromeParam === AROME_PRECIP_KEY} />}
-      note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · celle senza dati trasparenti.`}
+      note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Linee di flusso 10 m: velocità illustrativa." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
     />
+  ) : sat ? (
+    <TimelinePlayer
+      title={`${sat.label} · osservato`}
+      labels={satFrames.map((t) => fmtTime(t))}
+      index={sIdx} setIndex={setSatIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
+      loading={!frameReady}
+      note={`${sat.attribution} · passo ${sat.step_minutes} min · solo frame verificati disponibili.${sat.daytime_only ? " Prodotto diurno: di notte l'immagine è scura." : ""}${frameFailed ? " Frame non caricato: non mostrato." : ""}`}
+    />
+  ) : satProduct && (satQ.isError || satQ.isLoading) ? (
+    <div className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-300" data-testid="satellite-status">
+      {satQ.isLoading ? "Verifica dei frame EUMETSAT disponibili…" : satProduct === "li"
+        ? "MTG Lightning Imager: nessun frame con attività nelle ultime 2 ore, oppure archivio non disponibile. Nessuna immagine mostrata."
+        : "EUMETSAT: nessun frame disponibile al momento. Nessuna immagine mostrata."}
+    </div>
   ) : anim.startsWith("radar-") && radarQ.isError ? (
     <div className="pointer-events-auto rounded-xl border border-red-900 bg-slate-900/95 p-3 text-xs text-red-200" data-testid="radar-unavailable">
       Radar-DPC: ultimo prodotto non disponibile. Nessun frame mostrato.
@@ -141,23 +188,31 @@ export default function Home() {
   const layerPanel = (
     <LayerPanel anim={anim} setAnim={setAnim} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}
       opacity={opacity} setOpacity={setOpacity} fires={firesOn} setFires={setFiresOn} alerts={alertsOn} setAlerts={setAlertsOn}
-      fireCount={frpQ.data ? frpQ.data.detections.length : null} />
+      fireCount={frpQ.data ? frpQ.data.detections.length : null} wind={windOn} setWind={setWindOn} windWarning={windWarning}
+      is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length} />
   );
   const stationList = (
     <StationList stations={visible} param={param} selectedId={selectedId} onPick={pick} networks={networks}
       onToggleNetwork={(k) => setNetworks((n) => ({ ...n, [k]: n[k] === false }))} counts={counts} loading={stationsQ.isLoading} />
   );
-  const map = () => (window as unknown as { __map?: import("leaflet").Map }).__map;
+  const mapProps = {
+    basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer, overlay, opacity,
+    onLayerReady: setReadyKey, fires: firesOn ? frpQ.data?.detections ?? null : null,
+    alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
+    strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo,
+  };
+  const legends = (
+    <>
+      <StationLegend param={param} />
+      {lightningOn && <LightningLegend live={lightning.status === "live"} count={lightning.strokes.length} />}
+    </>
+  );
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#0B0F17]">
-      <MapView
-        basemap={basemap} stations={visible} param={param} selectedId={selectedId} onSelect={setSelectedId}
-        radar={radarLayer} arome={aromeLayer} opacity={opacity} onLayerReady={setReadyKey}
-        fires={firesOn ? frpQ.data?.detections ?? null : null}
-        alerts={alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null}
-        initialView={initialView} onViewChange={setView} flyTo={flyTo}
-      />
+      {mode3d
+        ? <MapView3D key={`3d-${basemap}`} {...mapProps} />
+        : <MapView key="2d" {...mapProps} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
 
       {/* ---------- top HUD ---------- */}
       <header className="pointer-events-none fixed inset-x-2 top-2 z-30 flex flex-col gap-2 md:inset-x-4 md:top-3">
@@ -200,11 +255,6 @@ export default function Home() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <AlertBanner data={alertsQ.isError ? { source: "", feed_updated: null, generated_at: null, active_count: 0, upcoming_count: 0, max_level: 0, warnings: [], available: false } : alertsQ.data} />
-          {stationsQ.data?.networks.filter((n) => n.using_last_valid).map((n) => (
-            <span key={n.key} data-testid={`stale-network-chip-${n.key}`} className="pointer-events-auto rounded-lg border border-amber-700/60 bg-slate-900/85 px-2.5 py-1.5 text-[11px] text-amber-200 backdrop-blur-xl">
-              {NETWORK_META[n.key]?.short ?? n.label}: ultimo snapshot valido {fmtTime(n.latest_obs)} · non aggiornato
-            </span>
-          ))}
         </div>
       </header>
 
@@ -218,7 +268,7 @@ export default function Home() {
             {selected && <StationCard station={selected} param={param} onClose={() => setSelectedId(null)} className="m-2 mb-0 shrink-0 rounded-xl" />}
             {stationList}
           </aside>
-          <div className="fixed bottom-4 left-4 z-20 w-72"><StationLegend param={param} /></div>
+          <div className="fixed bottom-4 left-4 z-20 w-72">{legends}</div>
           <div className="pointer-events-none fixed bottom-4 left-[316px] right-[372px] z-20 flex justify-center">
             <div className="w-full max-w-2xl">{timeline}</div>
           </div>
@@ -231,7 +281,7 @@ export default function Home() {
           <div className="fixed bottom-3 left-2 right-2 z-20 flex flex-col gap-2" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
             {selected && <StationCard station={selected} param={param} onClose={() => setSelectedId(null)} className="max-h-[45vh] overflow-y-auto" />}
             {timeline}
-            {!selected && !timeline && <div className="self-start"><StationLegend param={param} /></div>}
+            {!selected && !timeline && <div className="self-start">{legends}</div>}
             <div className="flex gap-2">
               <Sheet open={sheet === "layers"} onOpenChange={(o) => setSheet(o ? "layers" : "none")}>
                 <SheetTrigger data-testid="mobile-layers-sheet-trigger" className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/95 text-sm text-slate-100 shadow-xl backdrop-blur-xl active:scale-[.98]">
@@ -259,9 +309,13 @@ export default function Home() {
       {/* zoom controls */}
       <div className={cn("fixed z-20 flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-900/90 shadow-xl backdrop-blur-xl",
         isDesktop ? "right-[372px] top-[124px]" : "right-2 top-[118px]")}>
-        <button data-testid="map-zoom-in" aria-label="Zoom avanti" onClick={() => map()?.zoomIn()} className="p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300"><Plus className="size-4" /></button>
-        <button data-testid="map-zoom-out" aria-label="Zoom indietro" onClick={() => map()?.zoomOut()} className="border-t border-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300"><Minus className="size-4" /></button>
-        <button data-testid="map-reset-view" aria-label="Centra sulla Sardegna" onClick={() => map()?.flyTo(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom, { duration: 0.6 })} className="border-t border-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300"><LocateFixed className="size-4" /></button>
+        <button data-testid="map-zoom-in" aria-label="Zoom avanti" onClick={() => mapControls.zoomIn()} className="p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300"><Plus className="size-4" /></button>
+        <button data-testid="map-zoom-out" aria-label="Zoom indietro" onClick={() => mapControls.zoomOut()} className="border-t border-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300"><Minus className="size-4" /></button>
+        <button data-testid="map-reset-view" aria-label="Centra sulla Sardegna" onClick={() => mapControls.reset()} className="border-t border-slate-800 p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300"><LocateFixed className="size-4" /></button>
+        <button data-testid="map-mode-toggle" aria-pressed={mode3d} aria-label="Vista 2D/3D" onClick={() => setMode3d(!mode3d)}
+          className={cn("border-t border-slate-800 p-2 font-num text-[11px] font-semibold transition-colors hover:bg-slate-800", mode3d ? "text-sky-300" : "text-slate-300")}>
+          <Box className="mx-auto size-4" />{mode3d ? "3D" : "2D"}
+        </button>
       </div>
       <span className="hidden" data-testid="map-view-state">{view.zoom}</span>
     </div>

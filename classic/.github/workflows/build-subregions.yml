@@ -1,0 +1,63 @@
+name: Genera confini subregioni storiche
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_subregions.py'
+      - '.github/workflows/build-subregions.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sardegna-historical-subregions
+  cancel-in-progress: false
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Installa librerie GIS
+        run: python -m pip install --disable-pip-version-check requests pyshp pyproj shapely
+
+      - name: Scarica sorgente GeoNue e converte in GeoJSON
+        run: python scripts/build_subregions.py
+
+      - name: Verifica struttura dati
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("data/subregioni-storiche.geojson")
+          obj=json.loads(p.read_text(encoding="utf-8"))
+          feat=obj.get("features",[])
+          names={f.get("properties",{}).get("nome","").lower() for f in feat}
+          assert len(feat)>=12 and len(names)>=12, "Dataset incompleto"
+          assert any("sulcis" in n for n in names) and any("gallura" in n for n in names)
+          print("Controllo GIS superato:",len(feat),"poligoni,",len(names),"nomi")
+          PY
+
+      - name: Pubblica GeoJSON senza sovrascrivere altro
+        run: |
+          git config user.name "sardegna-meteolive-data-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/subregioni-storiche.geojson
+          if git diff --cached --quiet; then
+            echo "Geometrie invariate"
+            exit 0
+          fi
+          git commit -m "Pubblica confini storico-geografici Sardegna (fonte GeoNue)"
+          git push origin HEAD:main

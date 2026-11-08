@@ -117,7 +117,7 @@ body { -webkit-font-smoothing: antialiased; }
 .stn-icon { background: none; border: none; }
 .stn {
     display: inline-flex; align-items: center; justify-content: center; gap: 2px;
-    height: 20px; padding: 0 6px; border-radius: 6px;
+    height: 20px; padding: 0 7px; border-radius: 999px;
     font: 600 11px/1 var(--font-mono); letter-spacing: -0.03em; color: #fff; white-space: nowrap;
     background: var(--c); box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 2px 8px rgba(0,0,0,.55);
     border: 1px solid rgba(0,0,0,.45); cursor: pointer;
@@ -125,15 +125,10 @@ body { -webkit-font-smoothing: antialiased; }
     text-shadow: 0 1px 1px rgba(0,0,0,.45);
 }
 .stn:hover { transform: scale(1.12); z-index: 10; }
-.stn-stale { background: color-mix(in srgb, var(--c) 55%, #1F2937); border: 1px dashed #F59E0B; color: #F1F5F9; }
-.stn-historic {
-    background: repeating-linear-gradient(135deg, #1F2937 0 4px, #273244 4px 8px);
-    color: #9CA3AF; border: 1px dashed color-mix(in srgb, var(--c) 80%, #F59E0B); box-shadow: 0 2px 6px rgba(0,0,0,.5);
-    text-shadow: none; font-weight: 500;
-}
+/* All badges are solid-filled (user choice). Stale/historic keep the value colour, only slightly muted. */
+.stn-stale { background: color-mix(in srgb, var(--c) 85%, #0B0F17); }
+.stn-historic { background: color-mix(in srgb, var(--c) 62%, #1F2937); color: #E5E7EB; }
 .stn-sel { outline: 2px solid #F8FAFC; outline-offset: 2px; transform: scale(1.15); }
-.stn-net-am { border-radius: 3px; }
-.stn-net-cedoc { border-radius: 10px; }
 .stn-dot {
     width: 9px; height: 9px; border-radius: 50%; background: var(--c); border: 1.5px solid rgba(11,15,23,.85);
     box-shadow: 0 1px 4px rgba(0,0,0,.6); cursor: pointer; transition: transform .14s ease;

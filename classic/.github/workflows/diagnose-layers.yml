@@ -1,0 +1,31 @@
+name: Verifica automatica interazioni layer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/diagnose-layers.cjs'
+      - '.github/workflows/diagnose-layers.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Installa driver browser
+        run: npm install --no-save --no-package-lock playwright-core@1.56.1
+      - name: Controlla Chrome disponibile
+        run: |
+          which google-chrome || which chromium || which chromium-browser
+          google-chrome --version || true
+      - name: Controlla clic e errori nella webapp pubblicata
+        run: node scripts/diagnose-layers.cjs
