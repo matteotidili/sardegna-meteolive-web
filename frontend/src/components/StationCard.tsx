@@ -91,6 +91,11 @@ export default function StationCard({ station: s, param, onClose, className }: P
       {s.raw_message && <p className="mt-2 break-all rounded bg-slate-950/70 p-1.5 font-num text-[10px] text-slate-400" data-testid="station-card-raw">{s.raw_message}</p>}
       <StationHistoryChart station={s} />
       <ModelCompare station={s} />
+      {s.network === "meteonetwork" && (
+        <p data-testid="station-card-mnw-credit" className="mt-2 text-[11px] text-slate-400">
+          Rete amatoriale · dati © <a href="https://www.meteonetwork.it" target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">MeteoNetwork</a>, licenza CC-BY 4.0
+        </p>
+      )}
       {s.source_url && (
         <a href={s.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-sky-300 hover:underline" data-testid="station-card-source-link">
           Scheda sensore <ExternalLink className="size-3" />

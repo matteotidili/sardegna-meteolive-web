@@ -37,7 +37,7 @@ export const BASEMAPS: Record<Basemap, { url: string; attr: string; labels?: str
   },
 };
 
-const NET_PRIORITY: Record<string, number> = { "aeronautica-militare": 0, "dpcn-sardegna": 1, ecowitt: 2, cedoc: 3 };
+const NET_PRIORITY: Record<string, number> = { "aeronautica-militare": 0, "dpcn-sardegna": 1, ecowitt: 2, meteonetwork: 3, cedoc: 4 };
 const FRESH_PRIORITY = { fresh: 0, stale: 1, historic: 2, unavailable: 3 } as const;
 const NET_CLASS: Record<string, string> = { "aeronautica-militare": "stn-net-am", cedoc: "stn-net-cedoc" };
 

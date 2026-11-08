@@ -50,13 +50,16 @@ const romeDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europ
 
 // ---------------------------------------------------------------- stations
 const THRESHOLDS: Record<string, [number, number]> = {
-  "dpcn-sardegna": [30, 180], "aeronautica-militare": [90, 240], ecowitt: [30, 180], cedoc: [90, 180],
+  "dpcn-sardegna": [30, 180], "aeronautica-militare": [90, 240], ecowitt: [30, 180], meteonetwork: [30, 180], cedoc: [90, 180],
 };
 const NETWORKS: [string, string, string][] = [
   ["dpcn-sardegna", "MeteoHub / DPCN", "data/stations.json"],
   ["aeronautica-militare", "Aeronautica Militare", "data/am.json"],
   ["ecowitt", "Ecowitt", "data/ecowitt.json"],
+  ["meteonetwork", "MeteoNetwork", "data/meteonetwork.json"],
 ];
+/** Networks shown only once their collector has published at least one file (no red status before activation). */
+const OPTIONAL_NETWORKS = new Set(["meteonetwork"]);
 
 function normalize(raw: Json, network: string, now: Date, today: string, rainOnly = false): Station | null {
   const lat = num(raw.lat), lon = num(raw.lon);
@@ -113,6 +116,7 @@ export async function getStations(): Promise<StationsResponse> {
     return s;
   };
   NETWORKS.forEach(([key, label], i) => {
+    if (OPTIONAL_NETWORKS.has(key) && !results[i].data) return;
     const { data, retained } = results[i];
     const p = (data ?? {}) as Json;
     const rows = ((p.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, key, now, today); return s ? [withDtm(s, r)] : []; });

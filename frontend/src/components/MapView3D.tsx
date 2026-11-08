@@ -31,7 +31,7 @@ function ensureProtocol() {
 const tiles = (u: string) => (u.includes("{s}") ? ["a", "b", "c", "d"].map((s) => u.replace("{s}", s)) : [u]).map((t) => t.replace("{r}", ""));
 const ALERT_COLORS: Record<number, string> = { 2: "#EAB308", 3: "#F97316", 4: "#DC2626" };
 const FRESH_PRIORITY = { fresh: 0, stale: 1, historic: 2, unavailable: 3 } as const;
-const NET_PRIORITY: Record<string, number> = { "aeronautica-militare": 0, "dpcn-sardegna": 1, ecowitt: 2, cedoc: 3 };
+const NET_PRIORITY: Record<string, number> = { "aeronautica-militare": 0, "dpcn-sardegna": 1, ecowitt: 2, meteonetwork: 3, cedoc: 4 };
 const EMPTY = { type: "FeatureCollection" as const, features: [] as GeoJSON.Feature[] };
 
 interface Props {

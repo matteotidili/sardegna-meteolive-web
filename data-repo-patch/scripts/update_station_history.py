@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / "data"
 OUT = ROOT / "station_history_24h.json"
-INPUTS = (("dpcn-sardegna", "stations.json"), ("aeronautica-militare", "am.json"), ("ecowitt", "ecowitt.json"))
+INPUTS = (("dpcn-sardegna", "stations.json"), ("aeronautica-militare", "am.json"), ("ecowitt", "ecowitt.json"), ("meteonetwork", "meteonetwork.json"))
 RETENTION = dt.timedelta(hours=26)
 MAX_SOURCE_AGE = dt.timedelta(minutes=95)
 MAX_POINTS = 220
