@@ -45,6 +45,7 @@ export default function Home() {
   const [municipalOn, setMunicipalOn] = usePersistentState<boolean>("municipalities", true);
   const [liveWindOn, setLiveWindOn] = usePersistentState<boolean>("liveWind", false);
   const liveWindQ = useLiveWind(liveWindOn && !mode3d);
+  const [stationArrowsOn, setStationArrowsOn] = usePersistentState<boolean>("stationArrows", true);
   const liveWindTime = liveWindQ.data?.time ? `${fmtTime(liveWindQ.data.time)} · ${new Date(liveWindQ.data.time).toISOString().slice(11, 16)} UTC` : null;
   const liveWindSub = liveWindQ.isError ? "Analisi non disponibile ora · nessun flusso mostrato"
     : liveWindQ.data ? `ICON-2I · valido ${liveWindTime} · ${liveWindQ.data.points} punti` : liveWindOn ? "Caricamento analisi…" : "Analisi modello del quarto d'ora corrente";
@@ -224,6 +225,8 @@ export default function Home() {
       fireCount={frpQ.data ? frpQ.data.detections.length : null} wind={windOn} setWind={setWindOn} windWarning={windWarning}
       is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length}
       liveWind={liveWindOn} setLiveWind={setLiveWindOn} liveWindSub={liveWindSub}
+      stationArrows={stationArrowsOn} setStationArrows={setStationArrowsOn}
+      arrowCount={visible.filter((s) => s.wind_kmh != null && s.wind_dir != null && s.freshness !== "unavailable").length}
       boundaries={boundariesOn} setBoundaries={setBoundariesOn} subregions={subregionsOn} setSubregions={setSubregionsOn}
       municipalities={municipalOn} setMunicipalities={setMunicipalOn} />
   );
@@ -250,7 +253,7 @@ export default function Home() {
     <div data-testid="app-root" data-wall={wallOn ? "on" : "off"} className={cn("fixed inset-0 overflow-hidden bg-[#0B0F17]", wallOn && "wall")}>
       {mode3d
         ? <MapView3D key={`3d-${basemap}`} {...mapProps} />
-        : <MapView key="2d" {...mapProps} liveWind={liveWindOn ? liveWindQ.data?.field ?? null : null} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
+        : <MapView key="2d" {...mapProps} liveWind={liveWindOn ? liveWindQ.data?.field ?? null : null} stationArrows={liveWindOn && stationArrowsOn} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
 
       {/* ---------- top HUD ---------- */}
       <header className="pointer-events-none fixed inset-x-2 top-2 z-30 flex flex-col gap-2 md:inset-x-4 md:top-3">

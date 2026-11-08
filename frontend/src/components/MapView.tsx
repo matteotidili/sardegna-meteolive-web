@@ -6,6 +6,8 @@ import { createDpcLayer } from "@/lib/dpcRadar";
 import { mercatorImage } from "@/lib/mercator";
 import { WindFlowLayer, type WindField } from "@/lib/windFlow";
 import { liveWindColor } from "@/lib/liveWind";
+import { sampleWind } from "@/lib/windFlow";
+import { fmtAge, windDirLabel } from "@/lib/meteo";
 import { lightningColor } from "@/lib/lightning";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
@@ -58,6 +60,7 @@ interface Props {
   onViewChange: (v: MapViewState) => void;
   flyTo: { lat: number; lon: number; seq: number } | null;
   liveWind: WindField | null;
+  stationArrows: boolean;
   boundaries: boolean;
   subregions: boolean;
   municipalities: boolean;
@@ -80,6 +83,7 @@ export default function MapView(props: Props) {
   const alertsRef = useRef<L.GeoJSON | null>(null);
   const windRef = useRef<WindFlowLayer | null>(null);
   const liveWindRef = useRef<WindFlowLayer | null>(null);
+  const arrowsRef = useRef<L.LayerGroup | null>(null);
   const strokesRef = useRef<L.LayerGroup | null>(null);
   const canvasRef = useRef<L.Canvas | null>(null);
   const boundsRef = useRef<L.LayerGroup | null>(null);
@@ -109,6 +113,8 @@ export default function MapView(props: Props) {
     m.getPane("labels")!.style.pointerEvents = "none";
     markersRef.current = L.layerGroup().addTo(m);
     firesRef.current = L.layerGroup().addTo(m);
+    m.createPane("windArrows").style.zIndex = "610";
+    arrowsRef.current = L.layerGroup().addTo(m);
     m.createPane("lightning").style.zIndex = "445";
     m.getPane("lightning")!.style.pointerEvents = "none";
     canvasRef.current = L.canvas({ pane: "lightning", padding: 0.5 });
@@ -330,6 +336,40 @@ export default function MapView(props: Props) {
     if (!liveWindRef.current) liveWindRef.current = new WindFlowLayer(m, { pane: "liveFlow", zIndex: 372, testid: "live-wind-canvas", colorFor: liveWindColor });
     liveWindRef.current.setField(props.liveWind);
   }, [props.liveWind]);
+
+  // measured station wind arrows, drawn just above each badge; popup compares with the analysis
+  useEffect(() => {
+    const g = arrowsRef.current;
+    if (!g) return;
+    g.clearLayers();
+    if (!props.stationArrows) return;
+    for (const s of props.stations) {
+      if (s.wind_kmh == null || s.wind_dir == null || s.freshness === "unavailable") continue;
+      const kmh = s.wind_kmh, calm = kmh < 1;
+      const color = liveWindColor(kmh / 3.6), to = (s.wind_dir + 180) % 360;
+      const muted = s.freshness === "historic" ? 0.45 : s.freshness === "stale" ? 0.75 : 1;
+      const svg = calm
+        ? `<svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="4.5" fill="none" stroke="${color}" stroke-width="2"/></svg>`
+        : `<svg width="26" height="26" viewBox="0 0 26 26" style="transform:rotate(${to}deg)"><path d="M13 2 L19 12 L14.6 11 L14.6 24 L11.4 24 L11.4 11 L7 12 Z" fill="${color}" stroke="#0B0F17" stroke-width="1.3" stroke-linejoin="round"/></svg>`;
+      const size = calm ? 14 : 26;
+      const icon = L.divIcon({ className: "wind-arrow", html: svg, iconSize: [size, size], iconAnchor: [size / 2, size / 2 + 22] });
+      const mk = L.marker([s.lat, s.lon], { icon, pane: "windArrows", keyboard: false, opacity: muted });
+      const uv = props.liveWind ? sampleWind(props.liveWind, s.lon, s.lat) : null;
+      let cmp = "Analisi ICON-2I non disponibile in questo punto.";
+      if (uv) {
+        const aKmh = Math.hypot(uv[0], uv[1]) * 3.6;
+        const aFrom = ((Math.atan2(-uv[0], -uv[1]) * 180) / Math.PI + 360) % 360;
+        const dDir = Math.abs(((s.wind_dir - aFrom + 540) % 360) - 180);
+        const dSpd = kmh - aKmh;
+        cmp = `Analisi ICON-2I: <b>${aKmh.toFixed(0)} km/h</b> da ${windDirLabel(aFrom)} (${aFrom.toFixed(0)}°)<br>Scarto misura − analisi: ${dSpd >= 0 ? "+" : ""}${dSpd.toFixed(0)} km/h · ${dDir.toFixed(0)}° di direzione`;
+      }
+      const name = s.name.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+      mk.bindPopup(`<div data-testid="wind-arrow-popup"><strong>${name}</strong><br>Misurato: <b>${kmh.toFixed(0)} km/h</b> da ${windDirLabel(s.wind_dir)} (${s.wind_dir.toFixed(0)}°)` +
+        `${s.gust_kmh != null ? ` · raffica ${s.gust_kmh.toFixed(0)} km/h` : ""}<br><span style="opacity:.75">Osservazione ${fmtAge(s.age_min)}${s.freshness !== "fresh" ? " · non recente" : ""}</span><br>${cmp}</div>`);
+      mk.on("click", (e) => L.DomEvent.stopPropagation(e));
+      g.addLayer(mk);
+    }
+  }, [props.stationArrows, props.stations, props.liveWind]);
 
   // lightning strokes (canvas, colour by age)
   useEffect(() => {

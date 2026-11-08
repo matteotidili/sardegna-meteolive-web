@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2 } from "lucide-react";
+import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
@@ -42,6 +42,9 @@ interface Props {
   liveWind: boolean;
   setLiveWind: (b: boolean) => void;
   liveWindSub: string;
+  stationArrows: boolean;
+  setStationArrows: (b: boolean) => void;
+  arrowCount: number;
   boundaries: boolean;
   setBoundaries: (b: boolean) => void;
   subregions: boolean;
@@ -157,6 +160,11 @@ export default function LayerPanel(p: Props) {
         <p data-testid="live-wind-note" className="px-1 text-[10px] leading-snug text-slate-400">
           Analisi ItaliaMeteo-ARPAE ICON-2I (~2 km) del quarto d'ora corrente via Open-Meteo: modello, non osservazione. Colori per velocità; animazione illustrativa.
         </p>
+      )}
+      {p.liveWind && !p.is3d && (
+        <Toggle testid="layer-toggle-station-arrows" on={p.stationArrows} onClick={() => p.setStationArrows(!p.stationArrows)}
+          icon={<Navigation className="size-4" />} title="Frecce vento stazioni"
+          sub={`Misurato · ${p.arrowCount} stazioni con direzione · tocca per confronto`} />
       )}
 
       <div className={SECTION}>Fulmini e sovrapposizioni</div>
