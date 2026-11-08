@@ -1,6 +1,7 @@
 import type { AromeParameter } from "@/lib/types";
 import { AROME_PRECIP_STOPS, PHASE_LABELS, type ParamDef } from "@/lib/meteo";
 import { DPC_LEGEND } from "@/lib/dpcRadar";
+import { LIVE_WIND_STOPS } from "@/lib/liveWind";
 
 export function StationLegend({ param }: { param: ParamDef }) {
   return (
@@ -61,6 +62,22 @@ export function LightningLegend({ live, count }: { live: boolean; count: number 
         {items.map(([c, l]) => <span key={l} className="inline-flex items-center gap-1"><span className="size-2.5 rounded-full border border-black" style={{ background: c }} />{l}</span>)}
       </div>
       <p className="mt-1 text-[9px] text-slate-500">© Blitzortung.org / LightningMaps.org · rilevazioni di rete in tempo reale</p>
+    </div>
+  );
+}
+
+export function LiveWindLegend({ time }: { time: string | null }) {
+  return (
+    <div data-testid="live-wind-legend" className="pointer-events-auto mt-1.5 rounded-xl border border-slate-800 bg-slate-900/90 px-2.5 py-2 text-slate-200 shadow-xl backdrop-blur-xl">
+      <div className="mb-1 flex justify-between gap-3 text-[10px] uppercase tracking-[0.16em] text-slate-400">
+        <span>Vento attuale 10 m</span><span className="font-num normal-case">km/h</span>
+      </div>
+      <div className="flex gap-px overflow-hidden rounded">
+        {LIVE_WIND_STOPS.map((s) => (
+          <div key={s.label} className="min-w-9 flex-1 py-0.5 text-center font-num text-[9px] font-medium text-slate-950" style={{ background: s.color }}>{s.label}</div>
+        ))}
+      </div>
+      <p data-testid="live-wind-legend-time" className="mt-1 text-[9px] text-slate-500">Analisi modello ICON-2I · {time ?? "in caricamento"} · non è una misura</p>
     </div>
   );
 }

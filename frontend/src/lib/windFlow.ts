@@ -38,6 +38,15 @@ export function sampleWind(f: WindField, lon: number, lat: number): [number, num
 
 interface Particle { lon: number; lat: number; age: number; life: number }
 
+export interface WindFlowOptions {
+  /** Leaflet pane name; each flow layer needs its own canvas. */
+  pane?: string;
+  zIndex?: number;
+  testid?: string;
+  /** Per-particle colour from wind speed (m/s); white streamlines when omitted. */
+  colorFor?: (speedMs: number) => string;
+}
+
 export class WindFlowLayer {
   private map: L.Map;
   private canvas: HTMLCanvasElement;
@@ -53,14 +62,18 @@ export class WindFlowLayer {
   private onResume = () => { this.resize(); this.start(); };
   private onVis = () => (document.hidden ? this.stop() : this.start());
 
-  constructor(map: L.Map) {
+  private colorFor: ((ms: number) => string) | undefined;
+
+  constructor(map: L.Map, opts: WindFlowOptions = {}) {
     this.map = map;
-    const pane = map.getPane("aromeFlow") ?? map.createPane("aromeFlow");
-    pane.style.zIndex = "370";
+    this.colorFor = opts.colorFor;
+    const name = opts.pane ?? "aromeFlow";
+    const pane = map.getPane(name) ?? map.createPane(name);
+    pane.style.zIndex = String(opts.zIndex ?? 370);
     pane.style.pointerEvents = "none";
     this.canvas = L.DomUtil.create("canvas", "", pane);
     Object.assign(this.canvas.style, { position: "absolute", pointerEvents: "none", opacity: "0.92" });
-    this.canvas.dataset.testid = "wind-flow-canvas";
+    this.canvas.dataset.testid = opts.testid ?? "wind-flow-canvas";
     this.ctx = this.canvas.getContext("2d")!;
     map.on("resize moveend zoomend", this.onResize);
     map.on("movestart zoomstart", this.onPause);
@@ -128,6 +141,7 @@ export class WindFlowLayer {
     ctx.globalCompositeOperation = "source-over";
     ctx.lineWidth = 1.25; ctx.lineCap = "round";
     ctx.strokeStyle = "rgba(247,252,255,.8)";
+    const byColor = this.colorFor ? new Map<string, number[]>() : null;
     ctx.shadowColor = "rgba(0,16,27,.8)"; ctx.shadowBlur = 1.6;
     const target = window.innerWidth <= 800 ? 130 : 330;
     if (this.particles.length > target) this.particles.length = target;
@@ -146,9 +160,23 @@ export class WindFlowLayer {
       const lat = p.lat + dLat, lon = p.lon + dLon;
       const b = this.map.latLngToContainerPoint([lat, lon]);
       if (a.x >= -4 && a.x <= this.w + 4 && a.y >= -4 && a.y <= this.h + 4) {
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        if (byColor) {
+          const c = this.colorFor!(Math.hypot(uv[0], uv[1]));
+          let seg = byColor.get(c);
+          if (!seg) byColor.set(c, (seg = []));
+          seg.push(a.x, a.y, b.x, b.y);
+        } else { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
       }
       p.lat = lat; p.lon = lon; p.age += 1;
+    }
+    if (byColor) {
+      ctx.lineWidth = 1.6;
+      for (const [c, seg] of byColor) {
+        ctx.strokeStyle = c;
+        ctx.beginPath();
+        for (let i = 0; i < seg.length; i += 4) { ctx.moveTo(seg[i], seg[i + 1]); ctx.lineTo(seg[i + 2], seg[i + 3]); }
+        ctx.stroke();
+      }
     }
     ctx.shadowBlur = 0;
   }

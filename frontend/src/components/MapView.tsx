@@ -5,6 +5,7 @@ import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "
 import { createDpcLayer } from "@/lib/dpcRadar";
 import { mercatorImage } from "@/lib/mercator";
 import { WindFlowLayer, type WindField } from "@/lib/windFlow";
+import { liveWindColor } from "@/lib/liveWind";
 import { lightningColor } from "@/lib/lightning";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
@@ -56,6 +57,7 @@ interface Props {
   initialView: MapViewState;
   onViewChange: (v: MapViewState) => void;
   flyTo: { lat: number; lon: number; seq: number } | null;
+  liveWind: WindField | null;
   boundaries: boolean;
   subregions: boolean;
   municipalities: boolean;
@@ -77,6 +79,7 @@ export default function MapView(props: Props) {
   const firesRef = useRef<L.LayerGroup | null>(null);
   const alertsRef = useRef<L.GeoJSON | null>(null);
   const windRef = useRef<WindFlowLayer | null>(null);
+  const liveWindRef = useRef<WindFlowLayer | null>(null);
   const strokesRef = useRef<L.LayerGroup | null>(null);
   const canvasRef = useRef<L.Canvas | null>(null);
   const boundsRef = useRef<L.LayerGroup | null>(null);
@@ -125,7 +128,7 @@ export default function MapView(props: Props) {
     mapControls.zoomIn = () => m.zoomIn();
     mapControls.zoomOut = () => m.zoomOut();
     mapControls.reset = () => m.flyTo(DEFAULT_CENTER, DEFAULT_ZOOM, { duration: 0.6 });
-    return () => { windRef.current?.destroy(); windRef.current = null; m.remove(); mapRef.current = null; };
+    return () => { windRef.current?.destroy(); windRef.current = null; liveWindRef.current?.destroy(); liveWindRef.current = null; m.remove(); mapRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -318,6 +321,15 @@ export default function MapView(props: Props) {
     if (!windRef.current) windRef.current = new WindFlowLayer(m);
     windRef.current.setField(props.wind);
   }, [props.wind]);
+
+  // current-wind streamlines (model analysis), coloured by speed, own canvas
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    if (!props.liveWind) { liveWindRef.current?.destroy(); liveWindRef.current = null; return; }
+    if (!liveWindRef.current) liveWindRef.current = new WindFlowLayer(m, { pane: "liveFlow", zIndex: 372, testid: "live-wind-canvas", colorFor: liveWindColor });
+    liveWindRef.current.setField(props.liveWind);
+  }, [props.liveWind]);
 
   // lightning strokes (canvas, colour by age)
   useEffect(() => {

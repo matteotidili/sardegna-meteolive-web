@@ -39,6 +39,9 @@ interface Props {
   setLightning: (b: boolean) => void;
   lightningStatus: LightningStatus;
   strokeCount: number;
+  liveWind: boolean;
+  setLiveWind: (b: boolean) => void;
+  liveWindSub: string;
   boundaries: boolean;
   setBoundaries: (b: boolean) => void;
   subregions: boolean;
@@ -144,6 +147,16 @@ export default function LayerPanel(p: Props) {
             onPointerUp={() => { dragging.current = false; p.setOpacity(op); }}
             className="meteo-range" />
         </label>
+      )}
+
+      <div className={SECTION}>Vento in tempo reale</div>
+      <Toggle testid="layer-toggle-live-wind" on={p.liveWind && !p.is3d} disabled={p.is3d} onClick={() => p.setLiveWind(!p.liveWind)}
+        icon={<Wind className="size-4" />} title="Flusso vento attuale 10 m"
+        sub={p.is3d ? "Disponibile solo in 2D" : p.liveWindSub} />
+      {p.liveWind && !p.is3d && (
+        <p data-testid="live-wind-note" className="px-1 text-[10px] leading-snug text-slate-400">
+          Analisi ItaliaMeteo-ARPAE ICON-2I (~2 km) del quarto d'ora corrente via Open-Meteo: modello, non osservazione. Colori per velocità; animazione illustrativa.
+        </p>
       )}
 
       <div className={SECTION}>Fulmini e sovrapposizioni</div>

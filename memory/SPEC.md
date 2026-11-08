@@ -53,3 +53,8 @@ No 3D wind streamlines; WU / WeatherLink intentionally not integrated.
 ## Operations-room positioning (iteration 6)
 - Purpose: online operations room for monitoring and nowcasting. Header subtitle "Sala operativa · Nowcasting"; index.html title/description updated.
 - "Modalità sala" (wall-mode-toggle, desktop only, key `wallMode`): browser fullscreen + screen Wake Lock, ops clock (local Europe/Rome + UTC, ops-clock), larger station badges (.wall), layer panel collapsed behind wall-layers-toggle. Exiting restores normal layout and leaves fullscreen.
+
+## Live wind flow (iteration 7)
+- Toggle "Flusso vento attuale 10 m" (layer-toggle-live-wind, key `liveWind`, default OFF, 2D only), independent from AROME flow.
+- Source (src/lib/liveWind.ts): Open-Meteo forecast API `current=wind_speed_10m,wind_direction_10m`, model italia_meteo_arpae_icon_2i, one multi-location GET over a 0.125° grid (21×23 points, 7.75–10.25E, 38.75–41.5N), browser-direct (CORS *), refresh 15 min. Labelled as MODEL ANALYSIS of the current 15-min step, not observation; valid time shown in panel + LiveWindLegend.
+- Rendered with WindFlowLayer (own pane liveFlow, canvas testid live-wind-canvas), particles coloured by km/h ramp (LIVE_WIND_STOPS). On error: no flow, message "Analisi non disponibile".

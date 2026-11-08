@@ -11,12 +11,13 @@ import LayerPanel, { SAT_OPTIONS, type AnimLayer } from "@/components/LayerPanel
 import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
-import { AromeLegend, LightningLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
+import { AromeLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
 import { useAlerts, useArome, useFrp, useRadar, useRain48, useSatellite, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
 import { AROME_PRECIP_KEY, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
 import { useLightning } from "@/lib/lightning";
+import { useLiveWind } from "@/lib/liveWind";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls, satelliteUrl } from "@/lib/mapControls";
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,11 @@ export default function Home() {
   const [boundariesOn, setBoundariesOn] = usePersistentState<boolean>("boundaries", true);
   const [subregionsOn, setSubregionsOn] = usePersistentState<boolean>("subregions", false);
   const [municipalOn, setMunicipalOn] = usePersistentState<boolean>("municipalities", true);
+  const [liveWindOn, setLiveWindOn] = usePersistentState<boolean>("liveWind", false);
+  const liveWindQ = useLiveWind(liveWindOn && !mode3d);
+  const liveWindTime = liveWindQ.data?.time ? `${fmtTime(liveWindQ.data.time)} · ${new Date(liveWindQ.data.time).toISOString().slice(11, 16)} UTC` : null;
+  const liveWindSub = liveWindQ.isError ? "Analisi non disponibile ora · nessun flusso mostrato"
+    : liveWindQ.data ? `ICON-2I · valido ${liveWindTime} · ${liveWindQ.data.points} punti` : liveWindOn ? "Caricamento analisi…" : "Analisi modello del quarto d'ora corrente";
   const [wall, setWall] = usePersistentState<boolean>("wallMode", false);
   const [wallLayers, setWallLayers] = useState(false);
   const wallOn = wall && isDesktop;
@@ -217,6 +223,7 @@ export default function Home() {
       opacity={opacity} setOpacity={setOpacity} fires={firesOn} setFires={setFiresOn} alerts={alertsOn} setAlerts={setAlertsOn}
       fireCount={frpQ.data ? frpQ.data.detections.length : null} wind={windOn} setWind={setWindOn} windWarning={windWarning}
       is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length}
+      liveWind={liveWindOn} setLiveWind={setLiveWindOn} liveWindSub={liveWindSub}
       boundaries={boundariesOn} setBoundaries={setBoundariesOn} subregions={subregionsOn} setSubregions={setSubregionsOn}
       municipalities={municipalOn} setMunicipalities={setMunicipalOn} />
   );
@@ -234,6 +241,7 @@ export default function Home() {
   const legends = (
     <>
       <StationLegend param={param} />
+      {liveWindOn && !mode3d && <LiveWindLegend time={liveWindQ.isError ? "non disponibile" : liveWindTime} />}
       {lightningOn && <LightningLegend live={lightning.status === "live"} count={lightning.strokes.length} />}
     </>
   );
@@ -242,7 +250,7 @@ export default function Home() {
     <div data-testid="app-root" data-wall={wallOn ? "on" : "off"} className={cn("fixed inset-0 overflow-hidden bg-[#0B0F17]", wallOn && "wall")}>
       {mode3d
         ? <MapView3D key={`3d-${basemap}`} {...mapProps} />
-        : <MapView key="2d" {...mapProps} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
+        : <MapView key="2d" {...mapProps} liveWind={liveWindOn ? liveWindQ.data?.field ?? null : null} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
 
       {/* ---------- top HUD ---------- */}
       <header className="pointer-events-none fixed inset-x-2 top-2 z-30 flex flex-col gap-2 md:inset-x-4 md:top-3">
