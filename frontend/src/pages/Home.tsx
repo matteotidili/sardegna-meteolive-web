@@ -39,6 +39,8 @@ export default function Home() {
   const [windOn, setWindOn] = usePersistentState<boolean>("windFlow", false);
   const [lightningOn, setLightningOn] = usePersistentState<boolean>("lightning", false);
   const [boundariesOn, setBoundariesOn] = usePersistentState<boolean>("boundaries", true);
+  const [subregionsOn, setSubregionsOn] = usePersistentState<boolean>("subregions", false);
+  const [municipalOn, setMunicipalOn] = usePersistentState<boolean>("municipalities", true);
   const [bbox, setBbox] = useState<[number, number, number, number] | null>(null);
   const [satIdx, setSatIdx] = useState<number | null>(null);
 
@@ -193,7 +195,8 @@ export default function Home() {
       opacity={opacity} setOpacity={setOpacity} fires={firesOn} setFires={setFiresOn} alerts={alertsOn} setAlerts={setAlertsOn}
       fireCount={frpQ.data ? frpQ.data.detections.length : null} wind={windOn} setWind={setWindOn} windWarning={windWarning}
       is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length}
-      boundaries={boundariesOn} setBoundaries={setBoundariesOn} />
+      boundaries={boundariesOn} setBoundaries={setBoundariesOn} subregions={subregionsOn} setSubregions={setSubregionsOn}
+      municipalities={municipalOn} setMunicipalities={setMunicipalOn} />
   );
   const stationList = (
     <StationList stations={visible} param={param} selectedId={selectedId} onPick={pick} networks={networks}
@@ -204,6 +207,7 @@ export default function Home() {
     onLayerReady: setReadyKey, fires: firesOn ? frpQ.data?.detections ?? null : null,
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
     strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo, boundaries: boundariesOn,
+    subregions: subregionsOn, municipalities: municipalOn,
   };
   const legends = (
     <>

@@ -162,3 +162,12 @@ input[type="range"].meteo-range::-moz-range-thumb {
 .live-dot { animation: live-pulse 2s ease-in-out infinite; }
 @keyframes hud-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .hud-in { animation: hud-in .28s cubic-bezier(.2,.7,.2,1) both; }
+
+/* Historic subregions labels (original style) */
+.subregions-label {
+  font-size: 10px; font-weight: 800; line-height: 1.2; color: #fff; background: #094355dd; border: 1px solid #e5ffffb3;
+  border-radius: 6px; text-shadow: 0 1px 2px #000; box-shadow: 0 2px 5px #0006;
+  padding: 3px 5px; white-space: nowrap; text-align: center; pointer-events: none;
+  width: max-content; translate: -50% -50%;
+}
+.subregions-label-3d { translate: none; z-index: 1; }

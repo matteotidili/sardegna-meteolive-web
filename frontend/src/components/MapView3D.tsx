@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { BASEMAPS, type Basemap, type MapViewState } from "@/components/MapView";
-import { BOUNDARY_HALO, BOUNDARY_LINE, loadBoundaries } from "@/lib/boundaries";
+import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, labelPoints, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
 import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
 import { dpcTilePng } from "@/lib/dpcRadar";
@@ -52,12 +52,15 @@ interface Props {
   onBounds: (b: [number, number, number, number]) => void;
   flyTo: { lat: number; lon: number; seq: number } | null;
   boundaries: boolean;
+  subregions: boolean;
+  municipalities: boolean;
 }
 
 export default function MapView3D(props: Props) {
   const el = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const readyRef = useRef(false);
+  const subLabelsRef = useRef<maplibregl.Marker[]>([]);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const radarIdRef = useRef<string | null>(null);
   const tokenRef = useRef(0);
@@ -95,6 +98,10 @@ export default function MapView3D(props: Props) {
       m.setTerrain({ source: "terrain", exaggeration: 1.4 });
       m.addSource("overlay", { type: "image", url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
       m.addLayer({ id: "overlay", type: "raster", source: "overlay", paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, b.labels ? "labels" : undefined);
+      m.addSource("municipal", { type: "geojson", data: EMPTY });
+      m.addLayer({ id: "municipal-line", type: "line", source: "municipal", minzoom: MUNICIPAL_MIN_ZOOM - 1, paint: { "line-color": MUNICIPAL_LINE.color, "line-width": MUNICIPAL_LINE.weight, "line-opacity": MUNICIPAL_LINE.opacity } });
+      m.addSource("subregions", { type: "geojson", data: EMPTY });
+      m.addLayer({ id: "subregions-line", type: "line", source: "subregions", paint: { "line-color": SUBREGION_LINE.color, "line-width": 2.4, "line-opacity": SUBREGION_LINE.opacity, "line-dasharray": [3, 2] } });
       m.addSource("bounds", { type: "geojson", data: EMPTY });
       m.addLayer({ id: "bounds-halo", type: "line", source: "bounds", paint: { "line-color": BOUNDARY_HALO.color, "line-width": BOUNDARY_HALO.weight, "line-opacity": BOUNDARY_HALO.opacity } });
       m.addLayer({ id: "bounds-line", type: "line", source: "bounds", paint: { "line-color": BOUNDARY_LINE.color, "line-width": BOUNDARY_LINE.weight, "line-opacity": BOUNDARY_LINE.opacity } });
@@ -113,16 +120,58 @@ export default function MapView3D(props: Props) {
       cb.current.onBounds([r(bb.getNorth()), r(bb.getEast()), r(bb.getSouth()), r(bb.getWest())]);
     };
     m.on("moveend", emit);
+    m.on("zoomend", () => syncSubLabels());
     m.on("click", (e) => { if (!(e.originalEvent.target as HTMLElement).closest(".stn")) cb.current.onSelect(null); });
     mapControls.zoomIn = () => m.zoomIn();
     mapControls.zoomOut = () => m.zoomOut();
     mapControls.reset = () => { if (readyRef.current) m.flyTo({ center: [DEFAULT_CENTER[1], DEFAULT_CENTER[0]], zoom: DEFAULT_ZOOM - 1, pitch: 55, bearing: -12 }); };
-    return () => { readyRef.current = false; markersRef.current.forEach((x) => x.remove()); m.remove(); mapRef.current = null; };
+    return () => { readyRef.current = false; markersRef.current.forEach((x) => x.remove()); subLabelsRef.current.forEach((x) => x.remove()); subLabelsRef.current = []; m.remove(); mapRef.current = null; };
     // basemap change remounts (key in parent)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncGeo(); syncBounds(); }
+  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncGeo(); syncBounds(); syncSubregions(); syncMunicipal(); }
+
+  function setVis(ids: string[], on: boolean) {
+    const m = mapRef.current;
+    if (!m) return;
+    ids.forEach((id) => m.getLayer(id) && m.setLayoutProperty(id, "visibility", on ? "visible" : "none"));
+  }
+
+  function syncSubregions() {
+    const m = mapRef.current;
+    if (!m || !readyRef.current) return;
+    setVis(["subregions-line"], cb.current.subregions);
+    syncSubLabels();
+    if (cb.current.subregions && !subLabelsRef.current.length) loadSubregions().then((fc) => {
+      if (mapRef.current !== m || !readyRef.current || subLabelsRef.current.length) return;
+      (m.getSource("subregions") as maplibregl.GeoJSONSource | undefined)?.setData(fc);
+      // HTML labels (no glyph server needed), same look as 2D
+      subLabelsRef.current = labelPoints(fc).features.map((f) => {
+        const div = document.createElement("div");
+        div.className = "subregions-label subregions-label-3d";
+        div.textContent = String((f.properties as { nome?: string })?.nome ?? "");
+        return new maplibregl.Marker({ element: div }).setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number]);
+      });
+      syncSubLabels();
+    }).catch((e) => console.warn("Subregioni storiche", e));
+  }
+
+  function syncSubLabels() {
+    const m = mapRef.current;
+    if (!m) return;
+    const show = cb.current.subregions && m.getZoom() >= SUBREGION_LABEL_MIN_ZOOM; // same 3D threshold as the original app
+    subLabelsRef.current.forEach((mk) => (show ? mk.addTo(m) : mk.remove()));
+  }
+
+  function syncMunicipal() {
+    const m = mapRef.current;
+    if (!m || !readyRef.current) return;
+    setVis(["municipal-line"], cb.current.municipalities);
+    if (cb.current.municipalities) loadMunicipalities().then((fc) => {
+      if (mapRef.current === m && readyRef.current) (m.getSource("municipal") as maplibregl.GeoJSONSource | undefined)?.setData(fc);
+    }).catch((e) => console.warn("Confini comunali", e));
+  }
 
   function syncBounds() {
     const m = mapRef.current;
@@ -233,6 +282,8 @@ export default function MapView3D(props: Props) {
   useEffect(syncRadar, [props.radar?.product, props.radar?.time]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncGeo, [props.alerts, props.fires, props.strokes]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncBounds, [props.boundaries]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(syncSubregions, [props.subregions]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(syncMunicipal, [props.municipalities]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !readyRef.current) return;

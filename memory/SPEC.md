@@ -45,3 +45,7 @@ No 3D wind streamlines; WU / WeatherLink intentionally not integrated.
 - Toggle "Confini amministrativi" (layer-toggle-boundaries, persisted key `boundaries`, default ON) in LayerPanel.
 - Same sources as the original static app (src/lib/boundaries.ts): geojson-italy limits_IT_regions + france-geojson Corsica; fallback repo data/sardegna.geojson. White 1.3px line over dark 3.6px halo; 2D pane "bounds" (z 370) and 3D line layers bounds-halo/bounds-line.
 - The Esri "World_Boundaries_and_Places" overlay on the satellite basemap was removed (as in the original, satellite has no label overlay).
+
+## Subregions + municipal boundaries (iteration 5)
+- "Subregioni storiche" toggle (layer-toggle-subregions, key `subregions`, default OFF): 35 polygons from repo data/subregioni-storiche.geojson (GeoNue/Nordai credit shown under toggle), dashed cyan lines + name labels from zoom 7.8 (2D divIcon .subregions-label, 3D HTML markers), popup "non è un limite amministrativo".
+- "Confini comunali" toggle (layer-toggle-municipalities, key `municipalities`, default ON): 377 Sardinian municipalities from geojson-italy limits_R_20_municipalities, thin grey lines, loaded lazily and shown only from Leaflet zoom 9 (3D minzoom 8).

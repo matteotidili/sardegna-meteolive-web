@@ -8,7 +8,7 @@ import { WindFlowLayer, type WindField } from "@/lib/windFlow";
 import { lightningColor } from "@/lib/lightning";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
-import { BOUNDARY_HALO, BOUNDARY_LINE, loadBoundaries } from "@/lib/boundaries";
+import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, bboxCenter, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
 
 export type Basemap = "dark" | "satellite" | "light" | "relief";
 export interface MapViewState { center: [number, number]; zoom: number }
@@ -57,7 +57,11 @@ interface Props {
   onViewChange: (v: MapViewState) => void;
   flyTo: { lat: number; lon: number; seq: number } | null;
   boundaries: boolean;
+  subregions: boolean;
+  municipalities: boolean;
 }
+
+const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 const ALERT_COLORS: Record<number, string> = { 2: "#EAB308", 3: "#F97316", 4: "#DC2626" };
 
@@ -76,6 +80,8 @@ export default function MapView(props: Props) {
   const strokesRef = useRef<L.LayerGroup | null>(null);
   const canvasRef = useRef<L.Canvas | null>(null);
   const boundsRef = useRef<L.LayerGroup | null>(null);
+  const subRef = useRef<{ lines: L.GeoJSON; labels: L.LayerGroup } | null>(null);
+  const muniRef = useRef<L.GeoJSON | null>(null);
   const cb = useRef(props);
   cb.current = props;
 
@@ -90,6 +96,11 @@ export default function MapView(props: Props) {
     m.createPane("weather").style.zIndex = "350";
     m.createPane("bounds").style.zIndex = "370";
     m.getPane("bounds")!.style.pointerEvents = "none";
+    m.createPane("municipal").style.zIndex = "360";
+    m.getPane("municipal")!.style.pointerEvents = "none";
+    m.createPane("subregions").style.zIndex = "375";
+    m.createPane("sublabels").style.zIndex = "395";
+    m.getPane("sublabels")!.style.pointerEvents = "none";
     m.createPane("alerts").style.zIndex = "380";
     m.createPane("labels").style.zIndex = "390";
     m.getPane("labels")!.style.pointerEvents = "none";
@@ -143,6 +154,63 @@ export default function MapView(props: Props) {
     }).catch((e) => console.warn(e));
     return () => { alive = false; };
   }, [props.boundaries]);
+
+  // historic subregions (original GeoNue/Nordai layer): dashed cyan lines, names from zoom 7.8
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    let alive = true;
+    const sync = () => {
+      const sr = subRef.current;
+      if (!sr) return;
+      const on = cb.current.subregions;
+      if (on) sr.lines.addTo(m); else sr.lines.remove();
+      if (on && m.getZoom() >= SUBREGION_LABEL_MIN_ZOOM) sr.labels.addTo(m); else sr.labels.remove();
+    };
+    if (props.subregions && !subRef.current) {
+      loadSubregions().then((fc) => {
+        if (!alive || subRef.current) return;
+        const labels = L.layerGroup();
+        const lines = L.geoJSON(fc, {
+          pane: "subregions",
+          style: () => ({ ...SUBREGION_LINE, dashArray: "7 5", fill: false }),
+          onEachFeature: (f, layer) => {
+            const name = esc(String((f.properties as { nome?: string })?.nome ?? ""));
+            layer.bindPopup(`<strong>${name}</strong><br>Confine storico-geografico indicativo. Non è un limite amministrativo.`);
+            const c = f.geometry ? bboxCenter(f.geometry) : null;
+            if (c) labels.addLayer(L.marker(c, { pane: "sublabels", interactive: false, keyboard: false, icon: L.divIcon({ className: "subregions-label", html: name, iconSize: null as unknown as L.PointExpression }) }));
+          },
+        });
+        subRef.current = { lines, labels };
+        sync();
+      }).catch((e) => console.warn("Subregioni storiche", e));
+    }
+    sync();
+    m.on("zoomend", sync);
+    return () => { alive = false; m.off("zoomend", sync); };
+  }, [props.subregions]);
+
+  // municipal boundaries: thin lines only once zoomed in enough to locate stations
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    let alive = true;
+    const sync = () => {
+      const show = cb.current.municipalities && m.getZoom() >= MUNICIPAL_MIN_ZOOM;
+      if (show && !muniRef.current) {
+        loadMunicipalities().then((fc) => {
+          if (!alive || muniRef.current) return;
+          muniRef.current = L.geoJSON(fc, { pane: "municipal", interactive: false, style: () => ({ ...MUNICIPAL_LINE, fill: false }) });
+          sync();
+        }).catch((e) => console.warn("Confini comunali", e));
+        return;
+      }
+      if (show) muniRef.current?.addTo(m); else muniRef.current?.remove();
+    };
+    sync();
+    m.on("zoomend", sync);
+    return () => { alive = false; m.off("zoomend", sync); };
+  }, [props.municipalities]);
 
   // fly to
   const flySeqRef = useRef(props.flyTo?.seq ?? 0); // ignore a fly request that predates this mount

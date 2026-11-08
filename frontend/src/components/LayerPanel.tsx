@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap, MapIcon } from "lucide-react";
+import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2 } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
 import type { LightningStatus } from "@/lib/lightning";
 import { cn } from "@/lib/utils";
+import { SUBREGIONS_CREDIT } from "@/lib/boundaries";
 
 export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | `sat-${string}`;
 
@@ -40,6 +41,10 @@ interface Props {
   strokeCount: number;
   boundaries: boolean;
   setBoundaries: (b: boolean) => void;
+  subregions: boolean;
+  setSubregions: (b: boolean) => void;
+  municipalities: boolean;
+  setMunicipalities: (b: boolean) => void;
 }
 
 function Toggle({ on, onClick, icon, title, sub, testid, disabled }: { on: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string; testid: string; disabled?: boolean }) {
@@ -147,6 +152,18 @@ export default function LayerPanel(p: Props) {
         sub={p.lightning && p.lightningStatus === "live" ? `LIVE · ${p.strokeCount} scariche negli ultimi 60 min` : LSTATUS[p.lightning ? p.lightningStatus : "off"]} />
       <Toggle testid="layer-toggle-boundaries" on={p.boundaries} onClick={() => p.setBoundaries(!p.boundaries)} icon={<MapIcon className="size-4" />}
         title="Confini amministrativi" sub="Regioni italiane e Corsica" />
+      <Toggle testid="layer-toggle-municipalities" on={p.municipalities} onClick={() => p.setMunicipalities(!p.municipalities)} icon={<Grid2x2 className="size-4" />}
+        title="Confini comunali" sub="377 comuni sardi · visibili da zoom 9" />
+      <Toggle testid="layer-toggle-subregions" on={p.subregions} onClick={() => p.setSubregions(!p.subregions)} icon={<Landmark className="size-4" />}
+        title="Subregioni storiche" sub="Limiti storico-geografici indicativi" />
+      {p.subregions && (
+        <p data-testid="subregions-note" className="px-1 text-[10px] leading-snug text-slate-400">
+          Confini storico-geografici indicativi, distinti dai limiti amministrativi.{" "}
+          <a data-testid="subregions-credit-link" href={SUBREGIONS_CREDIT.url} target="_blank" rel="noopener noreferrer" className="text-sky-400 underline">
+            Realizzato da {SUBREGIONS_CREDIT.text} sulla piattaforma GeoNue
+          </a>
+        </p>
+      )}
       <Toggle testid="layer-toggle-alerts" on={p.alerts} onClick={() => p.setAlerts(!p.alerts)} icon={<ShieldAlert className="size-4" />}
         title="Aree allerta MeteoAlarm" sub="Poligoni avvisi ufficiali Sardegna" />
       <Toggle testid="layer-toggle-frp" on={p.fires} onClick={() => p.setFires(!p.fires)} icon={<Flame className="size-4" />}
