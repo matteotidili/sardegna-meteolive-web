@@ -40,3 +40,8 @@ No 3D wind streamlines; WU / WeatherLink intentionally not integrated.
 - 24 h chart (StationHistoryChart): `data/station_history_24h.json` (station_history_v1: [epoch_min, temp10, rain10]) produced by
   `data-repo-patch/` (script + test + workflow to copy into sardegna-meteolive-data). Until published: rain only, from
   `rain_history.json` (DPCN daily counters), with explicit note. A 404 for station_history_24h.json is EXPECTED until the patch is applied.
+
+## Administrative boundaries (iteration 4)
+- Toggle "Confini amministrativi" (layer-toggle-boundaries, persisted key `boundaries`, default ON) in LayerPanel.
+- Same sources as the original static app (src/lib/boundaries.ts): geojson-italy limits_IT_regions + france-geojson Corsica; fallback repo data/sardegna.geojson. White 1.3px line over dark 3.6px halo; 2D pane "bounds" (z 370) and 3D line layers bounds-halo/bounds-line.
+- The Esri "World_Boundaries_and_Places" overlay on the satellite basemap was removed (as in the original, satellite has no label overlay).

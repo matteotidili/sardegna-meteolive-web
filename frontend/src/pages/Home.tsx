@@ -38,6 +38,7 @@ export default function Home() {
   const [mode3d, setMode3d] = usePersistentState<boolean>("mode3d", false);
   const [windOn, setWindOn] = usePersistentState<boolean>("windFlow", false);
   const [lightningOn, setLightningOn] = usePersistentState<boolean>("lightning", false);
+  const [boundariesOn, setBoundariesOn] = usePersistentState<boolean>("boundaries", true);
   const [bbox, setBbox] = useState<[number, number, number, number] | null>(null);
   const [satIdx, setSatIdx] = useState<number | null>(null);
 
@@ -191,7 +192,8 @@ export default function Home() {
     <LayerPanel anim={anim} setAnim={setAnim} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}
       opacity={opacity} setOpacity={setOpacity} fires={firesOn} setFires={setFiresOn} alerts={alertsOn} setAlerts={setAlertsOn}
       fireCount={frpQ.data ? frpQ.data.detections.length : null} wind={windOn} setWind={setWindOn} windWarning={windWarning}
-      is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length} />
+      is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length}
+      boundaries={boundariesOn} setBoundaries={setBoundariesOn} />
   );
   const stationList = (
     <StationList stations={visible} param={param} selectedId={selectedId} onPick={pick} networks={networks}
@@ -201,7 +203,7 @@ export default function Home() {
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer, overlay, opacity,
     onLayerReady: setReadyKey, fires: firesOn ? frpQ.data?.detections ?? null : null,
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
-    strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo,
+    strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo, boundaries: boundariesOn,
   };
   const legends = (
     <>

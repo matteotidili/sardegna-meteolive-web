@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { BASEMAPS, type Basemap, type MapViewState } from "@/components/MapView";
+import { BOUNDARY_HALO, BOUNDARY_LINE, loadBoundaries } from "@/lib/boundaries";
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
 import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
 import { dpcTilePng } from "@/lib/dpcRadar";
@@ -50,6 +51,7 @@ interface Props {
   onViewChange: (v: MapViewState) => void;
   onBounds: (b: [number, number, number, number]) => void;
   flyTo: { lat: number; lon: number; seq: number } | null;
+  boundaries: boolean;
 }
 
 export default function MapView3D(props: Props) {
@@ -93,6 +95,9 @@ export default function MapView3D(props: Props) {
       m.setTerrain({ source: "terrain", exaggeration: 1.4 });
       m.addSource("overlay", { type: "image", url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
       m.addLayer({ id: "overlay", type: "raster", source: "overlay", paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, b.labels ? "labels" : undefined);
+      m.addSource("bounds", { type: "geojson", data: EMPTY });
+      m.addLayer({ id: "bounds-halo", type: "line", source: "bounds", paint: { "line-color": BOUNDARY_HALO.color, "line-width": BOUNDARY_HALO.weight, "line-opacity": BOUNDARY_HALO.opacity } });
+      m.addLayer({ id: "bounds-line", type: "line", source: "bounds", paint: { "line-color": BOUNDARY_LINE.color, "line-width": BOUNDARY_LINE.weight, "line-opacity": BOUNDARY_LINE.opacity } });
       m.addSource("alerts", { type: "geojson", data: EMPTY });
       m.addLayer({ id: "alerts-fill", type: "fill", source: "alerts", paint: { "fill-color": ["get", "c"], "fill-opacity": 0.14 } });
       m.addLayer({ id: "alerts-line", type: "line", source: "alerts", paint: { "line-color": ["get", "c"], "line-width": 2 } });
@@ -117,7 +122,18 @@ export default function MapView3D(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncGeo(); }
+  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncGeo(); syncBounds(); }
+
+  function syncBounds() {
+    const m = mapRef.current;
+    if (!m || !readyRef.current) return;
+    const vis = cb.current.boundaries ? "visible" : "none";
+    m.setLayoutProperty("bounds-halo", "visibility", vis);
+    m.setLayoutProperty("bounds-line", "visibility", vis);
+    if (cb.current.boundaries) loadBoundaries().then((fc) => {
+      if (mapRef.current === m && readyRef.current) (m.getSource("bounds") as maplibregl.GeoJSONSource | undefined)?.setData(fc);
+    }).catch((e) => console.warn(e));
+  }
 
   function syncMarkers() {
     const m = mapRef.current;
@@ -216,6 +232,7 @@ export default function MapView3D(props: Props) {
   useEffect(syncOverlay, [props.overlay?.url]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncRadar, [props.radar?.product, props.radar?.time]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncGeo, [props.alerts, props.fires, props.strokes]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(syncBounds, [props.boundaries]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !readyRef.current) return;

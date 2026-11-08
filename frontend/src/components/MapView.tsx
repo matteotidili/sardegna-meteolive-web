@@ -8,6 +8,7 @@ import { WindFlowLayer, type WindField } from "@/lib/windFlow";
 import { lightningColor } from "@/lib/lightning";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
+import { BOUNDARY_HALO, BOUNDARY_LINE, loadBoundaries } from "@/lib/boundaries";
 
 export type Basemap = "dark" | "satellite" | "light" | "relief";
 export interface MapViewState { center: [number, number]; zoom: number }
@@ -20,7 +21,6 @@ export const BASEMAPS: Record<Basemap, { url: string; attr: string; labels?: str
   },
   satellite: {
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
     attr: "Esri, Maxar, Earthstar Geographics",
   },
   light: {
@@ -56,6 +56,7 @@ interface Props {
   initialView: MapViewState;
   onViewChange: (v: MapViewState) => void;
   flyTo: { lat: number; lon: number; seq: number } | null;
+  boundaries: boolean;
 }
 
 const ALERT_COLORS: Record<number, string> = { 2: "#EAB308", 3: "#F97316", 4: "#DC2626" };
@@ -74,6 +75,7 @@ export default function MapView(props: Props) {
   const windRef = useRef<WindFlowLayer | null>(null);
   const strokesRef = useRef<L.LayerGroup | null>(null);
   const canvasRef = useRef<L.Canvas | null>(null);
+  const boundsRef = useRef<L.LayerGroup | null>(null);
   const cb = useRef(props);
   cb.current = props;
 
@@ -86,6 +88,8 @@ export default function MapView(props: Props) {
       maxBounds: L.latLngBounds([30, -15], [52, 25]), preferCanvas: false,
     });
     m.createPane("weather").style.zIndex = "350";
+    m.createPane("bounds").style.zIndex = "370";
+    m.getPane("bounds")!.style.pointerEvents = "none";
     m.createPane("alerts").style.zIndex = "380";
     m.createPane("labels").style.zIndex = "390";
     m.getPane("labels")!.style.pointerEvents = "none";
@@ -121,9 +125,24 @@ export default function MapView(props: Props) {
     baseRef.current.forEach((l) => l.remove());
     const b = BASEMAPS[props.basemap];
     const layers = [L.tileLayer(b.url, { attribution: b.attr, maxZoom: 13, subdomains: "abcd" }).addTo(m)];
-    if (b.labels) layers.push(L.tileLayer(b.labels, { pane: "labels", maxZoom: 13 }).addTo(m));
+    if (b.labels) layers.push(L.tileLayer(b.labels, { pane: "labels", maxZoom: 13, subdomains: "abcd" }).addTo(m));
     baseRef.current = layers;
   }, [props.basemap]);
+
+  // administrative boundaries (original sources, white line + dark halo)
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    if (!props.boundaries) { boundsRef.current?.remove(); return; }
+    let alive = true;
+    if (boundsRef.current) { boundsRef.current.addTo(m); return; }
+    loadBoundaries().then((fc) => {
+      if (!alive || !mapRef.current) return;
+      const opt = (st: typeof BOUNDARY_LINE) => ({ pane: "bounds", interactive: false, style: () => ({ ...st, fill: false }) });
+      boundsRef.current = L.layerGroup([L.geoJSON(fc, opt(BOUNDARY_HALO)), L.geoJSON(fc, opt(BOUNDARY_LINE))]).addTo(mapRef.current);
+    }).catch((e) => console.warn(e));
+    return () => { alive = false; };
+  }, [props.boundaries]);
 
   // fly to
   const flySeqRef = useRef(props.flyTo?.seq ?? 0); // ignore a fly request that predates this mount

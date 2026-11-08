@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap } from "lucide-react";
+import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap, MapIcon } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
@@ -38,6 +38,8 @@ interface Props {
   setLightning: (b: boolean) => void;
   lightningStatus: LightningStatus;
   strokeCount: number;
+  boundaries: boolean;
+  setBoundaries: (b: boolean) => void;
 }
 
 function Toggle({ on, onClick, icon, title, sub, testid, disabled }: { on: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string; testid: string; disabled?: boolean }) {
@@ -143,6 +145,8 @@ export default function LayerPanel(p: Props) {
       <Toggle testid="layer-toggle-lightning" on={p.lightning} onClick={() => p.setLightning(!p.lightning)} icon={<Zap className="size-4" />}
         title="Fulmini in tempo reale"
         sub={p.lightning && p.lightningStatus === "live" ? `LIVE · ${p.strokeCount} scariche negli ultimi 60 min` : LSTATUS[p.lightning ? p.lightningStatus : "off"]} />
+      <Toggle testid="layer-toggle-boundaries" on={p.boundaries} onClick={() => p.setBoundaries(!p.boundaries)} icon={<MapIcon className="size-4" />}
+        title="Confini amministrativi" sub="Regioni italiane e Corsica" />
       <Toggle testid="layer-toggle-alerts" on={p.alerts} onClick={() => p.setAlerts(!p.alerts)} icon={<ShieldAlert className="size-4" />}
         title="Aree allerta MeteoAlarm" sub="Poligoni avvisi ufficiali Sardegna" />
       <Toggle testid="layer-toggle-frp" on={p.fires} onClick={() => p.setFires(!p.fires)} icon={<Flame className="size-4" />}
