@@ -17,15 +17,19 @@ export interface ParamDef {
   rain: boolean; // includes rain-only gauges (CEDOC)
 }
 
-const TEMP: RampStop[] = [
-  { max: 0, color: "#3B82F6", label: "<0" },
-  { max: 8, color: "#06B6D4", label: "0–8" },
-  { max: 15, color: "#10B981", label: "8–15" },
-  { max: 22, color: "#84CC16", label: "15–22" },
-  { max: 28, color: "#EAB308", label: "22–28" },
-  { max: 35, color: "#F97316", label: "28–35" },
-  { max: Infinity, color: "#EF4444", label: ">35" },
-];
+// Colori continui per temperatura, Tmin e Tmax: gli stessi nodi
+// alimentano sia i marker sia il gradiente della legenda.
+export const TEMP_GRADIENT = [
+  { value: -10, color: "#1D4ED8" },
+  { value: 0, color: "#3B82F6" },
+  { value: 8, color: "#06B6D4" },
+  { value: 15, color: "#10B981" },
+  { value: 22, color: "#84CC16" },
+  { value: 28, color: "#EAB308" },
+  { value: 35, color: "#F97316" },
+  { value: 42, color: "#EF4444" },
+] as const;
+const TEMP: RampStop[] = TEMP_GRADIENT.map(({ value, color }) => ({ max: value, color, label: String(value) }));
 const RAIN: RampStop[] = [
   { max: 0.2, color: "#64748B", label: "<0,2" },
   { max: 5, color: "#38BDF8", label: "0,2–5" },
@@ -86,7 +90,22 @@ export const NETWORK_META: Record<string, { label: string; short: string; color:
 };
 
 export function colorFor(p: ParamDef, v: number): string {
-  return (p.ramp.find((s) => v <= s.max) ?? p.ramp[p.ramp.length - 1]).color;
+  if (p.key === "temp" || p.key === "tmin" || p.key === "tmax") {
+    // Interpolazione lineare RGB: il colore non salta più fra soglie discrete.
+    const stops = TEMP_GRADIENT;
+    if (v <= stops[0].value) return stops[0].color;
+    for (let i = 1; i < stops.length; i++) {
+      const a = stops[i - 1], b = stops[i];
+      if (v <= b.value) {
+        const t = (v - a.value) / (b.value - a.value);
+        const ca = [1, 3, 5].map((k) => parseInt(a.color.slice(k, k + 2), 16));
+        const cb = [1, 3, 5].map((k) => parseInt(b.color.slice(k, k + 2), 16));
+        return "#" + ca.map((x, j) => Math.round(x + (cb[j] - x) * t).toString(16).padStart(2, "0")).join("");
+      }
+    }
+    return stops[stops.length - 1].color;
+  }
+  return (p.ramp.find((stop) => v <= stop.max) ?? p.ramp[p.ramp.length - 1]).color;
 }
 
 export function valueOf(s: Station, p: ParamDef): number | null {
