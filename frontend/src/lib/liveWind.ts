@@ -155,7 +155,12 @@ async function fetchGrid(spec: GridSpec): Promise<GridResult> {
   }
 }
 
-const toField = (spec: GridSpec, r: GridResult): WindField => ({ grid: spec.grid, vec: Float32Array.from(r.vec) });
+// JSON di localStorage serializza NaN come null: preservarli come dati mancanti
+// invece di convertirli a vento calmo (0 m/s) quando si ripristina la cache.
+const toField = (spec: GridSpec, r: GridResult): WindField => ({
+  grid: spec.grid,
+  vec: Float32Array.from(r.vec, (value) => typeof value === "number" && Number.isFinite(value) ? value : NaN),
+});
 
 /** Mediterranean field with the Sardinia ICON-2I field nested inside (sampled first). */
 export function useLiveWind(enabled: boolean) {
