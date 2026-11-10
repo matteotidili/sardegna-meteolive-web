@@ -47,8 +47,10 @@ export default function Home() {
   const liveWindQ = useLiveWind(liveWindOn && !mode3d);
   const [stationArrowsOn, setStationArrowsOn] = usePersistentState<boolean>("stationArrows", true);
   const liveWindTime = liveWindQ.data?.time ? `${fmtTime(liveWindQ.data.time)} · ${new Date(liveWindQ.data.time).toISOString().slice(11, 16)} UTC` : null;
-  const liveWindSub = liveWindQ.isError ? "Analisi non disponibile ora · nessun flusso mostrato"
-    : liveWindQ.data ? `Mediterraneo + ICON-2I Sardegna · valido ${liveWindTime}${liveWindQ.partial ? " · parziale" : ""}` : liveWindOn ? "Caricamento analisi…" : "Analisi modello del quarto d'ora corrente";
+  const liveWindSub = liveWindQ.isError ? "Campo modellistico non disponibile · riprova più tardi"
+    : liveWindQ.data
+      ? `Vento 10 m · valido ${liveWindTime}${liveWindQ.cachedFallback ? " · ultimo campo disponibile" : liveWindQ.partial ? " · copertura parziale" : ""}`
+      : liveWindOn ? "Caricamento campo del vento…" : "Previsione del vento valida per l'ora corrente";
   const [wall, setWall] = usePersistentState<boolean>("wallMode", false);
   const [wallLayers, setWallLayers] = useState(false);
   const wallOn = wall && isDesktop;
