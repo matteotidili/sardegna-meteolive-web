@@ -1,24 +1,35 @@
 import type { AromeParameter } from "@/lib/types";
-import { AROME_PRECIP_STOPS, PHASE_LABELS, type ParamDef } from "@/lib/meteo";
+import { AROME_PRECIP_STOPS, PHASE_LABELS, TEMP_GRADIENT, type ParamDef } from "@/lib/meteo";
 import { DPC_LEGEND } from "@/lib/dpcRadar";
 import { LIVE_WIND_STOPS } from "@/lib/liveWind";
 
 export function StationLegend({ param }: { param: ParamDef }) {
+  const temperature = param.key === "temp" || param.key === "tmin" || param.key === "tmax";
+  const low = TEMP_GRADIENT[0].value;
+  const high = TEMP_GRADIENT[TEMP_GRADIENT.length - 1].value;
+  const gradient = TEMP_GRADIENT.map(
+    ({ value, color }) => `${color} ${(((value - low) / (high - low)) * 100).toFixed(2)}%`
+  ).join(", ");
+
   return (
     <div data-testid="station-legend" className="pointer-events-auto rounded-xl border border-slate-800 bg-slate-900/90 px-2.5 py-2 text-slate-200 shadow-xl backdrop-blur-xl">
       <div className="mb-1 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.16em] text-slate-400">
         <span>{param.label}</span><span className="font-num normal-case">{param.unit}</span>
       </div>
-      <div className="flex gap-px overflow-hidden rounded">
-        {param.ramp.map((s) => (
-          <div key={s.label} className="min-w-9 flex-1 py-0.5 text-center font-num text-[9px] font-medium text-white" style={{ background: s.color }}>{s.label}</div>
-        ))}
-      </div>
-      <div className="mt-1.5 flex items-center gap-2.5 text-[9px] text-slate-400">
-        <span className="inline-flex items-center gap-1"><span className="stn" style={{ ["--c" as string]: "#10B981", height: 12, padding: "0 4px", fontSize: 8 }}>12</span>recente</span>
-        <span className="inline-flex items-center gap-1"><span className="stn stn-stale" style={{ ["--c" as string]: "#10B981", height: 12, padding: "0 4px", fontSize: 8 }}>12</span>in ritardo</span>
-        <span className="inline-flex items-center gap-1"><span className="stn stn-historic" style={{ ["--c" as string]: "#10B981", height: 12, padding: "0 4px", fontSize: 8 }}>12</span>storico</span>
-      </div>
+      {temperature ? (
+        <>
+          <div data-testid="station-temperature-gradient" className="h-2.5 w-full rounded-md border border-white/10" style={{ background: `linear-gradient(90deg, ${gradient})` }} role="img" aria-label="Gradiente continuo delle temperature da -10 a 42 gradi Celsius" />
+          <div className="mt-1 flex justify-between font-num text-[9px] tabular-nums text-slate-300">
+            {[-10, 0, 10, 20, 30, 40].map((value) => <span key={value}>{value}</span>)}
+          </div>
+        </>
+      ) : (
+        <div className="flex gap-px overflow-hidden rounded">
+          {param.ramp.map((stop) => (
+            <div key={stop.label} className="min-w-9 flex-1 py-0.5 text-center font-num text-[9px] font-medium text-white" style={{ background: stop.color }}>{stop.label}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
