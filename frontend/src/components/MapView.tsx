@@ -7,7 +7,7 @@ import { mercatorImage } from "@/lib/mercator";
 import { WindFlowLayer, type WindField } from "@/lib/windFlow";
 import { liveWindColor } from "@/lib/liveWind";
 import { sampleWind } from "@/lib/windFlow";
-import { fmtAge, windDirLabel } from "@/lib/meteo";
+import { fmtTime, windDirLabel } from "@/lib/meteo";
 import { lightningColor } from "@/lib/lightning";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
@@ -365,7 +365,7 @@ export default function MapView(props: Props) {
       }
       const name = s.name.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
       mk.bindPopup(`<div data-testid="wind-arrow-popup"><strong>${name}</strong><br>Misurato: <b>${kmh.toFixed(0)} km/h</b> da ${windDirLabel(s.wind_dir)} (${s.wind_dir.toFixed(0)}°)` +
-        `${s.gust_kmh != null ? ` · raffica ${s.gust_kmh.toFixed(0)} km/h` : ""}<br><span style="opacity:.75">Osservazione ${fmtAge(s.age_min)}${s.freshness !== "fresh" ? " · non recente" : ""}</span><br>${cmp}</div>`);
+        `${s.gust_kmh != null ? ` · raffica ${s.gust_kmh.toFixed(0)} km/h` : ""}<br><span style="opacity:.75">Osservazione: ${fmtTime(s.last)}</span><br>${cmp}</div>`);
       mk.on("click", (e) => L.DomEvent.stopPropagation(e));
       g.addLayer(mk);
     }
