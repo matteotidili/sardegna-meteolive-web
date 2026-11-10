@@ -1,7 +1,7 @@
 import { X, ExternalLink, Mountain, Clock } from "lucide-react";
 import type { Station } from "@/lib/types";
 import {
-  FRESHNESS_CLASS, FRESHNESS_LABEL, NETWORK_META, PARAMS, fmtAge, fmtDay, fmtTime, fmtValue, freshnessFor,
+  NETWORK_META, PARAMS, fmtDay, fmtTime, fmtValue,
   valueOf, windDirLabel, type ParamDef,
 } from "@/lib/meteo";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,6 @@ interface Props { station: Station; param: ParamDef; onClose: () => void; classN
 
 export default function StationCard({ station: s, param, onClose, className }: Props) {
   const net = NETWORK_META[s.network];
-  const f = freshnessFor(s, param);
   const v = valueOf(s, param);
   const rows = PARAMS.filter((p) => p.key !== param.key && valueOf(s, p) !== null);
   const dem = useDemElevation(s);
@@ -45,20 +44,12 @@ export default function StationCard({ station: s, param, onClose, className }: P
           {v !== null && <span className="ml-1 text-sm font-normal text-slate-400">{param.unit}</span>}
         </div>
       </div>
-      {param.dayBound && !s.is_today && v !== null && (
-        <div className="mt-1 rounded-md border border-amber-600/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200" data-testid="station-card-day-warning">
-          Valore del giorno {fmtDay(s.obs_day)} – NON riferito a oggi
-        </div>
-      )}
       {param.key === "rain_48h" && v !== null && (
         <div className="mt-1 text-[11px] text-slate-400">Fonte 48 h: {s.rain_48h_source === "cedoc_direct" ? "dato diretto CEDOC" : (s.rain_48h_source ?? "n.d.")}</div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-        <span data-testid="station-card-freshness" className={cn("rounded-full border px-2 py-0.5", FRESHNESS_CLASS[f])}>{FRESHNESS_LABEL[f]}</span>
-        <span className="inline-flex items-center gap-1 font-num text-slate-300" data-testid="station-card-time">
-          <Clock className="size-3" /> {fmtTime(s.last)} <span className="text-slate-500">({fmtAge(s.age_min)})</span>
-        </span>
+      <div className="mt-3 flex items-center gap-1.5 font-num text-[11px] text-slate-300" data-testid="station-card-time">
+        <Clock className="size-3 shrink-0" /> Osservazione: {fmtTime(s.last)}
       </div>
       <div className="mt-1.5 flex items-start gap-1 text-[11px] text-slate-400" data-testid="station-card-elev">
         <Mountain className="mt-0.5 size-3 shrink-0" />
