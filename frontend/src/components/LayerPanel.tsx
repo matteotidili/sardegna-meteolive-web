@@ -158,7 +158,7 @@ export default function LayerPanel(p: Props) {
         sub={p.is3d ? "Disponibile solo in 2D" : p.liveWindSub} />
       {p.liveWind && !p.is3d && (
         <p data-testid="live-wind-note" className="px-1 text-[10px] leading-snug text-slate-400">
-          Analisi del quarto d'ora corrente via Open-Meteo: Mediterraneo con griglia 1° (best match, ICON-EU/globali, agg. orario), Sardegna con ItaliaMeteo-ARPAE ICON-2I ~2 km (agg. 30 min). Modello, non osservazione. Colori per velocità; animazione illustrativa.
+          Campo previsto del vento a 10 m via Open-Meteo: Mediterraneo con griglia campionata a 1° (best match) e Sardegna con campionamento a 0,125° del modello ICON-2I (risoluzione nativa ~2 km, nuove corse ogni 12 ore). Non sono misure anemometriche. L'animazione delle linee è illustrativa.
         </p>
       )}
       {p.liveWind && !p.is3d && (
