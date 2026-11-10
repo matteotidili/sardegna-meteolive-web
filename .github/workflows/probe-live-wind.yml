@@ -1,0 +1,17 @@
+name: Diagnostica API vento Open-Meteo
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/probe-live-wind.py'
+      - '.github/workflows/probe-live-wind.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prova endpoint reale di Open-Meteo senza cambiare la webapp
+        run: python3 scripts/probe-live-wind.py
