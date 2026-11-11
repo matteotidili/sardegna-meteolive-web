@@ -12,16 +12,20 @@ interface Props {
   onPick: (s: Station) => void;
   networks: Record<string, boolean>;
   onToggleNetwork: (key: string) => void;
+  onSetAllNetworks: (enabled: boolean) => void;
   counts: Record<string, number>;
   loading: boolean;
 }
 
-export default function StationList({ stations, param, selectedId, onPick, networks, onToggleNetwork, counts, loading }: Props) {
+export default function StationList({ stations, param, selectedId, onPick, networks, onToggleNetwork, onSetAllNetworks, counts, loading }: Props) {
   const [q, setQ] = useState("");
   const [desc, setDesc] = useState(true);
+  const networkKeys = Array.from(new Set([...Object.keys(NETWORK_META), ...Object.keys(counts)]));
+  const anyActive = networkKeys.some((key) => networks[key] !== false);
 
   // Searchable independently of what the map can draw at the current scale.
   const rows = useMemo(() => {
+    if (!anyActive) return [];
     const needle = q.trim().toLowerCase();
     const list = stations.filter((s) => !needle || s.name.toLowerCase().includes(needle));
     return list
@@ -36,14 +40,27 @@ export default function StationList({ stations, param, selectedId, onPick, netwo
         if (ah !== bh) return ah - bh;
         return desc ? b.v - a.v : a.v - b.v;
       });
-  }, [stations, param, q, desc]);
+  }, [stations, param, q, desc, anyActive]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap gap-1.5 px-3 pt-3">
-        {Object.entries(NETWORK_META).map(([k, m]) => (
+      <div className="flex items-center justify-between gap-2 px-3 pt-3">
+        <span className="text-xs font-medium text-slate-300">Reti di stazioni</span>
+        <button
+          type="button"
+          data-testid="network-toggle-all"
+          aria-label={anyActive ? "Disattiva tutte le reti di stazioni" : "Attiva tutte le reti di stazioni"}
+          onClick={() => onSetAllNetworks(!anyActive)}
+          className="inline-flex h-8 shrink-0 items-center rounded-md border border-slate-600 bg-slate-800 px-3 text-xs font-semibold text-slate-100 transition-colors hover:border-sky-500 hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+        >
+          {anyActive ? "Disattiva tutte" : "Attiva tutte"}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5 px-3 pt-2">
+        {networkKeys.map((k) => (
           <button
             key={k}
+            type="button"
             data-testid={`network-filter-${k}`}
             aria-pressed={networks[k] !== false}
             onClick={() => onToggleNetwork(k)}
@@ -52,8 +69,8 @@ export default function StationList({ stations, param, selectedId, onPick, netwo
               networks[k] !== false ? "border-slate-600 bg-slate-800 text-slate-100" : "border-slate-800 bg-transparent text-slate-500 line-through",
             )}
           >
-            <span className="size-1.5 rounded-full" style={{ background: m.color }} />
-            {m.short}
+            <span className="size-1.5 rounded-full" style={{ background: NETWORK_META[k]?.color ?? "#94A3B8" }} />
+            {NETWORK_META[k]?.short ?? k}
             <span className="font-num text-slate-400">{counts[k] ?? 0}</span>
           </button>
         ))}
@@ -84,10 +101,13 @@ export default function StationList({ stations, param, selectedId, onPick, netwo
         <span data-testid="station-list-count" className="font-num normal-case tracking-normal">{rows.length} stazioni</span>
       </div>
       <ul data-testid="station-list-container" className="thin-scroll min-h-0 flex-1 divide-y divide-slate-800/60 overflow-y-auto">
-        {loading && !stations.length && Array.from({ length: 8 }).map((_, i) => (
+        {!anyActive && (
+          <li className="p-4 text-xs text-slate-400" data-testid="station-list-empty">Tutte le reti sono disattivate.</li>
+        )}
+        {anyActive && loading && !stations.length && Array.from({ length: 8 }).map((_, i) => (
           <li key={i} className="mx-3 my-2 h-8 animate-pulse rounded bg-slate-800/50" />
         ))}
-        {!loading && !stations.length && (
+        {anyActive && !loading && !stations.length && (
           <li className="p-4 text-xs text-slate-500" data-testid="station-list-empty">Nessun dato stazioni disponibile al momento.</li>
         )}
         {rows.map(({ s, v, f }) => (

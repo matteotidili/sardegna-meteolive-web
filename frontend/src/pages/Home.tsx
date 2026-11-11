@@ -14,7 +14,7 @@ import HealthDialog from "@/components/HealthDialog";
 import { AromeLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
 import { useAlerts, useArome, useFrp, useRadar, useRain48, useSatellite, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
-import { AROME_PRECIP_KEY, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
+import { AROME_PRECIP_KEY, NETWORK_META, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
 import { useLightning } from "@/lib/lightning";
 import { useLiveWind } from "@/lib/liveWind";
@@ -22,7 +22,7 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls, satelliteUrl } from "@/lib/m
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const BASEMAP_LABEL: Record<Basemap, string> = { dark: "Operativa scura", satellite: "Satellite", light: "Chiara", relief: "Rilievo" };
+const BASEMAP_LABEL: Record<Basemap, string> = { dark: "Operativa scura", satellite: "Satellite", light: "Chiara", streets: "Stradale", relief: "Rilievo" };
 const DEFAULT_VIEW: MapViewState = { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
 const BASE_DELAY = 900; // ms per frame at 1×
 
@@ -234,7 +234,16 @@ export default function Home() {
   );
   const stationList = (
     <StationList stations={visible} param={param} selectedId={selectedId} onPick={pick} networks={networks}
-      onToggleNetwork={(k) => setNetworks((n) => ({ ...n, [k]: n[k] === false }))} counts={counts} loading={stationsQ.isLoading} />
+      onToggleNetwork={(k) => setNetworks((n) => ({ ...n, [k]: n[k] === false }))}
+      onSetAllNetworks={(enabled) => {
+        setNetworks((current) => {
+          const next = { ...current };
+          for (const key of new Set([...Object.keys(NETWORK_META), ...Object.keys(counts), ...Object.keys(current)])) next[key] = enabled;
+          return next;
+        });
+        if (!enabled) setSelectedId(null);
+      }}
+      counts={counts} loading={stationsQ.isLoading} />
   );
   const mapProps = {
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer, overlay, opacity,

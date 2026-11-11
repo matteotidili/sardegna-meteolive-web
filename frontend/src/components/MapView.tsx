@@ -13,7 +13,7 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, bboxCenter, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
 
-export type Basemap = "dark" | "satellite" | "light" | "relief";
+export type Basemap = "dark" | "satellite" | "light" | "streets" | "relief";
 export interface MapViewState { center: [number, number]; zoom: number }
 
 export const BASEMAPS: Record<Basemap, { url: string; attr: string; labels?: string }> = {
@@ -30,6 +30,10 @@ export const BASEMAPS: Record<Basemap, { url: string; attr: string; labels?: str
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
     labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
     attr: "Esri, HERE, Garmin, © OpenStreetMap contributors, and the GIS user community",
+  },
+  streets: {
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attr: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
   },
   relief: {
     url: "https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",
