@@ -27,8 +27,9 @@ export const BASEMAPS: Record<Basemap, { url: string; attr: string; labels?: str
     attr: "Esri, Maxar, Earthstar Geographics",
   },
   light: {
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attr: "© OpenStreetMap, © CARTO",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    labels: "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+    attr: "Esri, HERE, Garmin, © OpenStreetMap contributors, and the GIS user community",
   },
   relief: {
     url: "https://services.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}",

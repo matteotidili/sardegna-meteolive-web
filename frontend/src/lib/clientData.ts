@@ -173,6 +173,13 @@ export async function getAlerts(): Promise<AlertsResponse> {
 }
 
 // ---------------------------------------------------------------- AROME
+// Published filenames are reused at each model run. A distinct URL per run is
+// needed for browser, image-warp and React Query caches to reload the fields.
+function aromeAsset(path: string, runTime: string): string {
+  const url = DATA_BASE + path;
+  return `${url}${url.includes("?") ? "&" : "?"}run=${encodeURIComponent(runTime)}`;
+}
+
 async function forecastJson(): Promise<Json> {
   const { data } = await getJson<Json>("data/arome/forecast.json", 300);
   if (!data || !parse(data.run_time)) throw new Error("Catalogo AROME non disponibile");
@@ -182,20 +189,21 @@ async function forecastJson(): Promise<Json> {
 export async function getArome(): Promise<AromeResponse> {
   const d = await forecastJson();
   const run = parse(d.run_time)!;
+  const runTime = iso(run)!;
   const frames: AromeFrame[] = ((d.frames as Json[]) ?? []).flatMap((f) => {
     const img = String(f.image ?? ""), vt = parse(f.valid_time);
     return /^data\/arome\/precip_h\d{2}\.png$/.test(img) && vt
-      ? [{ lead_hours: Number(f.lead_hours), valid_time: iso(vt)!, precip_url: DATA_BASE + img, max_mm: num(f.max_mm) }] : [];
+      ? [{ lead_hours: Number(f.lead_hours), valid_time: iso(vt)!, precip_url: aromeAsset(img, runTime), max_mm: num(f.max_mm) }] : [];
   });
   const horizon = Number(d.forecast_horizon_hours ?? 0);
   const parameters: AromeParameter[] = Object.entries((d.parameters ?? {}) as Record<string, Json>).map(([key, p]) => ({
     key, label: String(p.label ?? key), unit: String(p.unit ?? ""), group: String(p.group ?? ""), scale: String(p.scale ?? ""),
     stops: (p.stops as AromeParameter["stops"]) ?? [], phase_colors: (p.phase_colors as AromeParameter["phase_colors"]) ?? null,
   }));
-  const tpl = DATA_BASE + String(d.product_path_template ?? "data/arome/products/{parameter}/h{lead:02d}.webp").replace("{lead:02d}", "{lead}");
+  const tpl = aromeAsset(String(d.product_path_template ?? "data/arome/products/{parameter}/h{lead:02d}.webp"), runTime).replace("{lead:02d}", "{lead}");
   return {
     model: String(d.model ?? "AROME"), producer: String(d.producer ?? "Météo-France"), license: (d.license as string) ?? null,
-    run_time: iso(run)!, generated_at: (d.generated_at as string) ?? null,
+    run_time: runTime, generated_at: (d.generated_at as string) ?? null,
     run_age_hours: Math.round(((Date.now() - run.getTime()) / 3600000) * 10) / 10, horizon_hours: horizon,
     bounds: (d.bounds as [number, number][]) ?? [], domain_note: (d.domain_note as string) ?? null,
     product_url_template: tpl, parameters, frames, complete: horizon > 0 && frames.length === horizon,
@@ -206,11 +214,13 @@ export async function getWindMeta(): Promise<WindMeta> {
   const { data } = await getJson<Json>("data/arome/wind_vectors.json", 300);
   if (!data?.grid || !data.run_time) throw new Error("Vettori vento AROME non disponibili");
   const g = data.grid as Json;
+  const runTime = iso(parse(data.run_time));
+  if (!runTime) throw new Error("Corsa dei vettori vento AROME non valida");
   return {
-    run_time: iso(parse(data.run_time))!,
+    run_time: runTime,
     grid: { west: +g.west!, east: +g.east!, north: +g.north!, south: +g.south!, step_degrees: +g.step_degrees!, width: +g.width!, height: +g.height!, encoding: String(g.encoding), missing: num(g.missing) ?? -32768 },
     frames: ((data.frames as Json[]) ?? []).filter((f) => String(f.file).endsWith(".bin"))
-      .map((f) => ({ lead_hours: Number(f.lead_hours), valid_time: String(f.valid_time), url: DATA_BASE + String(f.file) })),
+      .map((f) => ({ lead_hours: Number(f.lead_hours), valid_time: String(f.valid_time), url: aromeAsset(String(f.file), runTime) })),
   };
 }
 
@@ -265,7 +275,7 @@ export async function getModelPoint(lat: number, lon: number, at: string): Promi
   const lead = Number(best.f.lead_hours), lead2 = String(lead).padStart(2, "0");
   const params = (d.parameters ?? {}) as Record<string, Json>;
   const [[s, w], [n, e]] = d.bounds as [number, number][];
-  const tpl = DATA_BASE + String(d.product_path_template ?? "data/arome/products/{parameter}/h{lead:02d}.webp");
+  const tpl = aromeAsset(String(d.product_path_template ?? "data/arome/products/{parameter}/h{lead:02d}.webp"), iso(parse(d.run_time))!);
   const inDomain = lat >= s && lat <= n && lon >= w && lon <= e;
 
   const color = async (key: string): Promise<PointValue | null> => {
