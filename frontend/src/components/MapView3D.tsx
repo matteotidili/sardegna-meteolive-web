@@ -6,6 +6,7 @@ import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBRE
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
 import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
 import { dpcTilePng } from "@/lib/dpcRadar";
+import { Radar3D } from "@/lib/radar3d";
 import { mercatorImage } from "@/lib/mercator";
 import { lightningColor } from "@/lib/lightning";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
@@ -20,10 +21,10 @@ let protocolReady = false;
 function ensureProtocol() {
   if (protocolReady) return;
   protocolReady = true;
-  maplibregl.addProtocol("dpc", async (params) => {
+  maplibregl.addProtocol("dpc", async (params, abort) => {
     const m = params.url.match(/^dpc:\/\/(\w+)\/([^/]+)\/(\d+)\/(\d+)\/(\d+)$/);
     if (!m) throw new Error("bad dpc url");
-    const data = await dpcTilePng(m[1], decodeURIComponent(m[2]), +m[3], +m[4], +m[5]);
+    const data = await dpcTilePng(m[1], decodeURIComponent(m[2]), +m[3], +m[4], +m[5], abort.signal);
     return { data };
   });
 }
@@ -62,7 +63,7 @@ export default function MapView3D(props: Props) {
   const readyRef = useRef(false);
   const subLabelsRef = useRef<maplibregl.Marker[]>([]);
   const markersRef = useRef<maplibregl.Marker[]>([]);
-  const radarIdRef = useRef<string | null>(null);
+  const radarRef = useRef<Radar3D | null>(null);
   const tokenRef = useRef(0);
   const cb = useRef(props);
   cb.current = props;
@@ -98,6 +99,10 @@ export default function MapView3D(props: Props) {
       m.setTerrain({ source: "terrain", exaggeration: 1.4 });
       m.addSource("overlay", { type: "image", url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
       m.addLayer({ id: "overlay", type: "raster", source: "overlay", paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, b.labels ? "labels" : undefined);
+      radarRef.current = new Radar3D(m, (r) => r.product === "OPERA"
+        ? { type: "raster", tiles: [`${OPERA_TILE_BASE}${operaStamp(r.time)}/{z}/{x}/{y}.png`], tileSize: 256, maxzoom: 7, bounds: [-15, 30, 28, 55], attribution: "EUMETNET OPERA NIMBUS · CC BY 4.0" }
+        : { type: "raster", tiles: [`dpc://${r.product}/${encodeURIComponent(r.time)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 7, bounds: [5, 35, 20, 48] },
+      (key) => cb.current.onLayerReady(key));
       m.addSource("municipal", { type: "geojson", data: EMPTY });
       m.addLayer({ id: "municipal-line", type: "line", source: "municipal", minzoom: MUNICIPAL_MIN_ZOOM - 1, paint: { "line-color": MUNICIPAL_LINE.color, "line-width": MUNICIPAL_LINE.weight, "line-opacity": MUNICIPAL_LINE.opacity } });
       m.addSource("subregions", { type: "geojson", data: EMPTY });
@@ -125,7 +130,17 @@ export default function MapView3D(props: Props) {
     mapControls.zoomIn = () => m.zoomIn();
     mapControls.zoomOut = () => m.zoomOut();
     mapControls.reset = () => { if (readyRef.current) m.flyTo({ center: [DEFAULT_CENTER[1], DEFAULT_CENTER[0]], zoom: DEFAULT_ZOOM - 1, pitch: 55, bearing: -12 }); };
-    return () => { readyRef.current = false; markersRef.current.forEach((x) => x.remove()); subLabelsRef.current.forEach((x) => x.remove()); subLabelsRef.current = []; m.remove(); mapRef.current = null; };
+    return () => {
+      readyRef.current = false;
+      ++tokenRef.current;
+      radarRef.current?.destroy();
+      radarRef.current = null;
+      markersRef.current.forEach((x) => x.remove());
+      subLabelsRef.current.forEach((x) => x.remove());
+      subLabelsRef.current = [];
+      m.remove();
+      mapRef.current = null;
+    };
     // basemap change remounts (key in parent)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -216,12 +231,12 @@ export default function MapView3D(props: Props) {
     if (!ov) { m.setPaintProperty("overlay", "raster-opacity", 0); return; }
     const [[s, w], [n, e]] = ov.bounds;
     (ov.warp ? mercatorImage(ov.url, s, n) : Promise.resolve(ov.url)).then((url) => {
-      if (token !== tokenRef.current || !mapRef.current) return;
+      if (token !== tokenRef.current || mapRef.current !== m) return;
       if (!url) { cb.current.onLayerReady(`overlay:${ov.url}`); return; }
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = () => {
-        if (token !== tokenRef.current || !mapRef.current) return;
+        if (token !== tokenRef.current || mapRef.current !== m) return;
         (m.getSource("overlay") as maplibregl.ImageSource).updateImage({ url, coordinates: [[w, n], [e, n], [e, s], [w, s]] });
         m.setPaintProperty("overlay", "raster-opacity", cb.current.opacity);
         cb.current.onLayerReady(`overlay:${ov.url}`);
@@ -232,27 +247,8 @@ export default function MapView3D(props: Props) {
   }
 
   function syncRadar() {
-    const m = mapRef.current, r = cb.current.radar;
-    if (!m || !readyRef.current) return;
-    const prev = radarIdRef.current;
-    if (!r) {
-      if (prev) { m.removeLayer(prev); m.removeSource(prev); radarIdRef.current = null; }
-      return;
-    }
-    const id = `radar-${r.product}-${r.time}`;
-    if (id === prev) return;
-    m.addSource(id, r.product === "OPERA"
-      ? { type: "raster", tiles: [`${OPERA_TILE_BASE}${operaStamp(r.time)}/{z}/{x}/{y}.png`], tileSize: 256, maxzoom: 7, bounds: [-15, 30, 28, 55], attribution: "EUMETNET OPERA NIMBUS · CC BY 4.0" }
-      : { type: "raster", tiles: [`dpc://${r.product}/${encodeURIComponent(r.time)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 7, bounds: [5, 35, 20, 48] });
-    m.addLayer({ id, type: "raster", source: id, paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, "overlay");
-    radarIdRef.current = id;
-    const done = () => {
-      if (!mapRef.current || radarIdRef.current !== id) return;
-      m.setPaintProperty(id, "raster-opacity", cb.current.opacity);
-      if (prev && m.getLayer(prev)) { m.removeLayer(prev); m.removeSource(prev); }
-      cb.current.onLayerReady(`radar:${r.time}`);
-    };
-    m.once("idle", done);
+    radarRef.current?.setOpacity(cb.current.opacity);
+    radarRef.current?.set(cb.current.radar);
   }
 
   function syncGeo() {
@@ -288,7 +284,7 @@ export default function MapView3D(props: Props) {
     const m = mapRef.current;
     if (!m || !readyRef.current) return;
     if (props.overlay) m.setPaintProperty("overlay", "raster-opacity", props.opacity);
-    if (radarIdRef.current) m.setPaintProperty(radarIdRef.current, "raster-opacity", props.opacity);
+    radarRef.current?.setOpacity(props.opacity);
   }, [props.opacity]); // eslint-disable-line react-hooks/exhaustive-deps
   const flySeqRef = useRef(props.flyTo?.seq ?? 0); // ignore a fly request that predates this mount
   useEffect(() => {

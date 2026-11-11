@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { radarFrameKey } from "@/lib/radarFrame";
 import L from "leaflet";
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
 import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
@@ -292,7 +293,7 @@ export default function MapView(props: Props) {
       radarRef.current?.remove();
       radarRef.current = layer;
       radarPendingRef.current = null;
-      cb.current.onLayerReady(`radar:${time}`);
+      cb.current.onLayerReady(radarFrameKey({ product, time }));
     });
     layer.addTo(m);
     // eslint-disable-next-line react-hooks/exhaustive-deps

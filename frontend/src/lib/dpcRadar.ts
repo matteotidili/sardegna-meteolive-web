@@ -123,12 +123,60 @@ export const DPC_LEGEND = (product: string) =>
   `linear-gradient(90deg, ${(product === "VMI" ? DPC_VMI_BANDS : DPC_SRI_BANDS)
     .map(([t, c]) => `rgb(${c.join(",")}) ${t * 100}%`).join(", ")})`;
 
-/** Decoded DPC tile as PNG bytes (used by the MapLibre 3D custom protocol). Missing tiles → transparent PNG. */
-export async function dpcTilePng(product: string, iso: string, z: number, x: number, y: number): Promise<ArrayBuffer> {
-  const s = sourceTile({ z, x, y } as L.Coords);
+const PNG_CACHE_LIMIT = 128;
+const IMAGE_TIMEOUT_MS = 15_000;
+const pngCache = new Map<string, ArrayBuffer>();
+interface PngJob {
+  controller: AbortController;
+  consumers: number;
+  settled: boolean;
+  promise: Promise<ArrayBuffer>;
+}
+const pngJobs = new Map<string, PngJob>();
+
+const abortError = () => new DOMException("Radar tile request aborted", "AbortError");
+function checkAbort(signal: AbortSignal) {
+  if (signal.aborted) throw abortError();
+}
+
+/** The 3D job owns this image; individual consumers only cancel their wait. */
+function loadPngImage(url: string, signal: AbortSignal): Promise<HTMLImageElement | null> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) { reject(abortError()); return; }
+    const im = new Image();
+    let finished = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const finish = (image: HTMLImageElement | null, error?: Error) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      im.onload = im.onerror = null;
+      if (error) {
+        im.src = "";
+        reject(error);
+      } else resolve(image);
+    };
+    const onAbort = () => finish(null, abortError());
+    timer = setTimeout(() => {
+      const error = new Error("Radar tile image timed out");
+      error.name = "TimeoutError";
+      finish(null, error);
+    }, IMAGE_TIMEOUT_MS);
+    signal.addEventListener("abort", onAbort, { once: true });
+    im.crossOrigin = "anonymous";
+    im.onload = () => finish(im);
+    im.onerror = () => finish(null); // Missing DPC tiles remain transparent, but are not cached.
+    im.src = url;
+  });
+}
+
+async function renderPng(product: string, url: string, s: ReturnType<typeof sourceTile>, signal: AbortSignal) {
+  const im = await loadPngImage(url, signal);
+  checkAbort(signal);
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 256;
-  const im = await loadImage(tileUrl(product, iso, s.z, s.x, s.y));
+  let cacheable = false;
   if (im) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (ctx) {
@@ -136,8 +184,75 @@ export async function dpcTilePng(product: string, iso: string, z: number, x: num
       const sz = 256 / s.scale;
       ctx.drawImage(im, s.ox * sz, s.oy * sz, sz, sz, 0, 0, 256, 256);
       try { decode(ctx, product); } catch { /* leave raw */ }
+      cacheable = true;
     }
   }
-  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
-  return blob ? blob.arrayBuffer() : new ArrayBuffer(0);
+  checkAbort(signal);
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+  checkAbort(signal);
+  const data = blob ? await blob.arrayBuffer() : new ArrayBuffer(0);
+  checkAbort(signal);
+  return { data, cacheable: cacheable && data.byteLength > 0 };
+}
+
+function startPngJob(key: string, product: string, url: string, s: ReturnType<typeof sourceTile>): PngJob {
+  const controller = new AbortController();
+  const job: PngJob = { controller, consumers: 0, settled: false, promise: Promise.resolve(new ArrayBuffer(0)) };
+  job.promise = renderPng(product, url, s, controller.signal).then(({ data, cacheable }) => {
+    if (cacheable) {
+      pngCache.delete(key);
+      pngCache.set(key, data);
+      while (pngCache.size > PNG_CACHE_LIMIT) pngCache.delete(pngCache.keys().next().value as string);
+    }
+    return data;
+  }).finally(() => {
+    job.settled = true;
+    if (pngJobs.get(key) === job) pngJobs.delete(key);
+  });
+  pngJobs.set(key, job);
+  return job;
+}
+
+function consumePng(key: string, job: PngJob, signal?: AbortSignal): Promise<ArrayBuffer> {
+  job.consumers++;
+  return new Promise((resolve, reject) => {
+    let active = true;
+    const finish = (data?: ArrayBuffer, error?: unknown) => {
+      if (!active) return;
+      active = false;
+      signal?.removeEventListener("abort", onAbort);
+      job.consumers--;
+      if (!job.consumers && !job.settled) {
+        if (pngJobs.get(key) === job) pngJobs.delete(key);
+        job.controller.abort();
+      }
+      if (error !== undefined) reject(error);
+      else {
+        // MapLibre may transfer/detach its buffer. Never hand out a cached or shared one.
+        try { resolve(data!.slice(0)); } catch (error) { reject(error); }
+      }
+    };
+    const onAbort = () => finish(undefined, abortError());
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+    job.promise.then(
+      (data) => signal?.aborted ? onAbort() : finish(data),
+      (error) => finish(undefined, error),
+    );
+  });
+}
+
+/** Decoded DPC tile as PNG bytes for 3D. Missing tiles → transparent PNG; aborted jobs are discarded. */
+export async function dpcTilePng(product: string, iso: string, z: number, x: number, y: number, signal?: AbortSignal): Promise<ArrayBuffer> {
+  if (signal?.aborted) throw abortError();
+  const s = sourceTile({ z, x, y } as L.Coords);
+  const url = tileUrl(product, iso, s.z, s.x, s.y);
+  const key = `${url}|${s.scale}:${s.ox}:${s.oy}`;
+  const cached = pngCache.get(key);
+  if (cached) {
+    pngCache.delete(key);
+    pngCache.set(key, cached);
+    return cached.slice(0);
+  }
+  return consumePng(key, pngJobs.get(key) ?? startPngJob(key, product, url, s), signal);
 }

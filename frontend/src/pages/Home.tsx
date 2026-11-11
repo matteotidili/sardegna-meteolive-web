@@ -21,6 +21,7 @@ import { useLiveWind } from "@/lib/liveWind";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls, satelliteUrl } from "@/lib/mapControls";
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { radarFrameErrorKey, radarFrameKey } from "@/lib/radarFrame";
 
 const BASEMAP_LABEL: Record<Basemap, string> = { dark: "Operativa scura", satellite: "Satellite", light: "Chiara", streets: "Stradale", relief: "Rilievo" };
 const DEFAULT_VIEW: MapViewState = { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
@@ -81,7 +82,10 @@ export default function Home() {
   const [leadIdx, setLeadIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [readyKey, setReadyKey] = useState("");
+  const renderer = useMemo(() => ({}), [mode3d, mode3d ? basemap : null]);
+  const [readyFrame, setReadyFrame] = useState<{ renderer: object; key: string } | null>(null);
+  const readyKey = readyFrame?.renderer === renderer ? readyFrame.key : "";
+  const onLayerReady = useCallback((key: string) => setReadyFrame({ renderer, key }), [renderer]);
   const [sheet, setSheet] = useState<"none" | "stations" | "layers">("none");
 
   const param = PARAM_BY_KEY[paramKey] ?? PARAMS[0];
@@ -136,8 +140,9 @@ export default function Home() {
   const overlay = aromeUrl && arome
     ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)" }
     : sat && satUrlAt(sIdx) ? { url: satUrlAt(sIdx)!, bounds: sat.bounds, warp: false, attribution: sat.attribution } : null;
-  const currentKey = radarLayer ? `radar:${radarLayer.time}` : overlay ? `overlay:${overlay.url}` : "";
-  const frameFailed = !!overlay && readyKey === `overlay-error:${overlay.url}`;
+  const currentKey = radarLayer ? radarFrameKey(radarLayer) : overlay ? `overlay:${overlay.url}` : "";
+  const frameFailed = radarLayer ? readyKey === radarFrameErrorKey(radarLayer)
+    : !!overlay && readyKey === `overlay-error:${overlay.url}`;
   const frameReady = currentKey !== "" && (readyKey === currentKey || frameFailed);
 
   // AROME wind streamlines: only with the same run as the displayed AROME field, synced to its lead
@@ -189,9 +194,10 @@ export default function Home() {
       labels={radarFrames.map((t) => fmtTime(t))}
       index={rIdx} setIndex={setRadarIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady} legend={radarProduct === "OPERA" ? <OperaLegend /> : <RadarLegend product={radarProduct!} />}
-      note={radarProduct === "OPERA"
+      note={(radarProduct === "OPERA"
         ? `Ultime 3 ore, passo 15 min, ${radarFrames.length} frame verificati. NIMBUS rain rate (Z–R Marshall–Palmer) · EUMETNET OPERA CC BY 4.0 · tiles RadarEU.`
-        : "Ultime 3 ore, passo 5 min. © Dipartimento della Protezione Civile."}
+        : "Ultime 3 ore, passo 5 min. © Dipartimento della Protezione Civile.")
+        + (frameFailed ? " Fotogramma non caricato: resta visibile l’ultimo disponibile, se presente." : "")}
     />
   ) : aromeUrl && arome ? (
     <TimelinePlayer
@@ -247,7 +253,7 @@ export default function Home() {
   );
   const mapProps = {
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer, overlay, opacity,
-    onLayerReady: setReadyKey, fires: firesOn ? frpQ.data?.detections ?? null : null,
+    onLayerReady, fires: firesOn ? frpQ.data?.detections ?? null : null,
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
     strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo, boundaries: boundariesOn,
     subregions: subregionsOn, municipalities: municipalOn,
