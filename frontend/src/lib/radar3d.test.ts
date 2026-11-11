@@ -87,17 +87,34 @@ describe("3D radar frame ownership", () => {
     radar.destroy();
   });
 
-  it("changes only displayed opacity and gives products distinct readiness keys", () => {
+  it("changes only displayed opacity while its replacement is loading", () => {
     const { map, radar, ready } = setup();
     radar.set(frame(1)); map.load();
     const displayed = map.newest();
-    radar.set(frame(1, "SRI"));
+    radar.set(frame(2));
     radar.setOpacity(0.4);
     expect(map.layers.get(displayed)?.opacity).toBe(0.4);
     expect(map.layers.get(map.newest())?.opacity).toBe(0);
     map.load();
-    expect(ready).toHaveBeenLastCalledWith(radarFrameKey(frame(1, "SRI")));
+    expect(ready).toHaveBeenLastCalledWith(radarFrameKey(frame(2)));
     expect(map.layers.get(map.newest())?.opacity).toBe(0.4);
+    radar.destroy();
+  });
+
+  it("never displays the previous product beneath a different legend after a failed switch", () => {
+    vi.useFakeTimers();
+    const { map, radar, ready } = setup();
+    radar.set(frame(1)); map.load();
+    const vmi = map.newest();
+    radar.set(frame(1, "SRI"));
+    expect(map.sources.has(vmi)).toBe(false);
+    expect(map.sources.size).toBe(1);
+    expect(map.layers.get(map.newest())?.opacity).toBe(0);
+    expect(radarFrameKey(frame(1))).not.toBe(radarFrameKey(frame(1, "SRI")));
+    vi.advanceTimersByTime(1000);
+    expect(ready).toHaveBeenLastCalledWith(radarFrameErrorKey(frame(1, "SRI")));
+    expect(map.sources.size).toBe(0);
+    expect(map.listenerCount()).toBe(0);
     radar.destroy();
   });
 

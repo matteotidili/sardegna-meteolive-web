@@ -38,6 +38,11 @@ export class Radar3D {
     if (frame && this.pending && radarFrameKey(frame) === radarFrameKey(this.pending.frame)) return;
     this.cancelPending();
     if (!frame) { this.remove(this.displayed); this.displayed = null; return; }
+    // Products have different scales: never retain VMI beneath an SRI/OPERA legend.
+    if (this.displayed && this.displayed.frame.product !== frame.product) {
+      this.remove(this.displayed);
+      this.displayed = null;
+    }
     if (this.displayed && radarFrameKey(frame) === radarFrameKey(this.displayed.frame)) {
       this.onReady(radarFrameKey(frame));
       return;
