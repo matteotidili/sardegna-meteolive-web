@@ -102,7 +102,8 @@
 html, body, #root { height: 100%; overscroll-behavior: none; }
 body { -webkit-font-smoothing: antialiased; }
 
-.font-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+/* Plain zeros, with equal-width digits in readings, times and legends. */
+.font-num { font-family: var(--font-sans); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "zero" 0; letter-spacing: -0.02em; }
 
 /* ---------- Leaflet ---------- */
 .leaflet-container { background: #0B0F17; font-family: var(--font-sans); }
@@ -118,7 +119,8 @@ body { -webkit-font-smoothing: antialiased; }
 .stn {
     display: inline-flex; align-items: center; justify-content: center; gap: 2px;
     height: 20px; padding: 0 7px; border-radius: 999px;
-    font: 600 11px/1 var(--font-mono); letter-spacing: -0.03em; color: #fff; white-space: nowrap;
+    font: 600 11px/1 var(--font-sans); font-variant-numeric: lining-nums tabular-nums; font-feature-settings: "zero" 0;
+    letter-spacing: -0.03em; color: #fff; white-space: nowrap;
     background: var(--c); box-shadow: 0 1px 0 rgba(255,255,255,.18) inset, 0 2px 8px rgba(0,0,0,.55);
     border: 1px solid rgba(0,0,0,.45); cursor: pointer;
     transition: transform .14s ease, box-shadow .14s ease;
