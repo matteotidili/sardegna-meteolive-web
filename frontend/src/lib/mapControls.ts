@@ -3,9 +3,27 @@ export interface MapControls {
   zoomIn: () => void;
   zoomOut: () => void;
   reset: () => void;
+  fitMediterranean: () => void;
+  fitSardinia: () => void;
 }
 
-export const mapControls: MapControls = { zoomIn: () => {}, zoomOut: () => {}, reset: () => {} };
+export const mapControls: MapControls = {
+  zoomIn: () => {}, zoomOut: () => {}, reset: () => {},
+  fitMediterranean: () => {}, fitSardinia: () => {},
+};
+
+export const MEDITERRANEAN_BOUNDS: [[number, number], [number, number]] = [[29.5, -8], [46.5, 37.5]];
+
+/** Leave room for desktop side panels; mobile sheets do not reserve side space. */
+export function mapFitPadding(width: number, height: number) {
+  const desktop = width >= 1024;
+  return {
+    left: desktop ? 320 : 16,
+    right: desktop ? 360 : 16,
+    top: Math.min(desktop ? 100 : 80, Math.round(height * 0.18)),
+    bottom: Math.min(desktop ? 170 : 140, Math.round(height * 0.25)),
+  };
+}
 
 export const DEFAULT_CENTER: [number, number] = [40.08, 9.03];
 export const DEFAULT_ZOOM = 8;

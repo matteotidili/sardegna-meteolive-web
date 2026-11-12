@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation } from "lucide-react";
+import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
@@ -7,7 +7,7 @@ import type { LightningStatus } from "@/lib/lightning";
 import { cn } from "@/lib/utils";
 import { SUBREGIONS_CREDIT } from "@/lib/boundaries";
 
-export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | `sat-${string}`;
+export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "marine" | `sat-${string}`;
 
 export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
   { key: "truecolour", title: "MTG True Colour RGB", sub: "FCI 1 km · solo diurno" },
@@ -51,6 +51,7 @@ interface Props {
   setSubregions: (b: boolean) => void;
   municipalities: boolean;
   setMunicipalities: (b: boolean) => void;
+  marineControls: React.ReactNode;
 }
 
 function Toggle({ on, onClick, icon, title, sub, testid, disabled }: { on: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string; testid: string; disabled?: boolean }) {
@@ -140,6 +141,11 @@ export default function LayerPanel(p: Props) {
           {p.wind && p.windWarning && <p className="text-[10px] text-amber-200/90" data-testid="wind-flow-warning">{p.windWarning}</p>}
         </div>
       )}
+
+      <div className={SECTION}>Previsioni marine</div>
+      <Toggle testid="layer-toggle-marine" on={p.anim === "marine"} onClick={() => toggleAnim("marine")}
+        icon={<Waves className="size-4" />} title="WW3 MEDITA · SHYFEM" sub="Onde e livello del mare · Mediterraneo" />
+      {p.anim === "marine" && p.marineControls}
 
       {p.anim !== "none" && (
         <label className="block pt-1">

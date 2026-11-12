@@ -13,6 +13,7 @@ interface Props {
   loading: boolean;
   legend?: React.ReactNode;
   note?: string;
+  children?: React.ReactNode;
 }
 
 export default function TimelinePlayer(p: Props) {
@@ -21,10 +22,10 @@ export default function TimelinePlayer(p: Props) {
   const step = (d: number) => { p.setPlaying(false); p.setIndex((p.index + d + n) % n); };
   return (
     <div data-testid="timeline-player" className="hud-in pointer-events-auto rounded-2xl border border-slate-800 bg-slate-900/95 p-3 text-slate-100 shadow-2xl shadow-black/60 backdrop-blur-xl">
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-[0.18em] text-sky-300" data-testid="timeline-title">{p.title}</span>
+      <div className="flex items-start gap-2">
+        <span className="min-w-0 flex-1 text-[10px] uppercase leading-relaxed tracking-[0.12em] text-sky-300" data-testid="timeline-title">{p.title}</span>
         {p.loading && <Loader2 className="size-3 animate-spin text-slate-400" data-testid="timeline-loading" />}
-        <span className="ml-auto font-num text-sm font-medium" data-testid="timeline-current-label">{p.labels[p.index]}</span>
+        <span className="ml-auto shrink-0 whitespace-nowrap font-num text-xs font-medium sm:text-sm" data-testid="timeline-current-label">{p.labels[p.index]}</span>
       </div>
       <div className="mt-1 flex items-center gap-1.5">
         <button data-testid="timeline-prev-btn" onClick={() => step(-1)} aria-label="Precedente" className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300 active:scale-95"><SkipBack className="size-4" /></button>
@@ -42,6 +43,7 @@ export default function TimelinePlayer(p: Props) {
       </div>
       {p.legend}
       {p.note && <p className="mt-1 text-[10px] leading-snug text-slate-500" data-testid="timeline-note">{p.note}</p>}
+      {p.children}
     </div>
   );
 }

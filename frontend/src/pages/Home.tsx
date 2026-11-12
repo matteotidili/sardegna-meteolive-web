@@ -22,6 +22,11 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls, satelliteUrl } from "@/lib/m
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { radarFrameErrorKey, radarFrameKey } from "@/lib/radarFrame";
+import MarineControls, { MARINE_LABELS, MarineAttribution } from "@/components/MarineControls";
+import MarineLegend from "@/components/MarineLegend";
+import { useMarineCatalog, useMarineVectors } from "@/hooks/useMarine";
+import { marineImageUrl, type MarineForcing, type MarineModel, type MarineParameter } from "@/lib/marine";
+import { marineViewportBounds } from "@/lib/marineViewport";
 
 const BASEMAP_LABEL: Record<Basemap, string> = { dark: "Operativa scura", satellite: "Satellite", light: "Chiara", streets: "Stradale", relief: "Rilievo" };
 const DEFAULT_VIEW: MapViewState = { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
@@ -34,6 +39,10 @@ export default function Home() {
   const [networks, setNetworks] = usePersistentState<Record<string, boolean>>("networks", {});
   const [anim, setAnim] = usePersistentState<AnimLayer>("anim", "none");
   const [aromeParam, setAromeParam] = usePersistentState<string>("aromeParam", AROME_PRECIP_KEY);
+  const [marineModel, setMarineModel] = usePersistentState<MarineModel>("marineModel", "ww3");
+  const [marineParameter, setMarineParameter] = usePersistentState<MarineParameter>("marineParameter", "hs");
+  const [marineForcing, setMarineForcing] = usePersistentState<MarineForcing>("marineForcing", "ECMWF");
+  const [marineArrows, setMarineArrows] = usePersistentState<boolean>("marineArrows", true);
   const [opacity, setOpacity] = usePersistentState<number>("opacity", 0.75);
   const [firesOn, setFiresOn] = usePersistentState<boolean>("fires", false);
   const [alertsOn, setAlertsOn] = usePersistentState<boolean>("alertsLayer", true);
@@ -80,6 +89,7 @@ export default function Home() {
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; seq: number } | null>(null);
   const [radarIdx, setRadarIdx] = useState<number | null>(null);
   const [leadIdx, setLeadIdx] = useState<number | null>(null);
+  const [marineIdx, setMarineIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const renderer = useMemo(() => ({}), [mode3d, mode3d ? basemap : null]);
@@ -99,6 +109,10 @@ export default function Home() {
   const satProduct = anim.startsWith("sat-") ? anim.slice(4) : null;
   const satQ = useSatellite(satProduct);
   const lightning = useLightning(lightningOn, bbox);
+  const marineOn = anim === "marine";
+  const marineQ = useMarineCatalog(marineModel, marineForcing, marineOn);
+  const marine = marineQ.data?.model === marineModel ? marineQ.data : undefined;
+  const marineParam: MarineParameter = marineModel === "shyfem" ? "wl" : marineParameter === "t01" ? "t01" : "hs";
 
   const all = useMemo(() => (stationsQ.isError ? [] : stationsQ.data?.stations ?? []), [stationsQ.data, stationsQ.isError]);
   const counts = useMemo(() => {
@@ -137,13 +151,33 @@ export default function Home() {
   const sIdx = satFrames.length ? Math.min(satIdx ?? satFrames.length - 1, satFrames.length - 1) : 0;
   const satUrlAt = useCallback((i: number) => (sat && satFrames[i]
     ? satelliteUrl(sat.wms_url, sat.layer, sat.format, sat.bounds, satFrames[i], isDesktop ? 1400 : 900) : null), [sat, satFrames, isDesktop]);
-  const overlay = aromeUrl && arome
+  const marineFrames = marine?.frames ?? [];
+  const defaultMarineIdx = useMemo(() => {
+    const idx = marineFrames.findIndex((time) => Date.parse(time) >= Date.now());
+    return idx < 0 ? Math.max(0, marineFrames.length - 1) : idx;
+  }, [marineFrames]);
+  const mIdx = marineFrames.length ? Math.min(marineIdx ?? defaultMarineIdx, marineFrames.length - 1) : 0;
+  const marineTime = marineOn ? marineFrames[mIdx] ?? null : null;
+  const marineRenderCatalog = useMemo(() => marine ? { ...marine, bounds: marineViewportBounds(marine.bounds, bbox) } : undefined, [marine, bbox]);
+  const marineUrlAt = useCallback((idx: number) => marineRenderCatalog && marineFrames[idx]
+    ? marineImageUrl(marineRenderCatalog, marineParam, marineFrames[idx], isDesktop ? 1600 : 1100) : null,
+  [marineRenderCatalog, marineFrames, marineParam, isDesktop]);
+  const marineUrl = marineOn ? marineUrlAt(mIdx) : null;
+  const marineDirections = marineOn && marineModel === "ww3" && marineArrows;
+  const marineVectorsQ = useMarineVectors(marineTime, Math.round(view.zoom), marineDirections, marine?.run_time);
+  const overlay = marineUrl && marine
+    ? { url: marineUrl, bounds: marineRenderCatalog!.bounds, warp: false, attribution: marine.attribution,
+        group: `marine:${marine.model}:${marineParam}:${marine.forcing ?? ""}:${marine.run_time}` }
+    : aromeUrl && arome
     ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)" }
     : sat && satUrlAt(sIdx) ? { url: satUrlAt(sIdx)!, bounds: sat.bounds, warp: false, attribution: sat.attribution } : null;
   const currentKey = radarLayer ? radarFrameKey(radarLayer) : overlay ? `overlay:${overlay.url}` : "";
   const frameFailed = radarLayer ? readyKey === radarFrameErrorKey(radarLayer)
     : !!overlay && readyKey === `overlay-error:${overlay.url}`;
-  const frameReady = currentKey !== "" && (readyKey === currentKey || frameFailed);
+  const frameReady = currentKey !== "" && (readyKey === currentKey || frameFailed)
+    && (!marineDirections || !!marineVectorsQ.data || marineVectorsQ.isError || frameFailed);
+  const visibleMarineVectors = marineDirections && marineUrl && readyKey === `overlay:${marineUrl}`
+    ? marineVectorsQ.data ?? null : null;
 
   // AROME wind streamlines: only with the same run as the displayed AROME field, synced to its lead
   const windMetaQ = useWindMeta(anim === "arome" && windOn && !mode3d);
@@ -158,18 +192,20 @@ export default function Home() {
 
   // reset timeline when the animated layer changes
   useEffect(() => { setPlaying(false); setRadarIdx(null); setSatIdx(null); }, [anim]);
+  useEffect(() => { setPlaying(false); setMarineIdx(null); }, [marineModel, marineParam, marineForcing, marine?.run_time]);
 
   // playback: advance only once the current frame is fully drawn (no partial frames)
   useEffect(() => {
     if (!playing || !frameReady) return;
     const t = window.setTimeout(() => {
-      if (radarLayer) setRadarIdx((rIdx + 1) % radarFrames.length);
+      if (marineUrl) setMarineIdx((mIdx + 1) % marineFrames.length);
+      else if (radarLayer) setRadarIdx((rIdx + 1) % radarFrames.length);
       else if (aromeUrl) setLeadIdx((lIdx + 1) % aromeFrames.length);
       else if (sat) setSatIdx((sIdx + 1) % satFrames.length);
     }, BASE_DELAY / speed);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, frameReady, speed, rIdx, lIdx, sIdx]);
+  }, [playing, frameReady, speed, rIdx, lIdx, sIdx, mIdx, currentKey]);
 
   // prefetch the next frames (AROME warped images / satellite images)
   useEffect(() => {
@@ -181,6 +217,17 @@ export default function Home() {
     }
   }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length, sat, sIdx, satUrlAt, satFrames.length]);
 
+  // Only one marine frame is prefetched, after the selected raster has loaded.
+  useEffect(() => {
+    if (!marineUrl || readyKey !== `overlay:${marineUrl}` || marineFrames.length < 2) return;
+    const url = marineUrlAt((mIdx + 1) % marineFrames.length);
+    if (!url) return;
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.src = url;
+    return () => { image.onload = image.onerror = null; image.src = ""; };
+  }, [marineUrl, readyKey, marineUrlAt, mIdx, marineFrames.length]);
+
   const pick = (s: Station) => {
     setSelectedId(s.id);
     setFlyTo({ lat: s.lat, lon: s.lon, seq: Date.now() });
@@ -188,7 +235,22 @@ export default function Home() {
   };
 
   const aromeMeta = arome?.parameters.find((p) => p.key === aromeParam);
-  const timeline = radarLayer ? (
+  const timeline = marineOn ? marine && marineUrl ? (
+    <TimelinePlayer
+      title={`${marine.model === "ww3" ? "WW3 MEDITA" : `SHYFEM · ${marine.forcing === "ICON" ? "ICON-2I" : marine.forcing}`} · ${MARINE_LABELS[marineParam].short} (${MARINE_LABELS[marineParam].unit})`}
+      labels={marineFrames.map((time) => `H+${String(Math.round((Date.parse(time) - Date.parse(marine.run_time)) / 3600000)).padStart(2, "0")} · ${fmtDayTime(time)}`)}
+      index={mIdx} setIndex={setMarineIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
+      loading={!frameReady} legend={<MarineLegend parameter={marineParam} />}
+      note={`Corsa ${new Intl.DateTimeFormat("it-IT", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(marine.run_time))} UTC · orari della timeline locali · ${marineFrames.length} scadenze pubblicate.${Date.now() - Date.parse(marine.run_time) > 36 * 3600000 ? " Corsa meno recente: verificare l’ora di emissione." : ""}${marineQ.isError ? " Aggiornamento non riuscito: ultima corsa verificata." : ""}${frameFailed ? " Fotogramma non caricato: resta l’ultimo caricato, se presente." : ""}${marineDirections && marineVectorsQ.isError ? " Direzioni delle onde non disponibili per questo orario." : ""}`}
+    >
+      <MarineAttribution catalog={marine} />
+    </TimelinePlayer>
+  ) : (
+    <div data-testid="marine-status" className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-200">
+      {marineQ.isLoading ? "Verifica delle previsioni marine disponibili…" : "Previsioni marine momentaneamente non disponibili."}
+      {marineQ.isError && <button data-testid="marine-retry" onClick={() => void marineQ.refetch()} className="ml-2 text-sky-300 underline">Riprova</button>}
+    </div>
+  ) : radarLayer ? (
     <TimelinePlayer
       title={radarProduct === "OPERA" ? "Radar Europa EUMETNET OPERA · osservato" : `Radar DPC ${radarProduct} · osservato`}
       labels={radarFrames.map((t) => fmtTime(t))}
@@ -228,7 +290,16 @@ export default function Home() {
   ) : null;
 
   const layerPanel = (
-    <LayerPanel anim={anim} setAnim={setAnim} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}
+    <LayerPanel anim={anim} setAnim={(next) => {
+      setAnim(next);
+      if (next === "marine" && anim !== "marine") requestAnimationFrame(() => mapControls.fitMediterranean());
+    }} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}
+      marineControls={<MarineControls model={marineModel} onModel={(model) => {
+        setMarineModel(model); setMarineParameter(model === "shyfem" ? "wl" : "hs");
+      }} parameter={marineParam} onParameter={setMarineParameter} forcing={marineForcing} onForcing={setMarineForcing}
+        catalog={marine} loading={marineQ.isFetching} error={marineQ.isError} arrows={marineArrows} onArrows={setMarineArrows}
+        onMediterranean={() => { setSheet("none"); mapControls.fitMediterranean(); }}
+        onSardinia={() => { setSheet("none"); mapControls.fitSardinia(); }} />}
       opacity={opacity} setOpacity={setOpacity} fires={firesOn} setFires={setFiresOn} alerts={alertsOn} setAlerts={setAlertsOn}
       fireCount={frpQ.data ? frpQ.data.detections.length : null} wind={windOn} setWind={setWindOn} windWarning={windWarning}
       is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length}
@@ -256,7 +327,7 @@ export default function Home() {
     onLayerReady, fires: firesOn ? frpQ.data?.detections ?? null : null,
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
     strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo, boundaries: boundariesOn,
-    subregions: subregionsOn, municipalities: municipalOn,
+    subregions: subregionsOn, municipalities: municipalOn, marineVectors: visibleMarineVectors,
   };
   const legends = (
     <>

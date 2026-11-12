@@ -5,12 +5,14 @@ import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
 import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
 import { createDpcLayer } from "@/lib/dpcRadar";
 import { mercatorImage } from "@/lib/mercator";
+import { preloadOverlayImage } from "@/lib/overlayImage";
+import { MarineVectorLayer } from "@/lib/marineVectorLayer";
 import { WindFlowLayer, type WindField } from "@/lib/windFlow";
 import { liveWindColor } from "@/lib/liveWind";
 import { sampleWind } from "@/lib/windFlow";
 import { fmtTime, windDirLabel } from "@/lib/meteo";
 import { lightningColor } from "@/lib/lightning";
-import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
+import { DEFAULT_CENTER, DEFAULT_ZOOM, MEDITERRANEAN_BOUNDS, mapControls, mapFitPadding } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, bboxCenter, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
 
@@ -54,7 +56,8 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   radar: { product: string; time: string } | null;
-  overlay: { url: string; bounds: [number, number][]; warp: boolean; attribution: string } | null;
+  overlay: { url: string; bounds: [number, number][]; warp: boolean; attribution: string; group?: string } | null;
+  marineVectors: GeoJSON.FeatureCollection | null;
   wind: WindField | null;
   strokes: Stroke[] | null;
   onBounds: (b: [number, number, number, number]) => void;
@@ -75,6 +78,10 @@ interface Props {
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 const ALERT_COLORS: Record<number, string> = { 2: "#EAB308", 3: "#F97316", 4: "#DC2626" };
+// Leaflet 1.9 supports an existing IMG; this overload is absent from the installed typings.
+const preloadedImageOverlay = L.imageOverlay as (
+  image: string | HTMLImageElement, bounds: L.LatLngBoundsExpression, options?: L.ImageOverlayOptions,
+) => L.ImageOverlay;
 
 export default function MapView(props: Props) {
   const el = useRef<HTMLDivElement>(null);
@@ -85,10 +92,12 @@ export default function MapView(props: Props) {
   const radarPendingRef = useRef<L.GridLayer | null>(null);
   const aromeRef = useRef<L.ImageOverlay | null>(null);
   const aromeTokenRef = useRef(0);
+  const overlayGroupRef = useRef<string | null>(null);
   const firesRef = useRef<L.LayerGroup | null>(null);
   const alertsRef = useRef<L.GeoJSON | null>(null);
   const windRef = useRef<WindFlowLayer | null>(null);
   const liveWindRef = useRef<WindFlowLayer | null>(null);
+  const marineRef = useRef<MarineVectorLayer | null>(null);
   const arrowsRef = useRef<L.LayerGroup | null>(null);
   const strokesRef = useRef<L.LayerGroup | null>(null);
   const canvasRef = useRef<L.Canvas | null>(null);
@@ -103,7 +112,7 @@ export default function MapView(props: Props) {
     if (!el.current || mapRef.current) return;
     const m = L.map(el.current, {
       center: props.initialView.center, zoom: props.initialView.zoom,
-      minZoom: 5, maxZoom: 13, zoomControl: false, worldCopyJump: false,
+      minZoom: 3, maxZoom: 13, zoomControl: false, worldCopyJump: false,
       maxBounds: L.latLngBounds([26, -20], [54, 42]), preferCanvas: false,
     });
     m.createPane("weather").style.zIndex = "350";
@@ -140,7 +149,18 @@ export default function MapView(props: Props) {
     mapControls.zoomIn = () => m.zoomIn();
     mapControls.zoomOut = () => m.zoomOut();
     mapControls.reset = () => m.flyTo(DEFAULT_CENTER, DEFAULT_ZOOM, { duration: 0.6 });
-    return () => { windRef.current?.destroy(); windRef.current = null; liveWindRef.current?.destroy(); liveWindRef.current = null; m.remove(); mapRef.current = null; };
+    mapControls.fitSardinia = () => mapControls.reset();
+    mapControls.fitMediterranean = () => {
+      const size = m.getSize(), p = mapFitPadding(size.x, size.y);
+      m.fitBounds(MEDITERRANEAN_BOUNDS, { paddingTopLeft: [p.left, p.top], paddingBottomRight: [p.right, p.bottom], duration: 0.6 });
+    };
+    return () => {
+      ++aromeTokenRef.current;
+      marineRef.current?.destroy(); marineRef.current = null;
+      windRef.current?.destroy(); windRef.current = null;
+      liveWindRef.current?.destroy(); liveWindRef.current = null;
+      m.remove(); mapRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -302,28 +322,48 @@ export default function MapView(props: Props) {
   // Image overlay (AROME lat/lon rasters → warped to Mercator; satellite WMS already in EPSG:3857).
   // Swap only after the new image is ready (no blank flashes); failed frames are never shown.
   const overlayUrl = props.overlay?.url;
+  const overlayGroup = props.overlay?.group;
+  const overlayBounds = props.overlay?.bounds.flat().join(",");
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
     const token = ++aromeTokenRef.current;
-    if (!props.overlay) { aromeRef.current?.remove(); aromeRef.current = null; return; }
+    if (!props.overlay) {
+      aromeRef.current?.remove(); aromeRef.current = null;
+      overlayGroupRef.current = null;
+      return;
+    }
     const [[s, w], [n, e]] = props.overlay.bounds;
-    const { url: src, warp, attribution } = props.overlay;
-    (warp ? mercatorImage(src, s, n) : Promise.resolve(src)).then((url) => {
-      if (token !== aromeTokenRef.current || !mapRef.current) return;
-      if (!url) { cb.current.onLayerReady(`overlay:${src}`); return; }
-      const ov = L.imageOverlay(url, [[s, w], [n, e]], { pane: "weather", opacity: cb.current.opacity, interactive: false, attribution });
-      ov.once("load", () => {
-        if (token !== aromeTokenRef.current) { ov.remove(); return; }
-        aromeRef.current?.remove();
-        aromeRef.current = ov;
-        cb.current.onLayerReady(`overlay:${src}`);
-      });
-      ov.once("error", () => { ov.remove(); if (token === aromeTokenRef.current) cb.current.onLayerReady(`overlay-error:${src}`); });
-      ov.addTo(mapRef.current);
+    const { url: src, warp, attribution, group } = props.overlay;
+    const nextGroup = group ?? "default";
+    if (overlayGroupRef.current !== nextGroup) {
+      aromeRef.current?.remove(); aromeRef.current = null;
+    }
+    overlayGroupRef.current = nextGroup;
+    const controller = new AbortController();
+    const current = () => !controller.signal.aborted && token === aromeTokenRef.current && mapRef.current === m;
+    void preloadOverlayImage(warp ? mercatorImage(src, s, n) : src, controller.signal).then((image) => {
+      if (!current()) return;
+      // Use the already loaded image: one displayed overlay and one cancellable preload.
+      const ov = preloadedImageOverlay(image, [[s, w], [n, e]], { pane: "weather", opacity: cb.current.opacity, interactive: false, attribution });
+      ov.addTo(m);
+      aromeRef.current?.remove();
+      aromeRef.current = ov;
+      cb.current.onLayerReady(`overlay:${src}`);
+    }).catch(() => {
+      if (current()) cb.current.onLayerReady(`overlay-error:${src}`);
     });
+    return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlayUrl]);
+  }, [overlayUrl, overlayGroup, overlayBounds, props.overlay?.warp]);
+
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    if (!props.marineVectors) { marineRef.current?.setData(null); return; }
+    if (!marineRef.current) marineRef.current = new MarineVectorLayer(m);
+    marineRef.current.setData(props.marineVectors);
+  }, [props.marineVectors]);
 
   // AROME wind streamlines
   useEffect(() => {
