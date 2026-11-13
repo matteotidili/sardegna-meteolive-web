@@ -206,7 +206,10 @@ export async function getArome(): Promise<AromeResponse> {
     run_time: runTime, generated_at: (d.generated_at as string) ?? null,
     run_age_hours: Math.round(((Date.now() - run.getTime()) / 3600000) * 10) / 10, horizon_hours: horizon,
     bounds: (d.bounds as [number, number][]) ?? [], domain_note: (d.domain_note as string) ?? null,
-    product_url_template: tpl, parameters, frames, complete: horizon > 0 && frames.length === horizon,
+    product_url_template: tpl, parameters,
+    hourly_precip_stops: Array.isArray(d.hourly_precip_stops)
+      ? d.hourly_precip_stops as AromeResponse["hourly_precip_stops"] : undefined,
+    frames, complete: horizon > 0 && frames.length === horizon,
   };
 }
 
