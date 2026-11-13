@@ -116,6 +116,8 @@ export interface AromeResponse {
   domain_note: string | null;
   product_url_template: string;
   parameters: AromeParameter[];
+  /** Colori e soglie esatti usati dal renderer PNG della precipitazione oraria. */
+  hourly_precip_stops?: [number, RGB][];
   frames: AromeFrame[];
   complete: boolean;
 }
