@@ -177,8 +177,12 @@ export function windDirLabel(deg: number | null): string {
 }
 
 export const AROME_PRECIP_KEY = "precip_1h";
+// Fallback per vecchi manifest AROME: stessa palette esatta dei PNG
+// prodotti da scripts/update_arome_hd.py (PALETTE, da 0.1 a 80 mm).
 export const AROME_PRECIP_STOPS: [number, [number, number, number]][] = [
-  [0.1, [30, 190, 245]], [1, [0, 190, 210]], [5, [240, 220, 25]], [20, [240, 49, 43]], [80, [255, 110, 244]],
+  [0.1, [30, 190, 245]], [0.5, [31, 130, 245]], [1, [0, 190, 210]],
+  [2, [0, 185, 100]], [5, [240, 220, 25]], [10, [252, 148, 35]],
+  [20, [240, 49, 43]], [40, [178, 25, 166]], [80, [255, 110, 244]],
 ];
 export const AROME_NOTES: Record<string, string> = {
   [AROME_PRECIP_KEY]: "Precipitazione totale prevista nell'ora precedente (accumulo orario da differenziazione GRIB2).",
