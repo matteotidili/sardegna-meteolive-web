@@ -266,7 +266,7 @@ export default function Home() {
       title={`AROME HD · previsione · ${aromeParam === AROME_PRECIP_KEY ? "precipitazione oraria" : aromeMeta?.label ?? aromeParam}`}
       labels={aromeFrames.map((f) => `H+${String(f.lead_hours).padStart(2, "0")} · ${fmtDayTime(f.valid_time)}`)}
       index={lIdx} setIndex={setLeadIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
-      loading={!frameReady} legend={<AromeLegend meta={aromeMeta} isPrecip={aromeParam === AROME_PRECIP_KEY} />}
+      loading={!frameReady} legend={<AromeLegend meta={aromeMeta} isPrecip={aromeParam === AROME_PRECIP_KEY} hourlyPrecipStops={arome.hourly_precip_stops} />}
       note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Linee di flusso 10 m: velocità illustrativa." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
     />
   ) : sat ? (
