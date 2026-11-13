@@ -36,7 +36,11 @@ export function StationLegend({ param }: { param: ParamDef }) {
 
 const rgb = (c: number[]) => `rgb(${c.join(",")})`;
 
-export function AromeLegend({ meta, isPrecip }: { meta: AromeParameter | undefined; isPrecip: boolean }) {
+export function AromeLegend({ meta, isPrecip, hourlyPrecipStops }: {
+  meta: AromeParameter | undefined;
+  isPrecip: boolean;
+  hourlyPrecipStops?: [number, [number, number, number]][];
+}) {
   if (meta?.scale === "phase" && meta.phase_colors) {
     return (
       <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-slate-300" data-testid="arome-legend">
@@ -46,17 +50,42 @@ export function AromeLegend({ meta, isPrecip }: { meta: AromeParameter | undefin
       </div>
     );
   }
-  const stops = isPrecip ? AROME_PRECIP_STOPS : meta?.stops ?? [];
+  // Soglie e colori hanno origine dallo stesso manifest dei raster, mai da una
+  // seconda scala arbitraria; per i vecchi manifest esiste un fallback esatto.
+  const stops = isPrecip ? hourlyPrecipStops?.length ? hourlyPrecipStops : AROME_PRECIP_STOPS : meta?.stops ?? [];
   if (!stops.length) return null;
-  const lo = stops[0][0], hi = stops[stops.length - 1][0];
-  const grad = stops.map(([v, c]) => `${rgb(c)} ${(((v - lo) / (hi - lo || 1)) * 100).toFixed(1)}%`).join(", ");
-  const unit = isPrecip ? "mm/h" : meta?.unit ?? "";
+  const n = stops.length;
+  const rainfall = isPrecip || meta?.scale === "precip" || meta?.scale === "precip_total";
+  // Ogni segmento rappresenta l'intervallo fra due soglie successive. La
+  // legenda NON è un asse lineare dei mm: mette in evidenza gli accumuli deboli
+  // senza ammassarne le etichette all'estremità sinistra.
+  const grad = stops.map(([, c], i) => `${rgb(c)} ${((i / Math.max(1, n - 1)) * 100).toFixed(3)}%`).join(", ");
+  const ticks = rainfall && n > 9
+    ? [0, 2, 4, 6, 8, 10, n - 1]
+    : rainfall && n >= 7
+      ? [0, 2, 4, 6, n - 1]
+      : n > 7 ? [0, 2, 4, 6, n - 1] : stops.map((_, i) => i);
+  const tickIndices = [...new Set(ticks.filter((i) => i < n))];
+  const unit = isPrecip ? "mm" : meta?.unit ?? "";
   return (
     <div className="mt-2" data-testid="arome-legend">
-      <div className="h-2 rounded-full" style={{ background: `linear-gradient(90deg, ${grad})` }} />
-      <div className="mt-0.5 flex justify-between font-num text-[9px] text-slate-400">
-        {stops.filter((_, i) => stops.length <= 7 || i % 2 === 0 || i === stops.length - 1).map(([v]) => <span key={v}>{v}</span>)}
-        <span className="text-slate-500">{unit}</span>
+      <div role="img" aria-label={`Scala cromatica ${unit}: ${stops.map(([v]) => v).join(", ")}`}
+        className="h-2.5 rounded-full border border-white/10"
+        style={{ background: `linear-gradient(90deg, ${grad})` }} />
+      <div className="relative mt-1 h-3.5 w-full font-num text-[9px] tabular-nums text-slate-300">
+        {tickIndices.map((i) => (
+          <span key={i} className="absolute whitespace-nowrap"
+            style={{
+              left: `${(i / Math.max(1, n - 1)) * 100}%`,
+              transform: i === 0 ? undefined : i === n - 1 ? "translateX(-100%)" : "translateX(-50%)",
+            }}>
+            {String(stops[i][0]).replace(".", ",")}
+          </span>
+        ))}
+      </div>
+      <div className="mt-0.5 flex items-center justify-between gap-2 text-[9px] text-slate-500">
+        <span>{rainfall ? "Intervalli di accumulo non lineari" : "Scala cromatica"}</span>
+        <span className="font-num">{unit}</span>
       </div>
     </div>
   );
