@@ -37,9 +37,9 @@ function decode(ctx: CanvasRenderingContext2D, product: string) {
   for (let i = 0; i < px.length; i += 4) {
     if (px[i + 3] === 0) continue;
     const r = px[i], g = px[i + 1], b = px[i + 2];
-    if (Math.max(r, g, b) <= 22) continue;
+    if (Math.max(r, g, b) <= 9) continue;
     active++;
-    if (r > 30 && g < Math.max(18, r * 0.2) && b < Math.max(18, r * 0.2)) redLike++;
+    if (r > 9 && g <= Math.max(3, r * 0.12) && b <= Math.max(3, r * 0.12)) redLike++;
   }
   const encoded = active >= 12 && redLike / active > 0.7;
   const palette = product === "VMI" ? DPC_VMI_BANDS : DPC_SRI_BANDS;
@@ -47,14 +47,17 @@ function decode(ctx: CanvasRenderingContext2D, product: string) {
     const a = px[i + 3];
     if (a === 0) continue;
     const r = px[i], g = px[i + 1], b = px[i + 2];
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    if (max <= 9) { px[i + 3] = 0; continue; }
-    if (max <= 22 && max - min <= 8) {
-      px[i + 3] = Math.round((a * Math.max(0, max - 9)) / 13);
-    } else if (encoded) {
+    const max = Math.max(r, g, b);
+    if (encoded) {
+      // Nei tile codificati sul rosso anche i valori deboli sono echi validi:
+      // ricolorali prima del filtro dei pixel scuri, altrimenti diventano aloni neri.
+      if (r <= 12) { px[i + 3] = 0; continue; }
       const c = paletteAt((r - 12) / 243, palette);
       px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2];
       px[i + 3] = Math.round(a * Math.min(1, Math.max(0.36, (r - 12) / 65)));
+    } else if (max <= 22) {
+      // Il nero e le sue sfumature non sono precipitazione: lascia trasparente.
+      px[i + 3] = 0;
     }
   }
   ctx.putImageData(img, 0, 0);
