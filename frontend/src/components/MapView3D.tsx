@@ -6,6 +6,7 @@ import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBRE
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
 import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
 import { dpcTilePng } from "@/lib/dpcRadar";
+import type { RadarPoint } from "@/lib/radarPoint";
 import { Radar3D } from "@/lib/radar3d";
 import { mercatorImage } from "@/lib/mercator";
 import { preloadOverlayImage } from "@/lib/overlayImage";
@@ -46,6 +47,8 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   radar: { product: string; time: string } | null;
+  radarPoint: RadarPoint | null;
+  onRadarPoint: (point: RadarPoint) => void;
   overlay: { url: string; bounds: [number, number][]; warp: boolean; attribution: string; group?: string } | null;
   marineVectors: GeoJSON.FeatureCollection | null;
   opacity: number;
@@ -70,6 +73,7 @@ export default function MapView3D(props: Props) {
   const subLabelsRef = useRef<maplibregl.Marker[]>([]);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const radarRef = useRef<Radar3D | null>(null);
+  const radarPointRef = useRef<maplibregl.Marker | null>(null);
   const tokenRef = useRef(0);
   const overlayLoadRef = useRef<AbortController | null>(null);
   const overlayWatchRef = useRef<(() => void) | null>(null);
@@ -164,7 +168,16 @@ export default function MapView3D(props: Props) {
     m.on("moveend", emit);
     m.on("zoomend", () => syncSubLabels());
     m.on("resize", queueMarineVectors);
-    m.on("click", (e) => { if (!(e.originalEvent.target as HTMLElement).closest(".stn")) cb.current.onSelect(null); });
+    m.on("click", (e) => {
+      if ((e.originalEvent.target as HTMLElement).closest(".stn")) return;
+      // Non attivare l'interrogazione radar cliccando sugli idrometri ARPAS.
+      if (m.getLayer("hydrometers-points") &&
+          m.queryRenderedFeatures(e.point, { layers: ["hydrometers-points"] }).length) return;
+      if (cb.current.radar) {
+        cb.current.onSelect(null);
+        cb.current.onRadarPoint({ lat: e.lngLat.lat, lon: e.lngLat.lng });
+      } else cb.current.onSelect(null);
+    });
     mapControls.zoomIn = () => m.zoomIn();
     mapControls.zoomOut = () => m.zoomOut();
     mapControls.reset = () => { if (readyRef.current) m.flyTo({ center: [DEFAULT_CENTER[1], DEFAULT_CENTER[0]], zoom: DEFAULT_ZOOM - 1, pitch: 55, bearing: -12 }); };
@@ -181,6 +194,7 @@ export default function MapView3D(props: Props) {
       overlayLoadRef.current?.abort(); overlayLoadRef.current = null;
       overlayWatchRef.current?.(); overlayWatchRef.current = null;
       cancelAnimationFrame(marineRafRef.current); marineRafRef.current = 0;
+      radarPointRef.current?.remove(); radarPointRef.current = null;
       radarRef.current?.destroy();
       radarRef.current = null;
       markersRef.current.forEach((x) => x.remove());
@@ -193,7 +207,7 @@ export default function MapView3D(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncGeo(); syncHydro(); syncBounds(); syncSubregions(); syncMunicipal(); syncMarineVectors(); }
+  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncRadarPoint(); syncGeo(); syncHydro(); syncBounds(); syncSubregions(); syncMunicipal(); syncMarineVectors(); }
 
   function queueMarineVectors() {
     if (marineRafRef.current) return;
@@ -361,6 +375,20 @@ export default function MapView3D(props: Props) {
     });
   }
 
+  function syncRadarPoint() {
+    const m = mapRef.current;
+    if (!m) return;
+    radarPointRef.current?.remove();
+    radarPointRef.current = null;
+    const point = cb.current.radarPoint;
+    if (!point || !cb.current.radar) return;
+    const div = document.createElement("div");
+    div.dataset.testid = "radar-selected-marker-3d";
+    div.style.cssText = "pointer-events:none;width:13px;height:13px;border-radius:50%;background:#0ea5e9;border:2px solid white;box-shadow:0 0 8px #000";
+    radarPointRef.current = new maplibregl.Marker({ element: div, anchor: "center" })
+      .setLngLat([point.lon, point.lat]).addTo(m);
+  }
+
   function syncRadar() {
     radarRef.current?.setOpacity(cb.current.opacity);
     radarRef.current?.set(cb.current.radar);
@@ -407,6 +435,7 @@ export default function MapView3D(props: Props) {
   useEffect(syncOverlay, [props.overlay?.url, props.overlay?.group, props.overlay?.bounds.flat().join(","), props.overlay?.warp]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncMarineVectors, [props.marineVectors]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncRadar, [props.radar?.product, props.radar?.time]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(syncRadarPoint, [props.radarPoint, props.radar?.product]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncGeo, [props.alerts, props.fires, props.strokes]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncHydro, [props.hydrometers]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncBounds, [props.boundaries]); // eslint-disable-line react-hooks/exhaustive-deps
