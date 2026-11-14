@@ -26,6 +26,9 @@ interface Props {
   arome: AromeResponse | undefined;
   opacity: number;
   setOpacity: (n: number) => void;
+  hydrometers: boolean;
+  setHydrometers: (on: boolean) => void;
+  hydroStatus: string;
   fires: boolean;
   setFires: (b: boolean) => void;
   alerts: boolean;
@@ -172,6 +175,14 @@ export default function LayerPanel(p: Props) {
           icon={<Navigation className="size-4" />} title="Frecce vento stazioni"
           sub={`Misurato · ${p.arrowCount} stazioni con direzione · tocca per confronto`} />
       )}
+
+      <div className={SECTION}>Idrologia e monitoraggio</div>
+      <Toggle testid="layer-toggle-hydrometers" on={p.hydrometers} onClick={() => p.setHydrometers(!p.hydrometers)}
+        icon={<Waves className="size-4" />} title="Idrometri ARPAS" sub={p.hydroStatus} />
+      {p.hydrometers && <p data-testid="hydro-note" className="px-1 text-[10px] leading-snug text-slate-400">
+        Livelli della rete fiduciaria ARPAS, riferiti allo zero idrometrico di ciascuna sezione.
+        Le soglie S1–S3 non sono livelli di allerta territoriale.
+      </p>}
 
       <div className={SECTION}>Fulmini e sovrapposizioni</div>
       <Toggle testid="layer-toggle-lightning" on={p.lightning} onClick={() => p.setLightning(!p.lightning)} icon={<Zap className="size-4" />}
