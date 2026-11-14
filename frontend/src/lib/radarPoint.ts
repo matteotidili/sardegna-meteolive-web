@@ -136,8 +136,11 @@ export async function radarSeries(
   manifest: RadarNumericManifest, product: RadarPointProduct,
   endTime: string, point: RadarPoint, hours: 1 | 2 | 3,
 ): Promise<RadarPointSample[]> {
-  const end = Date.parse(endTime), step = (product === "OPERA" ? 15 : 5) * 60_000;
-  if (!Number.isFinite(end)) return [];
+  const requestedEnd = Date.parse(endTime), step = (product === "OPERA" ? 15 : 5) * 60_000;
+  if (!Number.isFinite(requestedEnd)) return [];
+  // Allinea la serie alla cadenza reale del prodotto: il fotogramma animato
+  // può avere un orario che non coincide con quello dell'archivio OPERA.
+  const end = Math.floor(requestedEnd / step) * step;
   const config = configFor(manifest, product);
   const lookup = new Map(config.frames.map((f) => [Date.parse(f.time), f.file]));
   const count = hours * 60_000 / step;
@@ -169,7 +172,7 @@ export function useRadarPointSeries(
   const enabled = !!manifest && (product === "VMI" || product === "SRI" || (product === "OPERA" && !!manifest.opera)) && !!endTime && !!point;
   return useQuery({
     queryKey: ["radar-point", manifest?.generated_at, product, endTime, point?.lat, point?.lon, hours],
-    queryFn: () => radarSeries(manifest!, product as DpcRadarProduct, endTime!, point!, hours),
+    queryFn: () => radarSeries(manifest!, product as RadarPointProduct, endTime!, point!, hours),
     enabled,
     staleTime: Infinity,
     retry: false,
