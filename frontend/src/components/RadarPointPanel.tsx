@@ -23,11 +23,12 @@ function clock(iso: string): string {
 export default function RadarPointPanel({ product, time, point, onClose }: Props) {
   const [hours, setHours] = useState<Hours>(3);
   const [showChart, setShowChart] = useState(true);
-  const numeric = useRadarNumericManifest(product !== "OPERA");
+  const numeric = useRadarNumericManifest(true);
   const manifest = numeric.data;
-  // Anche sul layer VMI mostriamo solo l'intensità numerica SRI della
-  // *stessa* scansione; non applichiamo una conversione teorica dei dBZ.
-  const seriesQ = useRadarPointSeries(manifest, product === "OPERA" ? null : "SRI", time, point, hours);
+  // VMI non contiene un valore di pioggia: per DPC usiamo il prodotto SRI
+  // nativo; OPERA usa il suo prodotto numerico RATE.
+  const pointProduct = product === "OPERA" ? "OPERA" : "SRI";
+  const seriesQ = useRadarPointSeries(manifest, pointProduct, time, point, hours);
   const list = seriesQ.data ?? [];
   // Non ripiegare mai su un'altra scansione: il valore deve appartenere
   // esclusivamente al fotogramma scelto, anche quando il suo raster manca.
@@ -39,7 +40,11 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
     : [...list].reverse().find((r) =>
         Date.parse(r.time) <= Date.parse(time) && r.available && r.value !== null);
   const intensity = displayed?.value ?? null;
-  const inDomain = manifest ? radarCell(point, manifest) !== null : null;
+  const inDomain = manifest
+    ? (product === "OPERA"
+        ? (manifest.opera ? radarCell(point, manifest, "OPERA") !== null : null)
+        : radarCell(point, manifest, "SRI") !== null)
+    : null;
   const [hover, setHover] = useState<number | null>(null);
   useEffect(() => { setHover(null); }, [product, point.lat, point.lon, time, hours]);
 
@@ -67,14 +72,14 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
     const maxIndex = vals.findIndex((v) => v !== null && v === maxValue);
     // 3h/2h: orari ogni 30 min; 1h: ogni 15 min. Il massimo,
     // se intermedio, ha comunque linea e orario esatti propri.
-    const every = hours === 1 ? 3 : 6;
+    const every = product === "OPERA" ? (hours === 1 ? 2 : 4) : (hours === 1 ? 3 : 6);
     const timeTicks = list.map((r, i) => ({ time: r.time, i }))
       .filter(({ i }) => i % every === 0 || i === list.length - 1);
     return { vals, ymin, ymax, maxIndex, maxValue, segments, x, y, timeTicks };
   }, [list, hours]);
 
   const isOpera = product === "OPERA";
-  const busy = !isOpera && (numeric.isLoading || seriesQ.isLoading || seriesQ.isFetching);
+  const busy = numeric.isLoading || seriesQ.isLoading || seriesQ.isFetching;
   return (
     <div data-testid="radar-point-panel"
       className="pointer-events-auto w-full max-w-[360px] overflow-hidden rounded-2xl border border-sky-700/65 bg-slate-950/97 text-slate-100 shadow-2xl shadow-black/70 backdrop-blur-xl">
@@ -91,18 +96,16 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
           <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{decimal(point.lat,4)}°N · {decimal(point.lon,4)}°E</span>
           <span className="inline-flex items-center gap-1"><Clock3 className="size-3" />{fmtTime(displayed?.time ?? time)}</span>
         </div>
-        {isOpera ? (
-          <p className="rounded-lg border border-amber-700/30 bg-amber-950/30 p-2 text-xs text-amber-100">
-            Interrogazione numerica non disponibile per le tile RadarEU/OPERA: la palette grafica non permette di ricostruire con certezza i mm/h. Il radar rimane visibile, senza valori puntuali inventati.
-          </p>
-        ) : numeric.isError ? (
-          <p className="text-xs text-amber-200">Archivio radar numerico DPC temporaneamente non disponibile. Riprova aggiornando la pagina.</p>
+        {numeric.isError ? (
+          <p className="text-xs text-amber-200">Archivio numerico radar temporaneamente non disponibile. Riprova tra poco.</p>
+        ) : isOpera && !manifest?.opera ? (
+          <p className="text-xs text-amber-200">Archivio numerico OPERA RATE in aggiornamento.</p>
         ) : inDomain === false ? (
           <p className="text-xs text-amber-200">Punto esterno alla griglia quantitativa della Sardegna. Nessun valore attribuito.</p>
         ) : (
           <>
             <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-2.5">
-              <p className="text-[10px] text-slate-400">Intensità pluviometrica stimata al suolo</p>
+              <p className="text-[10px] text-slate-400">Intensità pluviometrica</p>
               <div className="mt-0.5 flex items-baseline gap-2">
                 <strong data-testid="radar-point-value" className="font-num text-[24px] tabular-nums leading-tight">
                   {busy && !curr ? "…" : intensity == null ? "n.d." : decimal(intensity)}
@@ -181,8 +184,9 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
             {showChart && busy && <p className="text-[10px] text-slate-400">Lettura dei fotogrammi originali in corso…</p>}
             {showChart && !busy && !chart && <p className="text-[10px] text-amber-200">Nessuna serie numerica valida per l'intervallo selezionato.</p>}
             <p className="text-[9px] leading-snug text-slate-500">
-              Fonte quantitativa: Radar-DPC SRI (mm/h), ritaglio GeoTIFF numerico senza interpolazione, 1 km; precisione dell'archivio 0,1 mm/h.
-              Dati automatici non validati. © Dipartimento della Protezione Civile · CC BY-SA 4.0.
+              {isOpera
+                ? "Fonte quantitativa: prodotto OPERA RATE EUMETNET, griglia numerica originale a 2 km · CC BY 4.0."
+                : "Fonte quantitativa: prodotto Radar-DPC SRI, griglia numerica originale a 1 km · © Dipartimento della Protezione Civile · CC BY-SA 4.0."}
             </p>
           </>
         )}
