@@ -156,12 +156,19 @@ export async function radarSeries(
       if (!file) { out[ix] = { time, value: null, available: false }; continue; }
       try {
         out[ix] = { time, value: await sampleRadarPoint(manifest, file, point, product), available: true };
-      } catch {
+      } catch (error) {
+        if (ix === 0 || ix === times.length - 1) console.warn("[Radar point] raster non leggibile", product, file, error);
         out[ix] = { time, value: null, available: false };
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, times.length) }, worker));
+  console.info("[Radar point] serie interrogata", {
+    product, requested: endTime, point,
+    first: out[0]?.time, last: out.at(-1)?.time,
+    available: out.filter((s) => s.available).length,
+    values: out.filter((s) => s.value !== null && Number.isFinite(s.value)).length,
+  });
   return out;
 }
 export function useRadarPointSeries(
