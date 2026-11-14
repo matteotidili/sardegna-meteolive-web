@@ -130,10 +130,19 @@ export async function sampleRadarPoint(
   }
   const index = (cell[0] * image.width + cell[1]) * 4;
   const value = numericCell(image.data[index], image.data[index + 1], config.encoding.scale, config.encoding.bias);
-  // In SRI, a valid published scan with no measurable surface echo represents
-  // 0 mm/h. Keep missing timestamps as unavailable in radarSeries; do not turn
-  // absent scans into zero. OPERA uses its explicit UNDTECT code during ingest.
-  return value === null && product === "SRI" ? 0 : value;
+  // NoData is unknown, including SRI. Only an encoded zero means 0 mm/h.
+  return value;
+}
+
+/** Select the exact product timestamp; never substitute an older rain rate. */
+export function selectedRadarSample(
+  samples: RadarPointSample[], time: string, product: RadarPointProduct,
+): RadarPointSample | undefined {
+  const step = (product === "OPERA" ? 15 : 5) * 60_000;
+  const requested = Date.parse(time);
+  if (!Number.isFinite(requested)) return undefined;
+  const timestamp = Math.floor(requested / step) * step;
+  return samples.find((sample) => Date.parse(sample.time) === timestamp);
 }
 
 export async function radarSeries(

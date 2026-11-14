@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Clock3, MapPin, X } from "lucide-react";
 import { fmtTime } from "@/lib/meteo";
-import { radarCell, useRadarNumericManifest, useRadarPointSeries, type RadarPoint } from "@/lib/radarPoint";
+import { radarCell, selectedRadarSample, useRadarNumericManifest, useRadarPointSeries, type RadarPoint } from "@/lib/radarPoint";
 
 type Hours = 1 | 2 | 3;
 interface Props {
@@ -30,16 +30,8 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
   const pointProduct = product === "OPERA" ? "OPERA" : "SRI";
   const seriesQ = useRadarPointSeries(manifest, pointProduct, time, point, hours);
   const list = seriesQ.data ?? [];
-  // Non ripiegare mai su un'altra scansione: il valore deve appartenere
-  // esclusivamente al fotogramma scelto, anche quando il suo raster manca.
-  const curr = list.find((r) => r.time === time);
-  // Se la scansione selezionata non è ancora nell'archivio, mostra il campione
-  // valido più recente precedente, mantenendo visibile l'orario reale del dato.
-  const displayed = curr?.available && curr.value !== null
-    ? curr
-    : [...list].reverse().find((r) =>
-        Date.parse(r.time) <= Date.parse(time) && r.available && r.value !== null);
-  const intensity = displayed?.value ?? null;
+  const curr = selectedRadarSample(list, time, pointProduct);
+  const intensity = curr?.available ? curr.value : null;
   const inDomain = manifest
     ? (product === "OPERA"
         ? (manifest.opera ? radarCell(point, manifest, "OPERA") !== null : null)
@@ -76,7 +68,7 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
     const timeTicks = list.map((r, i) => ({ time: r.time, i }))
       .filter(({ i }) => i % every === 0 || i === list.length - 1);
     return { vals, ymin, ymax, maxIndex, maxValue, segments, x, y, timeTicks };
-  }, [list, hours]);
+  }, [list, hours, product]);
 
   const isOpera = product === "OPERA";
   const busy = numeric.isLoading || seriesQ.isLoading || seriesQ.isFetching;
@@ -94,7 +86,7 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
       <div className="thin-scroll max-h-[min(68vh,620px)] space-y-2 overflow-y-auto px-3 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400">
           <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{decimal(point.lat,4)}°N · {decimal(point.lon,4)}°E</span>
-          <span className="inline-flex items-center gap-1"><Clock3 className="size-3" />{fmtTime(displayed?.time ?? time)}</span>
+          <span className="inline-flex items-center gap-1"><Clock3 className="size-3" />{fmtTime(curr?.time ?? time)}</span>
         </div>
         {numeric.isError ? (
           <p className="text-xs text-amber-200">Archivio numerico radar temporaneamente non disponibile. Riprova tra poco.</p>
