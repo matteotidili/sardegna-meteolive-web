@@ -59,8 +59,26 @@ async function scenario(name, viewport, mobile) {
   await canvas.waitFor({ timeout: 30000 });
   const bounds = await canvas.boundingBox();
   assert(bounds && bounds.width > 150 && bounds.height > 100);
+  await page.evaluate(() => {
+    window.__radarClickDebug = [];
+    document.querySelector('[data-testid="map-canvas"]')?.addEventListener("click", (e) => {
+      window.__radarClickDebug.push({ target: e.target?.tagName, x: e.clientX, y: e.clientY });
+    });
+  });
   await canvas.click({ position: { x: bounds.width * 0.5, y: bounds.height * 0.54 }, timeout: 20000 });
-  await page.getByTestId("radar-point-panel").waitFor({ timeout: 20000 });
+  try {
+    await page.getByTestId("radar-point-panel").waitFor({ timeout: 9000 });
+  } catch (error) {
+    console.log("RADAR DEBUG", name, JSON.stringify(await page.evaluate(() => ({
+      clicks: window.__radarClickDebug, title: document.title,
+      panelCount: document.querySelectorAll('[data-testid="radar-point-panel"]').length,
+      sriToggle: document.querySelector('[data-testid="layer-toggle-radar-sri"]')?.getAttribute("aria-pressed"),
+      mapClass: document.querySelector('[data-testid="map-canvas"]')?.className,
+      mapCenter: document.elementFromPoint(window.innerWidth/2,window.innerHeight*0.54)?.outerHTML.slice(0,350),
+    }))));
+    console.log("PAGE ERRORS",name,JSON.stringify(errors));
+    throw error;
+  }
   await page.getByTestId("radar-hours-1").click();
   await page.getByTestId("radar-chart-toggle").click();
   await page.getByTestId("radar-chart-toggle").click();
