@@ -18,7 +18,7 @@ if "error" in doc: raise RuntimeError(str(doc["error"])[:350])
 rows=doc.get("features",[])
 valid=[f for f in rows if f.get("geometry",{}).get("type")=="Point" and
     len(f.get("geometry",{}).get("coordinates",[]))>=2 and f.get("properties",{}).get("cod_srv")]
-newest=max((f["properties"].get("time",0) for f in valid),default=0)
+newest=max((float(t) for f in valid if (t:=f["properties"].get("time")) is not None),default=0)
 print("Sezioni ARPAS:",len(rows),"georeferenziate e con codice:",len(valid))
 print("Ultima osservazione:",datetime.fromtimestamp(newest/1000,timezone.utc).isoformat() if newest>1e11 else newest)
 print("Campi restituiti:",sorted(valid[0]["properties"]) if valid else [])
