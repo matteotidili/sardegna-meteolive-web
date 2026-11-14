@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { radarFrameKey } from "@/lib/radarFrame";
+import type { RadarPoint } from "@/lib/radarPoint";
 import L from "leaflet";
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
 import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
@@ -57,6 +58,8 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   radar: { product: string; time: string } | null;
+  radarPoint: RadarPoint | null;
+  onRadarPoint: (p: RadarPoint) => void;
   overlay: { url: string; bounds: [number, number][]; warp: boolean; attribution: string; group?: string } | null;
   marineVectors: GeoJSON.FeatureCollection | null;
   wind: WindField | null;
@@ -91,6 +94,7 @@ export default function MapView(props: Props) {
   const baseRef = useRef<L.TileLayer[]>([]);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const radarRef = useRef<L.GridLayer | null>(null);
+  const radarPointRef = useRef<L.CircleMarker | null>(null);
   const radarPendingRef = useRef<L.GridLayer | null>(null);
   const aromeRef = useRef<L.ImageOverlay | null>(null);
   const aromeTokenRef = useRef(0);
@@ -149,7 +153,12 @@ export default function MapView(props: Props) {
       cb.current.onViewChange({ center: [+c.lat.toFixed(4), +c.lng.toFixed(4)], zoom: m.getZoom() });
       emitBounds();
     });
-    m.on("click", () => cb.current.onSelect(null));
+    m.on("click", (e: L.LeafletMouseEvent) => {
+      if (cb.current.radar) {
+        cb.current.onSelect(null);
+        cb.current.onRadarPoint({ lat: e.latlng.lat, lon: e.latlng.lng });
+      } else cb.current.onSelect(null);
+    });
     mapRef.current = m;
     mapControls.zoomIn = () => m.zoomIn();
     mapControls.zoomOut = () => m.zoomOut();
@@ -164,6 +173,7 @@ export default function MapView(props: Props) {
       marineRef.current?.destroy(); marineRef.current = null;
       windRef.current?.destroy(); windRef.current = null;
       liveWindRef.current?.destroy(); liveWindRef.current = null;
+      radarPointRef.current?.remove(); radarPointRef.current = null;
       m.remove(); mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -369,6 +379,22 @@ export default function MapView(props: Props) {
     if (!marineRef.current) marineRef.current = new MarineVectorLayer(m);
     marineRef.current.setData(props.marineVectors);
   }, [props.marineVectors]);
+
+  // Evidenziatore geografico del punto di interrogazione, non interferisce
+  // con i clic su idrometri o stazioni.
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    radarPointRef.current?.remove();
+    radarPointRef.current = null;
+    if (!props.radar || !props.radarPoint) return;
+    const marker = L.circleMarker([props.radarPoint.lat, props.radarPoint.lon], {
+      pane: "markerPane", radius: 6, weight: 2, color: "#ffffff",
+      fillColor: "#0ea5e9", fillOpacity: 1, interactive: false,
+    });
+    marker.addTo(m);
+    radarPointRef.current = marker;
+  }, [props.radarPoint, props.radar?.product]);
 
   // AROME wind streamlines
   useEffect(() => {
