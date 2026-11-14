@@ -22,6 +22,8 @@ import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls, satelliteUrl } from "@/lib/m
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { radarFrameErrorKey, radarFrameKey } from "@/lib/radarFrame";
+import RadarPointPanel from "@/components/RadarPointPanel";
+import type { RadarPoint } from "@/lib/radarPoint";
 import MarineControls, { MARINE_LABELS, MarineAttribution } from "@/components/MarineControls";
 import MarineLegend from "@/components/MarineLegend";
 import HydroLegend from "@/components/HydroLegend";
@@ -96,6 +98,7 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; seq: number } | null>(null);
   const [radarIdx, setRadarIdx] = useState<number | null>(null);
+  const [radarPoint, setRadarPoint] = useState<RadarPoint | null>(null);
   const [leadIdx, setLeadIdx] = useState<number | null>(null);
   const [marineIdx, setMarineIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -200,6 +203,9 @@ export default function Home() {
 
   // reset timeline when the animated layer changes
   useEffect(() => { setPlaying(false); setRadarIdx(null); setSatIdx(null); }, [anim]);
+  // Il punto resta fisso durante l'animazione e la timeline. Fuori dal
+  // contesto radar il pannello non deve sovrapporsi agli altri layer.
+  useEffect(() => { if (!radarProduct) setRadarPoint(null); }, [radarProduct]);
   useEffect(() => { setPlaying(false); setMarineIdx(null); }, [marineModel, marineParam, marineForcing, marine?.run_time]);
 
   // playback: advance only once the current frame is fully drawn (no partial frames)
@@ -332,7 +338,8 @@ export default function Home() {
       counts={counts} loading={stationsQ.isLoading} />
   );
   const mapProps = {
-    basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer, overlay, opacity,
+    basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer,
+    radarPoint: radarLayer ? radarPoint : null, onRadarPoint: setRadarPoint, overlay, opacity,
     onLayerReady, fires: firesOn ? frpQ.data?.detections ?? null : null,
     hydrometers: hydrometersOn ? hydrometersQ.data ?? null : null,
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
@@ -353,6 +360,13 @@ export default function Home() {
       {mode3d
         ? <MapView3D key={`3d-${basemap}`} {...mapProps} />
         : <MapView key="2d" {...mapProps} liveWind={liveWindOn ? liveWindQ.data?.field ?? null : null} stationArrows={liveWindOn && stationArrowsOn} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
+
+      {radarLayer && radarPoint && (
+        <div className="pointer-events-none fixed right-3 top-[115px] z-40 w-[min(360px,calc(100vw-24px))] md:right-4 md:top-[92px]">
+          <RadarPointPanel product={radarLayer.product} time={radarLayer.time}
+            point={radarPoint} onClose={() => setRadarPoint(null)} />
+        </div>
+      )}
 
       {/* ---------- top HUD ---------- */}
       <header className="pointer-events-none fixed inset-x-2 top-2 z-30 flex flex-col gap-2 md:inset-x-4 md:top-3">
