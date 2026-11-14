@@ -161,7 +161,7 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
                       </text></g>;
                   })}
                   <line x1="322" x2="322" y1="19" y2="126" stroke="#fbbf24" strokeWidth="1.3" strokeDasharray="3 3" />
-                  {chart.segments.map((p,i) => <polyline key={i} points={p} fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinejoin="round" />)
+                  {chart.segments.map((p,i) => <polyline key={i} points={p} fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinejoin="round" />)}
                   {chart.vals.map((v,i) => v === null ? null : (
                     <circle key={i} cx={chart.x(i)} cy={chart.y(v)} r={hover === i ? 4 : i === chart.vals.length - 1 ? 3 : 2}
                       stroke="#0b0f17" strokeWidth="0.7" fill={i === chart.maxIndex ? "#fbbf24" : "#7dd3fc"}
