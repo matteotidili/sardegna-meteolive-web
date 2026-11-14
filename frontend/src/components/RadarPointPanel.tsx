@@ -32,11 +32,14 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
   // Non ripiegare mai su un'altra scansione: il valore deve appartenere
   // esclusivamente al fotogramma scelto, anche quando il suo raster manca.
   const curr = list.find((r) => r.time === time);
-  const intensity = curr?.available ? curr.value : null;
-  const isVmi = product === "VMI";
+  // Se la scansione selezionata non è ancora nell'archivio, mostra il campione
+  // valido più recente precedente, mantenendo visibile l'orario reale del dato.
+  const displayed = curr?.available && curr.value !== null
+    ? curr
+    : [...list].reverse().find((r) =>
+        Date.parse(r.time) <= Date.parse(time) && r.available && r.value !== null);
+  const intensity = displayed?.value ?? null;
   const inDomain = manifest ? radarCell(point, manifest) !== null : null;
-  const latestSriTime = manifest?.frames.SRI.at(-1)?.time ?? null;
-  const numericLagging = latestSriTime !== null && Date.parse(time) > Date.parse(latestSriTime);
   const [hover, setHover] = useState<number | null>(null);
   useEffect(() => { setHover(null); }, [product, point.lat, point.lon, time, hours]);
 
@@ -86,7 +89,7 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
       <div className="thin-scroll max-h-[min(68vh,620px)] space-y-2 overflow-y-auto px-3 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400">
           <span className="inline-flex items-center gap-1"><MapPin className="size-3" />{decimal(point.lat,4)}°N · {decimal(point.lon,4)}°E</span>
-          <span className="inline-flex items-center gap-1"><Clock3 className="size-3" />{fmtTime(time)}</span>
+          <span className="inline-flex items-center gap-1"><Clock3 className="size-3" />{fmtTime(displayed?.time ?? time)}</span>
         </div>
         {isOpera ? (
           <p className="rounded-lg border border-amber-700/30 bg-amber-950/30 p-2 text-xs text-amber-100">
@@ -106,15 +109,6 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
                 </strong>
                 <span className="text-sm text-slate-300">mm/h</span>
               </div>
-              {isVmi && <p className="mt-1 text-[10px] leading-snug text-slate-400">
-                Fonte: prodotto SRI della stessa scansione VMI. Nessuna conversione teorica da dBZ.
-              </p>}
-              {curr?.available && curr.value === null && <p className="mt-1 text-[10px] text-slate-400">Cella senza valore numerico valido: non equivale a pioggia nulla.</p>}
-              {!busy && !curr?.available && <p data-testid="radar-point-missing-frame" className="mt-1 text-[10px] leading-snug text-amber-200">
-                {numericLagging
-                  ? `Archivio numerico SRI fermo alle ${fmtTime(latestSriTime!)}. La scansione selezionata delle ${fmtTime(time)} non è ancora disponibile: lo storico mostra solo i valori precedenti.`
-                  : "Questa scansione non è disponibile nell'archivio numerico; non vengono visualizzati valori di altri orari."}
-              </p>}
             </div>
             <div className="flex items-center justify-between gap-2 pt-1">
               <button data-testid="radar-chart-toggle" aria-expanded={showChart}
