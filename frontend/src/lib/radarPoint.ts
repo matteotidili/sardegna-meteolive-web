@@ -129,7 +129,11 @@ export async function sampleRadarPoint(
     throw new Error("Geometria raster radar non coerente");
   }
   const index = (cell[0] * image.width + cell[1]) * 4;
-  return numericCell(image.data[index], image.data[index + 1], config.encoding.scale, config.encoding.bias);
+  const value = numericCell(image.data[index], image.data[index + 1], config.encoding.scale, config.encoding.bias);
+  // In SRI, a valid published scan with no measurable surface echo represents
+  // 0 mm/h. Keep missing timestamps as unavailable in radarSeries; do not turn
+  // absent scans into zero. OPERA uses its explicit UNDTECT code during ingest.
+  return value === null && product === "SRI" ? 0 : value;
 }
 
 export async function radarSeries(
@@ -157,18 +161,11 @@ export async function radarSeries(
       try {
         out[ix] = { time, value: await sampleRadarPoint(manifest, file, point, product), available: true };
       } catch (error) {
-        if (ix === 0 || ix === times.length - 1) console.warn("[Radar point] raster non leggibile", product, file, error);
         out[ix] = { time, value: null, available: false };
       }
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, times.length) }, worker));
-  console.info("[Radar point] serie interrogata", {
-    product, requested: endTime, point,
-    first: out[0]?.time, last: out.at(-1)?.time,
-    available: out.filter((s) => s.available).length,
-    values: out.filter((s) => s.value !== null && Number.isFinite(s.value)).length,
-  });
   return out;
 }
 export function useRadarPointSeries(
