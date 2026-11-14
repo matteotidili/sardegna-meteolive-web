@@ -35,6 +35,8 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
   const intensity = curr?.available ? curr.value : null;
   const isVmi = product === "VMI";
   const inDomain = manifest ? radarCell(point, manifest) !== null : null;
+  const latestSriTime = manifest?.frames.SRI.at(-1)?.time ?? null;
+  const numericLagging = latestSriTime !== null && Date.parse(time) > Date.parse(latestSriTime);
   const [hover, setHover] = useState<number | null>(null);
   useEffect(() => { setHover(null); }, [product, point.lat, point.lon, time, hours]);
 
@@ -108,7 +110,11 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
                 Fonte: prodotto SRI della stessa scansione VMI. Nessuna conversione teorica da dBZ.
               </p>}
               {curr?.available && curr.value === null && <p className="mt-1 text-[10px] text-slate-400">Cella senza valore numerico valido: non equivale a pioggia nulla.</p>}
-              {!busy && !curr?.available && <p className="mt-1 text-[10px] text-amber-200">Questa scansione non è disponibile nell'archivio numerico; non vengono visualizzati valori di altri orari.</p>}
+              {!busy && !curr?.available && <p data-testid="radar-point-missing-frame" className="mt-1 text-[10px] leading-snug text-amber-200">
+                {numericLagging
+                  ? `Archivio numerico SRI fermo alle ${fmtTime(latestSriTime!)}. La scansione selezionata delle ${fmtTime(time)} non è ancora disponibile: lo storico mostra solo i valori precedenti.`
+                  : "Questa scansione non è disponibile nell'archivio numerico; non vengono visualizzati valori di altri orari."}
+              </p>}
             </div>
             <div className="flex items-center justify-between gap-2 pt-1">
               <button data-testid="radar-chart-toggle" aria-expanded={showChart}
