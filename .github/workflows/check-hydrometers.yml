@@ -1,0 +1,17 @@
+name: Diagnostica Idrometri ARPAS
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/check_hydrometers.py'
+      - '.github/workflows/check-hydrometers.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verifica rete fiduciaria pubblica ARPAS
+        run: python3 scripts/check_hydrometers.py
