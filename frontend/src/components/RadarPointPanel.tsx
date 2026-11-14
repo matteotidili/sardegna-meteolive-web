@@ -25,7 +25,9 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
   const manifest = numeric.data;
   const seriesQ = useRadarPointSeries(manifest, product, time, point, hours);
   const list = seriesQ.data ?? [];
-  const curr = list.find((r) => r.time === time) ?? list[list.length - 1];
+  // Non ripiegare mai su un'altra scansione: il valore deve appartenere
+  // esclusivamente al fotogramma scelto, anche quando il suo raster manca.
+  const curr = list.find((r) => r.time === time);
   const value = curr?.available ? curr.value : null;
   const isVmi = product === "VMI";
   const original = value === null || value === undefined ? null : value;
@@ -70,7 +72,7 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
   }, [list, isVmi, measure]);
 
   const isOpera = product === "OPERA";
-  const busy = numeric.isLoading || seriesQ.isLoading || seriesQ.isFetching;
+  const busy = !isOpera && (numeric.isLoading || seriesQ.isLoading || seriesQ.isFetching);
   return (
     <div data-testid="radar-point-panel"
       className="pointer-events-auto w-full max-w-[360px] overflow-hidden rounded-2xl border border-sky-700/65 bg-slate-950/97 text-slate-100 shadow-2xl shadow-black/70 backdrop-blur-xl">
@@ -125,7 +127,7 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
                 </div>
               )}
               {curr?.available && curr.value === null && <p className="mt-1 text-[10px] text-slate-400">Cella senza valore numerico valido: non equivale a pioggia nulla.</p>}
-              {!busy && !curr?.available && <p className="mt-1 text-[10px] text-amber-200">Questa scansione non è ancora disponibile nell'archivio numerico. Le immagini radar possono aggiornarsi prima.</p>}
+              {!busy && !curr?.available && <p className="mt-1 text-[10px] text-amber-200">Questa scansione non è disponibile nell'archivio numerico; non vengono visualizzati valori di altri orari.</p>}
             </div>
             <div className="flex items-center justify-between gap-2 pt-1">
               <button data-testid="radar-chart-toggle" aria-expanded={showChart}
