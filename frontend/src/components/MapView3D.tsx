@@ -11,6 +11,7 @@ import { mercatorImage } from "@/lib/mercator";
 import { preloadOverlayImage } from "@/lib/overlayImage";
 import { declutterMarineVectors, marineArrowFeatures } from "@/lib/marineVectors";
 import { lightningColor } from "@/lib/lightning";
+import { fetchHydroHistory, hydroColor, hydroPopupHtml, type HydroStation } from "@/lib/hydro";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MEDITERRANEAN_BOUNDS, mapControls, mapFitPadding } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 
@@ -51,6 +52,7 @@ interface Props {
   onLayerReady: (key: string) => void;
   fires: FireDetection[] | null;
   alerts: AlertWarning[] | null;
+  hydrometers: HydroStation[] | null;
   strokes: Stroke[] | null;
   initialView: MapViewState;
   onViewChange: (v: MapViewState) => void;
@@ -133,6 +135,24 @@ export default function MapView3D(props: Props) {
       m.addLayer({ id: "fires", type: "circle", source: "fires", paint: { "circle-radius": 6, "circle-color": "#F97316", "circle-stroke-color": "#FEF3C7", "circle-stroke-width": 2 } });
       m.addSource("strokes", { type: "geojson", data: EMPTY });
       m.addLayer({ id: "strokes", type: "circle", source: "strokes", paint: { "circle-radius": ["get", "r"], "circle-color": ["get", "c"], "circle-stroke-color": "#111", "circle-stroke-width": 1 } });
+      m.addSource("hydrometers", { type: "geojson", data: EMPTY });
+      m.addLayer({ id: "hydrometers-points", type: "circle", source: "hydrometers",
+        paint: { "circle-radius": 8, "circle-color": ["get", "c"], "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.8, "circle-opacity": 0.96 } });
+      m.on("click", "hydrometers-points", (e) => {
+        const id = String(e.features?.[0]?.properties?.id ?? "");
+        const station = cb.current.hydrometers?.find((s) => s.id === id);
+        if (!station) return;
+        const popup = new maplibregl.Popup({ closeButton: true, offset: 12, maxWidth: "360px" })
+          .setLngLat([station.lon, station.lat]).setHTML(hydroPopupHtml(station)).addTo(m);
+        void fetchHydroHistory(station.id).then((history) => {
+          if (popup.isOpen()) popup.setHTML(hydroPopupHtml(station, history));
+        }).catch(() => {
+          if (popup.isOpen()) popup.setHTML(hydroPopupHtml(station, null, true));
+        });
+      });
+      m.on("mouseenter", "hydrometers-points", () => { m.getCanvas().style.cursor = "pointer"; });
+      m.on("mouseleave", "hydrometers-points", () => { m.getCanvas().style.cursor = ""; });
       syncAll();
     });
     const emit = () => {
@@ -173,7 +193,7 @@ export default function MapView3D(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncGeo(); syncBounds(); syncSubregions(); syncMunicipal(); syncMarineVectors(); }
+  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncGeo(); syncHydro(); syncBounds(); syncSubregions(); syncMunicipal(); syncMarineVectors(); }
 
   function queueMarineVectors() {
     if (marineRafRef.current) return;
@@ -346,6 +366,21 @@ export default function MapView3D(props: Props) {
     radarRef.current?.set(cb.current.radar);
   }
 
+  function syncHydro() {
+    const m = mapRef.current;
+    if (!m || !readyRef.current) return;
+    const source = m.getSource("hydrometers") as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+    source.setData({
+      type: "FeatureCollection",
+      features: (cb.current.hydrometers ?? []).map((s) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [s.lon, s.lat] },
+        properties: { id: s.id, c: hydroColor(s) },
+      })),
+    });
+  }
+
   function syncGeo() {
     const m = mapRef.current;
     if (!m || !readyRef.current) return;
@@ -373,6 +408,7 @@ export default function MapView3D(props: Props) {
   useEffect(syncMarineVectors, [props.marineVectors]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncRadar, [props.radar?.product, props.radar?.time]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncGeo, [props.alerts, props.fires, props.strokes]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(syncHydro, [props.hydrometers]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncBounds, [props.boundaries]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncSubregions, [props.subregions]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncMunicipal, [props.municipalities]); // eslint-disable-line react-hooks/exhaustive-deps
