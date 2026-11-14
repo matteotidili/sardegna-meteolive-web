@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Activity, Clock3, MapPin, X } from "lucide-react";
 import { fmtTime } from "@/lib/meteo";
-import { marshallPalmer, radarCell, useRadarNumericManifest, useRadarPointSeries, type RadarPoint } from "@/lib/radarPoint";
+import { marshallPalmer, radarCell, sampleRadarPoint, useRadarNumericManifest, useRadarPointSeries, type RadarPoint } from "@/lib/radarPoint";
 
 type Hours = 1 | 2 | 3;
 type Measure = "mmh" | "dbz";
@@ -18,6 +19,7 @@ function decimal(n: number, digits = 1): string {
 
 export default function RadarPointPanel({ product, time, point, onClose }: Props) {
   const [hours, setHours] = useState<Hours>(3);
+  const [showChart, setShowChart] = useState(true);
   const [measure, setMeasure] = useState<Measure>("mmh");
   const numeric = useRadarNumericManifest(product !== "OPERA");
   const manifest = numeric.data;
@@ -29,6 +31,14 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
   const original = value === null || value === undefined ? null : value;
   const rate = original == null ? null : isVmi ? marshallPalmer(original) : original;
   const inDomain = manifest ? radarCell(point, manifest) !== null : null;
+  const matchingSri = manifest?.frames.SRI.find((f) => f.time === time);
+  const sriQ = useQuery({
+    queryKey: ["radar-vmi-sri-companion", manifest?.generated_at, time, point.lat, point.lon],
+    enabled: isVmi && !!manifest && !!matchingSri,
+    queryFn: () => sampleRadarPoint(manifest!, matchingSri!.file, point),
+    staleTime: Infinity,
+    retry: false,
+  });
   const [hover, setHover] = useState<number | null>(null);
   useEffect(() => { setMeasure("mmh"); }, [product]);
   useEffect(() => { setHover(null); }, [product, point.lat, point.lon, time, hours]);
@@ -103,23 +113,36 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
                   <p className="mt-1 text-[10px] leading-snug text-amber-200">
                     Da Z=200R^1,6. Il VMI non rappresenta la pioggia al suolo: possibile sovrastima in presenza di grandine, bright band e altre anomalie.
                   </p>
+                  <div className="mt-2 border-t border-slate-700 pt-2">
+                    <p className="text-[10px] text-slate-400">SRI stimato al suolo · stessa scansione</p>
+                    <strong className="font-num text-lg">
+                      {!matchingSri ? "n.d." : sriQ.isLoading ? "…" :
+                        sriQ.isError || sriQ.data === null || sriQ.data === undefined ? "n.d." : decimal(sriQ.data)}
+                    </strong>
+                    <span className="ml-1 text-xs">mm/h</span>
+                    <p className="mt-0.5 text-[9px] text-slate-500">Dato distinto dal VMI, prioritario per la stima quantitativa al suolo.</p>
+                  </div>
                 </div>
               )}
               {curr?.available && curr.value === null && <p className="mt-1 text-[10px] text-slate-400">Cella senza valore numerico valido: non equivale a pioggia nulla.</p>}
               {!busy && !curr?.available && <p className="mt-1 text-[10px] text-amber-200">Questa scansione non è ancora disponibile nell'archivio numerico. Le immagini radar possono aggiornarsi prima.</p>}
             </div>
             <div className="flex items-center justify-between gap-2 pt-1">
-              <div className="inline-flex items-center gap-1 text-xs font-medium"><Activity className="size-3.5 text-sky-300" /> Evoluzione nel punto</div>
-              <div className="flex gap-1" role="group" aria-label="Finestra temporale">
+              <button data-testid="radar-chart-toggle" aria-expanded={showChart}
+                onClick={() => setShowChart((v) => !v)}
+                className="inline-flex items-center gap-1 text-xs font-medium hover:text-sky-200">
+                <Activity className="size-3.5 text-sky-300" /> Evoluzione nel punto {showChart ? "▾" : "▸"}
+              </button>
+              {showChart && <div className="flex gap-1" role="group" aria-label="Finestra temporale">
                 {([1, 2, 3] as const).map((n) => (
                   <button key={n} data-testid={`radar-hours-${n}`} onClick={() => setHours(n)}
                     className={`rounded-md px-2 py-1 font-num text-[10px] ${n === hours ? "bg-sky-700 text-white" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>
                     {n} h
                   </button>
                 ))}
-              </div>
+              </div>}
             </div>
-            {isVmi && <div className="flex gap-1" role="group" aria-label="Unità del grafico">
+            {showChart && isVmi && <div className="flex gap-1" role="group" aria-label="Unità del grafico">
               {(["mmh","dbz"] as const).map((unit) => (
                 <button key={unit} data-testid={`radar-chart-${unit}`} onClick={() => setMeasure(unit)}
                   className={`rounded-md px-2 py-1 text-[10px] ${measure === unit ? "bg-sky-700" : "bg-slate-800"}`}>
@@ -127,7 +150,7 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
                 </button>
               ))}
             </div>}
-            {chart && (
+            {showChart && chart && (
               <div data-testid="radar-point-chart" className="rounded-lg border border-slate-800 bg-slate-900/60 p-1.5">
                 <svg viewBox="0 0 352 156" className="w-full" role="img" aria-label={`Serie delle ultime ${hours} ore per il punto selezionato`}>
                   {[0, 0.5, 1].map((ratio) => {
@@ -137,7 +160,8 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
                         {(chart.ymin+(chart.ymax-chart.ymin)*ratio).toFixed(chart.ymax<10?1:0)}
                       </text></g>;
                   })}
-                  {chart.segments.map((p,i) => <polyline key={i} points={p} fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinejoin="round" />)}
+                  <line x1="322" x2="322" y1="19" y2="126" stroke="#fbbf24" strokeWidth="1.3" strokeDasharray="3 3" />
+                  {chart.segments.map((p,i) => <polyline key={i} points={p} fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinejoin="round" />)
                   {chart.vals.map((v,i) => v === null ? null : (
                     <circle key={i} cx={chart.x(i)} cy={chart.y(v)} r={hover === i ? 4 : i === chart.vals.length - 1 ? 3 : 2}
                       stroke="#0b0f17" strokeWidth="0.7" fill={i === chart.maxIndex ? "#fbbf24" : "#7dd3fc"}
@@ -156,8 +180,8 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
                 <p className="mt-0.5 text-[9px] text-slate-500">Interruzioni nella linea = scansioni mancanti o celle senza dato valido. Non è un pluviogramma.</p>
               </div>
             )}
-            {busy && <p className="text-[10px] text-slate-400">Lettura dei fotogrammi originali in corso…</p>}
-            {!busy && !chart && <p className="text-[10px] text-amber-200">Nessuna serie numerica valida per l'intervallo selezionato.</p>}
+            {showChart && busy && <p className="text-[10px] text-slate-400">Lettura dei fotogrammi originali in corso…</p>}
+            {showChart && !busy && !chart && <p className="text-[10px] text-amber-200">Nessuna serie numerica valida per l'intervallo selezionato.</p>}
             <p className="text-[9px] leading-snug text-slate-500">
               GeoTIFF Radar-DPC, ritaglio numerico senza interpolazione, 1 km; precisione dell'archivio 0,1 unità.
               Dati automatici non validati. © Dipartimento della Protezione Civile · CC BY-SA 4.0.
