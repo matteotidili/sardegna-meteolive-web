@@ -7,6 +7,13 @@ export interface RadarPoint {
   lon: number;
 }
 export type DpcRadarProduct = "SRI" | "VMI";
+export type RadarPointProduct = DpcRadarProduct | "OPERA";
+export interface RadarNumericGrid {
+  grid: { x0_m: number; y0_m: number; pixel_m: number; width: number; height: number };
+  crs_proj4: string;
+  encoding: { format: string; nodata_code: number; scale: number; bias: number };
+  frames: { time: string; file: string }[];
+}
 export interface RadarNumericManifest {
   schema_version: number;
   source: string;
@@ -17,6 +24,7 @@ export interface RadarNumericManifest {
   grid: { x0_m: number; y0_m: number; pixel_m: number; width: number; height: number };
   encoding: { format: string; nodata_code: number; scale: number; bias: number };
   frames: Record<DpcRadarProduct, { time: string; file: string }[]>;
+  opera?: RadarNumericGrid;
 }
 export interface RadarPointSample {
   time: string;
@@ -90,32 +98,49 @@ function loadNumericImage(path: string): Promise<ImageData> {
   return request;
 }
 
-/** Pixel nativo: convertiamo WGS84 nel CRS ufficiale DPC, senza interpolare. */
-export function radarCell(point: RadarPoint, m: RadarNumericManifest): [number, number] | null {
+function configFor(m: RadarNumericManifest, product: RadarPointProduct): RadarNumericGrid {
+  if (product === "OPERA") {
+    if (!m.opera) throw new Error("Archivio numerico OPERA RATE non disponibile");
+    return m.opera;
+  }
+  return { grid: m.grid, crs_proj4: m.crs_proj4, encoding: m.encoding, frames: m.frames[product] };
+}
+
+/** Pixel nativo: proiezione WGS84 nel CRS del prodotto, senza interpolazione. */
+export function radarCell(
+  point: RadarPoint, m: RadarNumericManifest, product: RadarPointProduct = "SRI",
+): [number, number] | null {
   if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon)) return null;
-  const [x, y] = proj4("EPSG:4326", m.crs_proj4, [point.lon, point.lat]);
-  const { x0_m, y0_m, pixel_m, width, height } = m.grid;
+  const config = configFor(m, product);
+  const [x, y] = proj4("EPSG:4326", config.crs_proj4, [point.lon, point.lat]);
+  const { x0_m, y0_m, pixel_m, width, height } = config.grid;
   const col = Math.floor((x - x0_m) / pixel_m), row = Math.floor((y0_m - y) / pixel_m);
   if (row < 0 || row >= height || col < 0 || col >= width) return null;
   return [row, col];
 }
-export async function sampleRadarPoint(m: RadarNumericManifest, file: string, point: RadarPoint): Promise<number | null> {
-  const cell = radarCell(point, m);
+export async function sampleRadarPoint(
+  m: RadarNumericManifest, file: string, point: RadarPoint, product: RadarPointProduct = "SRI",
+): Promise<number | null> {
+  const config = configFor(m, product);
+  const cell = radarCell(point, m, product);
   if (!cell) return null;
   const image = await loadNumericImage(file);
-  if (image.width !== m.grid.width || image.height !== m.grid.height) throw new Error("Geometria raster radar non coerente");
+  if (image.width !== config.grid.width || image.height !== config.grid.height) {
+    throw new Error("Geometria raster radar non coerente");
+  }
   const index = (cell[0] * image.width + cell[1]) * 4;
-  return numericCell(image.data[index], image.data[index + 1], m.encoding.scale, m.encoding.bias);
+  return numericCell(image.data[index], image.data[index + 1], config.encoding.scale, config.encoding.bias);
 }
 
 export async function radarSeries(
-  manifest: RadarNumericManifest, product: DpcRadarProduct,
+  manifest: RadarNumericManifest, product: RadarPointProduct,
   endTime: string, point: RadarPoint, hours: 1 | 2 | 3,
 ): Promise<RadarPointSample[]> {
-  const end = Date.parse(endTime), step = 5 * 60_000;
+  const end = Date.parse(endTime), step = (product === "OPERA" ? 15 : 5) * 60_000;
   if (!Number.isFinite(end)) return [];
-  const lookup = new Map(manifest.frames[product].map((f) => [Date.parse(f.time), f.file]));
-  const count = hours * 12;
+  const config = configFor(manifest, product);
+  const lookup = new Map(config.frames.map((f) => [Date.parse(f.time), f.file]));
+  const count = hours * 60_000 / step;
   const times = Array.from({ length: count + 1 }, (_, i) => end - (count - i) * step);
   // Concorrenza limitata. Non interroghiamo un raster non pubblicato, né
   // riempiamo i buchi con zero o con frame adiacenti.
@@ -127,7 +152,7 @@ export async function radarSeries(
       const time = new Date(timestamp).toISOString();
       if (!file) { out[ix] = { time, value: null, available: false }; continue; }
       try {
-        out[ix] = { time, value: await sampleRadarPoint(manifest, file, point), available: true };
+        out[ix] = { time, value: await sampleRadarPoint(manifest, file, point, product), available: true };
       } catch {
         out[ix] = { time, value: null, available: false };
       }
@@ -138,10 +163,10 @@ export async function radarSeries(
 }
 export function useRadarPointSeries(
   manifest: RadarNumericManifest | undefined,
-  product: string | null,
+  product: RadarPointProduct | null,
   endTime: string | undefined, point: RadarPoint | null, hours: 1 | 2 | 3,
 ) {
-  const enabled = !!manifest && (product === "VMI" || product === "SRI") && !!endTime && !!point;
+  const enabled = !!manifest && (product === "VMI" || product === "SRI" || (product === "OPERA" && !!manifest.opera)) && !!endTime && !!point;
   return useQuery({
     queryKey: ["radar-point", manifest?.generated_at, product, endTime, point?.lat, point?.lon, hours],
     queryFn: () => radarSeries(manifest!, product as DpcRadarProduct, endTime!, point!, hours),
