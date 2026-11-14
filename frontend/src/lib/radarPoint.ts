@@ -166,6 +166,10 @@ export async function radarSeries(
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, times.length) }, worker));
+  console.info("[Radar point]", JSON.stringify({ product, requested: endTime, point,
+    first: out[0]?.time, last: out.at(-1)?.time,
+    available: out.filter((s) => s.available).length,
+    values: out.filter((s) => s.value !== null && Number.isFinite(s.value)).length }));
   return out;
 }
 export function useRadarPointSeries(
