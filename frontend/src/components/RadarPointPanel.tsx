@@ -49,7 +49,7 @@ export default function RadarPointPanel({ product, time, point, onClose }: Props
       ? isVmi && measure === "mmh" ? marshallPalmer(r.value) : r.value : null);
     const valid = vals.filter((v): v is number => v !== null && Number.isFinite(v));
     if (!valid.length) return null;
-    const maxValue = Math.max(0, ...valid);
+    const maxValue = Math.max(...valid);
     const ymin = measure === "dbz" && isVmi ? Math.min(0, ...valid) : 0;
     const ymax = Math.max(maxValue + (maxValue - ymin) * 0.12, ymin + 1);
     const x = (i: number) => 30 + i * 292 / Math.max(1, vals.length - 1);
