@@ -147,7 +147,7 @@ export async function radarSeries(
   const end = Math.floor(requestedEnd / step) * step;
   const config = configFor(manifest, product);
   const lookup = new Map(config.frames.map((f) => [Date.parse(f.time), f.file]));
-  const count = hours * 60_000 / step;
+  const count = hours * 60 * 60_000 / step;
   const times = Array.from({ length: count + 1 }, (_, i) => end - (count - i) * step);
   // Concorrenza limitata. Non interroghiamo un raster non pubblicato, né
   // riempiamo i buchi con zero o con frame adiacenti.
@@ -166,10 +166,6 @@ export async function radarSeries(
     }
   };
   await Promise.all(Array.from({ length: Math.min(4, times.length) }, worker));
-  console.info("[Radar point]", JSON.stringify({ product, requested: endTime, point,
-    first: out[0]?.time, last: out.at(-1)?.time,
-    available: out.filter((s) => s.available).length,
-    values: out.filter((s) => s.value !== null && Number.isFinite(s.value)).length }));
   return out;
 }
 export function useRadarPointSeries(
