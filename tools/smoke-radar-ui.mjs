@@ -22,14 +22,29 @@ async function clickFreeMapPoint(page, selector) {
     const rect = container.getBoundingClientRect();
     const candidates = [[0.45,0.39],[0.55,0.36],[0.40,0.48],[0.58,0.47],[0.49,0.56],
       [0.35,0.55],[0.61,0.56],[0.48,0.66],[0.37,0.66],[0.63,0.69]];
+    // Griglia di ricerca più ampia: sui telefoni molti pixel sono occupati
+    // contemporaneamente da badge di stazioni, radar timeline e menu flottanti.
+    for (let y = 0.16; y <= 0.81; y += 0.06)
+      for (let x = 0.12; x <= 0.88; x += 0.07)
+        candidates.push([x,y]);
+    const blocked = ".stn, .leaflet-marker-icon, .leaflet-popup, .leaflet-control, .maplibregl-marker, aside, button, [role=dialog], [data-testid=radar-point-panel], .hydro-marker";
+    const reasons = {};
     for (const [fx,fy] of candidates) {
       const x = rect.left + fx*rect.width, y = rect.top+fy*rect.height;
       const target = document.elementFromPoint(x,y);
       if (!target) continue;
-      if (target.closest(".stn, .leaflet-marker-icon, .leaflet-popup, .maplibregl-marker, aside, button, [role=dialog], [data-testid=radar-point-panel], .hydro-marker")) continue;
+      if (!container.contains(target)) {
+        const key = "outside:" + (target?.getAttribute("data-testid") || target?.tagName || "?");
+        reasons[key] = (reasons[key] || 0) + 1;
+        continue;
+      }
+      if (target.closest(blocked)) {
+        reasons.blocked = (reasons.blocked || 0) + 1;
+        continue;
+      }
       return { x, y, target: target.tagName };
     }
-    throw new Error("Nessun pixel mappa libero dai marker disponibili");
+    throw new Error("Nessun pixel mappa libero dai marker disponibili: "+JSON.stringify(reasons));
   });
   console.log("RADAR MAP CLICK",selector,JSON.stringify(result));
   await page.mouse.click(result.x,result.y);
@@ -89,6 +104,9 @@ async function scenario(name, viewport, mobile) {
   await clickFreeMapPoint(page, '[data-testid="map-canvas"]');
   try {
     await page.getByTestId("radar-point-panel").waitFor({ timeout: 9000 });
+    await page.getByText("Intensità pluviometrica stimata al suolo").waitFor({ timeout: 9000 });
+    assert.equal(await page.getByTestId("radar-point-panel").getByText("Riflettività massima verticale").count(), 0);
+    assert.equal(await page.getByTestId("radar-point-panel").getByText("Equivalente teorico Marshall–Palmer").count(), 0);
   } catch (error) {
     console.log("RADAR DEBUG", name, JSON.stringify(await page.evaluate(() => ({
       clicks: window.__radarClickDebug, title: document.title,
