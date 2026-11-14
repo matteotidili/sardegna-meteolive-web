@@ -26,6 +26,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Test proiezione numerica radar DPC e conversione Z–R
+        working-directory: frontend
+        run: |
+          if [ -f yarn.lock ]; then yarn install --frozen-lockfile; else yarn install --network-timeout 600000; fi
+          yarn vitest run src/lib/radarPoint.test.ts
       - name: Build static site
         working-directory: frontend
         env:
@@ -33,7 +38,6 @@ jobs:
           DISABLE_EMERGENT_OVERLAY: "true"
         run: |
           # yarn.lock may be omitted by the export tool: use it when present, otherwise resolve package.json
-          if [ -f yarn.lock ]; then yarn install --frozen-lockfile; else yarn install --network-timeout 600000; fi
           yarn build
       - name: Add classic site
         run: |
