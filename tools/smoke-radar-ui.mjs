@@ -14,6 +14,27 @@ const browser = await chromium.launch({ headless: true, args: [
 ] });
 const url = process.env.RADAR_SITE || "https://matteotidili.github.io/sardegna-meteolive-web/";
 
+
+// Scarta i badge delle stazioni e i controlli flottanti: sono elementi
+// interattivi distinti dal raster radar e non devono perdere i propri clic.
+async function clickFreeMapPoint(page, selector) {
+  const result = await page.locator(selector).evaluate((container) => {
+    const rect = container.getBoundingClientRect();
+    const candidates = [[0.45,0.39],[0.55,0.36],[0.40,0.48],[0.58,0.47],[0.49,0.56],
+      [0.35,0.55],[0.61,0.56],[0.48,0.66],[0.37,0.66],[0.63,0.69]];
+    for (const [fx,fy] of candidates) {
+      const x = rect.left + fx*rect.width, y = rect.top+fy*rect.height;
+      const target = document.elementFromPoint(x,y);
+      if (!target) continue;
+      if (target.closest(".stn, .leaflet-marker-icon, .leaflet-popup, .maplibregl-marker, aside, button, [role=dialog], [data-testid=radar-point-panel], .hydro-marker")) continue;
+      return { x, y, target: target.tagName };
+    }
+    throw new Error("Nessun pixel mappa libero dai marker disponibili");
+  });
+  console.log("RADAR MAP CLICK",selector,JSON.stringify(result));
+  await page.mouse.click(result.x,result.y);
+}
+
 async function scenario(name, viewport, mobile) {
   const context = await browser.newContext({
     viewport, isMobile: mobile, hasTouch: mobile,
@@ -65,7 +86,7 @@ async function scenario(name, viewport, mobile) {
       window.__radarClickDebug.push({ target: e.target?.tagName, x: e.clientX, y: e.clientY });
     });
   });
-  await canvas.click({ position: { x: bounds.width * 0.5, y: bounds.height * 0.54 }, timeout: 20000 });
+  await clickFreeMapPoint(page, '[data-testid="map-canvas"]');
   try {
     await page.getByTestId("radar-point-panel").waitFor({ timeout: 9000 });
   } catch (error) {
@@ -91,7 +112,7 @@ async function scenario(name, viewport, mobile) {
   await canvas3D.waitFor({ timeout: 25000 });
   const b3 = await canvas3D.boundingBox();
   assert(b3 && b3.width > 150 && b3.height > 100);
-  await canvas3D.click({ position: { x: b3.width * 0.5, y: b3.height * 0.55 }, timeout: 20000 });
+  await clickFreeMapPoint(page, '[data-testid="map-canvas-3d"]');
   await page.getByTestId("radar-point-panel").waitFor({ timeout: 20000 });
   console.log("RADAR 3D PANEL OK",name);
   // Segnala eventuali errori applicativi senza confonderli con asset di rete esterni.
