@@ -24,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { radarFrameErrorKey, radarFrameKey } from "@/lib/radarFrame";
 import MarineControls, { MARINE_LABELS, MarineAttribution } from "@/components/MarineControls";
 import MarineLegend from "@/components/MarineLegend";
+import HydroLegend from "@/components/HydroLegend";
+import { useHydrometers } from "@/lib/hydro";
 import { useMarineCatalog, useMarineVectors } from "@/hooks/useMarine";
 import { marineImageUrl, type MarineForcing, type MarineModel, type MarineParameter } from "@/lib/marine";
 import { marineViewportBounds } from "@/lib/marineViewport";
@@ -45,6 +47,12 @@ export default function Home() {
   const [marineArrows, setMarineArrows] = usePersistentState<boolean>("marineArrows", true);
   const [opacity, setOpacity] = usePersistentState<number>("opacity", 0.75);
   const [firesOn, setFiresOn] = usePersistentState<boolean>("fires", false);
+  const [hydrometersOn, setHydrometersOn] = usePersistentState<boolean>("hydrometersArpas", false);
+  const hydrometersQ = useHydrometers(hydrometersOn);
+  const hydroStatus = hydrometersQ.data?.length
+    ? `${hydrometersQ.data.length} sezioni · ${hydrometersQ.isError ? "ultimo dataset disponibile" : "dati ARPAS"}`
+    : hydrometersOn && hydrometersQ.isLoading ? "Caricamento livelli idrometrici…"
+    : hydrometersOn && hydrometersQ.isError ? "Servizio ARPAS non disponibile" : "Rete fiduciaria · livelli e soglie S1–S3";
   const [alertsOn, setAlertsOn] = usePersistentState<boolean>("alertsLayer", true);
   const [view, setView] = usePersistentState<MapViewState>("view", DEFAULT_VIEW);
   const [mode3d, setMode3d] = usePersistentState<boolean>("mode3d", false);
@@ -301,6 +309,7 @@ export default function Home() {
         onMediterranean={() => { setSheet("none"); mapControls.fitMediterranean(); }}
         onSardinia={() => { setSheet("none"); mapControls.fitSardinia(); }} />}
       opacity={opacity} setOpacity={setOpacity} fires={firesOn} setFires={setFiresOn} alerts={alertsOn} setAlerts={setAlertsOn}
+      hydrometers={hydrometersOn} setHydrometers={setHydrometersOn} hydroStatus={hydroStatus}
       fireCount={frpQ.data ? frpQ.data.detections.length : null} wind={windOn} setWind={setWindOn} windWarning={windWarning}
       is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length}
       liveWind={liveWindOn} setLiveWind={setLiveWindOn} liveWindSub={liveWindSub}
@@ -325,6 +334,7 @@ export default function Home() {
   const mapProps = {
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer, overlay, opacity,
     onLayerReady, fires: firesOn ? frpQ.data?.detections ?? null : null,
+    hydrometers: hydrometersOn ? hydrometersQ.data ?? null : null,
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
     strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo, boundaries: boundariesOn,
     subregions: subregionsOn, municipalities: municipalOn, marineVectors: visibleMarineVectors,
@@ -332,6 +342,7 @@ export default function Home() {
   const legends = (
     <>
       <StationLegend param={param} />
+      {hydrometersOn && <HydroLegend count={hydrometersQ.data?.length ?? 0} />}
       {liveWindOn && !mode3d && <LiveWindLegend time={liveWindQ.isError ? "non disponibile" : liveWindTime} />}
       {lightningOn && <LightningLegend live={lightning.status === "live"} count={lightning.strokes.length} />}
     </>
