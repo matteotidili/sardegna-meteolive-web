@@ -1,0 +1,27 @@
+name: Smoke browser radar puntuale desktop e mobile
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'tools/smoke-radar-ui.mjs'
+      - '.github/workflows/smoke-radar-ui.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Installa Playwright isolato dai pacchetti della webapp
+        run: npm install --prefix /tmp/radar-playwright --no-audit --no-fund playwright@1.65.0
+      - name: Installa browser Chromium headless
+        run: /tmp/radar-playwright/node_modules/.bin/playwright install --with-deps chromium
+      - name: Test CORS del catalogo originale e popup 2D/3D desktop/mobile pubblicato
+        env:
+          PLAYWRIGHT_MODULE: /tmp/radar-playwright/node_modules/playwright/index.mjs
+          RADAR_SITE: https://matteotidili.github.io/sardegna-meteolive-web/
+        run: node tools/smoke-radar-ui.mjs
