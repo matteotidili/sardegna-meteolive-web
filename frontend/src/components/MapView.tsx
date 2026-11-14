@@ -12,6 +12,7 @@ import { liveWindColor } from "@/lib/liveWind";
 import { sampleWind } from "@/lib/windFlow";
 import { fmtTime, windDirLabel } from "@/lib/meteo";
 import { lightningColor } from "@/lib/lightning";
+import { fetchHydroHistory, hydroColor, hydroFmtLevel, hydroPopupHtml, type HydroStation } from "@/lib/hydro";
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MEDITERRANEAN_BOUNDS, mapControls, mapFitPadding } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, bboxCenter, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
@@ -65,6 +66,7 @@ interface Props {
   onLayerReady: (key: string) => void;
   fires: FireDetection[] | null;
   alerts: AlertWarning[] | null;
+  hydrometers: HydroStation[] | null;
   initialView: MapViewState;
   onViewChange: (v: MapViewState) => void;
   flyTo: { lat: number; lon: number; seq: number } | null;
@@ -94,6 +96,7 @@ export default function MapView(props: Props) {
   const aromeTokenRef = useRef(0);
   const overlayGroupRef = useRef<string | null>(null);
   const firesRef = useRef<L.LayerGroup | null>(null);
+  const hydroRef = useRef<L.LayerGroup | null>(null);
   const alertsRef = useRef<L.GeoJSON | null>(null);
   const windRef = useRef<WindFlowLayer | null>(null);
   const liveWindRef = useRef<WindFlowLayer | null>(null);
@@ -128,6 +131,8 @@ export default function MapView(props: Props) {
     m.getPane("labels")!.style.pointerEvents = "none";
     markersRef.current = L.layerGroup().addTo(m);
     firesRef.current = L.layerGroup().addTo(m);
+    m.createPane("hydrometers").style.zIndex = "615";
+    hydroRef.current = L.layerGroup().addTo(m);
     m.createPane("windArrows").style.zIndex = "610";
     arrowsRef.current = L.layerGroup().addTo(m);
     m.createPane("lightning").style.zIndex = "445";
@@ -416,6 +421,32 @@ export default function MapView(props: Props) {
       g.addLayer(mk);
     }
   }, [props.stationArrows, props.stations, props.liveWind]);
+
+  // Rete fiduciaria idrometrica ARPAS: layer indipendente dai filtri
+  // meteorologici, valido anche quando non è selezionata la pioggia.
+  useEffect(() => {
+    const group = hydroRef.current;
+    if (!group) return;
+    group.clearLayers();
+    for (const s of props.hydrometers ?? []) {
+      const marker = L.circleMarker([s.lat, s.lon], {
+        pane: "hydrometers", radius: 7.5, color: "#ffffff", weight: 1.8,
+        fillColor: hydroColor(s), fillOpacity: 0.96,
+      });
+      const popup = L.popup({ maxWidth: 360 }).setContent(hydroPopupHtml(s));
+      marker.bindPopup(popup);
+      marker.bindTooltip(`<b>${esc(s.name)}</b><br>${hydroFmtLevel(s.value)}`, { direction: "top" });
+      marker.on("click", (e) => {
+        L.DomEvent.stopPropagation(e);
+        void fetchHydroHistory(s.id).then((history) => {
+          if (marker.isPopupOpen()) popup.setContent(hydroPopupHtml(s, history));
+        }).catch(() => {
+          if (marker.isPopupOpen()) popup.setContent(hydroPopupHtml(s, null, true));
+        });
+      });
+      group.addLayer(marker);
+    }
+  }, [props.hydrometers]);
 
   // lightning strokes (canvas, colour by age)
   useEffect(() => {
