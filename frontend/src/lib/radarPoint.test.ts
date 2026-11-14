@@ -26,7 +26,7 @@ describe("Radar-DPC: campionamento georeferenziato", () => {
     expect(numericCell(0, 0, 10, 1000)).toBeNull();
     expect(numericCell(17, 39, 10, 1000)).toBe(0);  // 10001 = 39*256 + 17
     expect(numericCell(122, 39, 10, 1000)).toBeCloseTo(10.5);
-    expect(numericCell(223, 38, 10, 1000)).toBeCloseTo(-5.4);
+    expect(numericCell(219, 38, 10, 1000)).toBeCloseTo(-5.4);
   });
 
   it("converte soltanto riflettività numerica VMI con Marshall-Palmer", () => {
