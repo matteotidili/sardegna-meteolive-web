@@ -1,7 +1,7 @@
 // Retain original decoded WMS images; never resize or recompress them.
 const images = new Map<string, { promise: Promise<HTMLImageElement>; pixels: number }>();
-const MAX_PIXELS = 32_000_000;
-const MAX_IMAGES = 40;
+const MAX_PIXELS = 96_000_000;
+const MAX_IMAGES = 100;
 export const isSatelliteImage = (url: string) => url.startsWith("https://view.eumetsat.int/") || url.startsWith("satellite-stack:");
 
 export function satelliteStackUrl(layers: { url: string; opacity: number }[]): string {
@@ -40,7 +40,18 @@ export function satelliteImage(url: string): Promise<HTMLImageElement> {
         loaded.forEach((im, i) => { ctx.globalAlpha = layers[i].opacity; ctx.drawImage(im, 0, 0); });
         image.src = canvas.toDataURL("image/png");
       }).catch(() => { clearTimeout(timer); reject(new Error("Satellite stack unavailable")); });
-    } else image.src = url;
+    } else {
+      // Keep the original encoded bytes locally: display clones and MapLibre
+      // must not issue a second WMS request for an already downloaded frame.
+      void fetch(url, { signal: AbortSignal.timeout(30_000) }).then(async (response) => {
+        if (!response.ok) throw new Error(`Satellite HTTP ${response.status}`);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onerror = () => { clearTimeout(timer); reject(new Error("Satellite read failed")); };
+        reader.onload = () => { image.src = String(reader.result); };
+        reader.readAsDataURL(blob);
+      }).catch((error) => { clearTimeout(timer); reject(error); });
+    }
   });
   images.set(url, entry);
   void entry.promise.catch(() => { if (images.get(url) === entry) images.delete(url); });

@@ -175,7 +175,12 @@ export default function Home() {
   const sat = satQ.data && satProduct && !satQ.isError ? satQ.data : null;
   const satFrames = sat?.frames ?? [];
   const sIdx = satFrames.length ? Math.min(satIdx ?? satFrames.length - 1, satFrames.length - 1) : 0;
-  const satRenderBounds = useMemo(() => sat ? marineViewportBounds(sat.bounds, bbox) : null, [sat, bbox]);
+  const [satViewport, setSatViewport] = useState(bbox);
+  useEffect(() => {
+    const timer = setTimeout(() => setSatViewport(bbox), 180);
+    return () => clearTimeout(timer);
+  }, [bbox]);
+  const satRenderBounds = useMemo(() => sat ? marineViewportBounds(sat.bounds, satViewport) : null, [sat, satViewport]);
   const satUrlAt = useCallback((i: number) => (sat && satFrames[i]
     ? satelliteStackUrl(satQ.catalogs.map((catalog, index) => ({
       url: satelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds ?? sat.bounds, satFrames[i], isDesktop ? 1400 : 900),
