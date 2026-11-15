@@ -54,3 +54,30 @@ it("gives concurrent display layers independent DOM elements from the shared cac
     expect(await satelliteImage(url)).toBe(cached);
   } finally { vi.unstubAllGlobals(); }
 });
+
+it("composes selected layers in order with independent opacity and native dimensions", async () => {
+  class FakeImage {
+    crossOrigin = ""; naturalWidth = 1400; naturalHeight = 1000;
+    onload?: () => void; onerror?: () => void;
+    private value = "";
+    get src() { return this.value; }
+    set src(value: string) { this.value = value; queueMicrotask(() => this.onload?.()); }
+    decode = vi.fn().mockResolvedValue(undefined);
+  }
+  const draws: unknown[] = [];
+  const context = { globalAlpha: 1, drawImage: (...args: unknown[]) => draws.push([args, context.globalAlpha]) };
+  const canvas = { width: 0, height: 0, getContext: () => context, toDataURL: vi.fn(() => "data:image/png;base64,test") };
+  vi.stubGlobal("Image", FakeImage);
+  vi.stubGlobal("document", { createElement: () => canvas });
+  try {
+    const layers = [{ url: "https://view.eumetsat.int/base-test", opacity: 1 }, { url: "https://view.eumetsat.int/top-test", opacity: 0.5 }];
+    const image = await satelliteImage("satellite-stack:" + JSON.stringify(layers));
+    expect(canvas.width).toBe(1400);
+    expect(canvas.height).toBe(1000);
+    expect(draws).toHaveLength(2);
+    expect((draws[0] as unknown[])[1]).toBe(1);
+    expect((draws[1] as unknown[])[1]).toBe(0.5);
+    expect(canvas.toDataURL).toHaveBeenCalledWith("image/png");
+    expect(image.src).toBe("data:image/png;base64,test");
+  } finally { vi.unstubAllGlobals(); }
+});

@@ -2,7 +2,11 @@
 const images = new Map<string, { promise: Promise<HTMLImageElement>; pixels: number }>();
 const MAX_PIXELS = 32_000_000;
 const MAX_IMAGES = 40;
-export const isSatelliteImage = (url: string) => url.startsWith("https://view.eumetsat.int/");
+export const isSatelliteImage = (url: string) => url.startsWith("https://view.eumetsat.int/") || url.startsWith("satellite-stack:");
+
+export function satelliteStackUrl(layers: { url: string; opacity: number }[]): string {
+  return layers.length === 1 && layers[0].opacity === 1 ? layers[0].url : "satellite-stack:" + JSON.stringify(layers);
+}
 
 export function satelliteImage(url: string): Promise<HTMLImageElement> {
   const hit = images.get(url);
@@ -26,7 +30,17 @@ export function satelliteImage(url: string): Promise<HTMLImageElement> {
         resolve(image);
       } catch (error) { reject(error); }
     };
-    image.src = url;
+    if (url.startsWith("satellite-stack:")) {
+      const layers = JSON.parse(url.slice("satellite-stack:".length)) as { url: string; opacity: number }[];
+      void Promise.all(layers.map((layer) => satelliteImage(layer.url))).then((loaded) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = loaded[0].naturalWidth; canvas.height = loaded[0].naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Composizione satellitare non disponibile");
+        loaded.forEach((im, i) => { ctx.globalAlpha = layers[i].opacity; ctx.drawImage(im, 0, 0); });
+        image.src = canvas.toDataURL("image/png");
+      }).catch(() => { clearTimeout(timer); reject(new Error("Satellite stack unavailable")); });
+    } else image.src = url;
   });
   images.set(url, entry);
   void entry.promise.catch(() => { if (images.get(url) === entry) images.delete(url); });

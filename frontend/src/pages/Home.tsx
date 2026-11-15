@@ -1,4 +1,5 @@
-import { satelliteImage } from "@/lib/satelliteImages";
+import { useSatelliteStack } from "@/hooks/useSatelliteStack";
+import { satelliteImage, satelliteStackUrl } from "@/lib/satelliteImages";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box, MonitorPlay, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import OpsClock from "@/components/OpsClock";
@@ -13,7 +14,7 @@ import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
 import { AromeLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
-import { useAlerts, useArome, useFrp, useRadar, useRain48, useSatellite, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
+import { useAlerts, useArome, useFrp, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
 import { AROME_PRECIP_KEY, NETWORK_META, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
@@ -120,7 +121,18 @@ export default function Home() {
   const frpQ = useFrp(firesOn);
   const rain48Q = useRain48();
   const satProduct = anim.startsWith("sat-") ? anim.slice(4) : null;
-  const satQ = useSatellite(satProduct);
+  const [satellites, setSatellites] = usePersistentState<string[]>("satellite-stack", []);
+  const [satelliteOpacity, setSatelliteOpacity] = usePersistentState<Record<string, number>>("satellite-opacity", {});
+  const activeSatellites = useMemo(() => satellites.length ? satellites : satProduct ? [satProduct] : [], [satellites, satProduct]);
+  const satQ = useSatelliteStack(activeSatellites, !!satProduct);
+  const toggleSatellite = (key: string) => {
+    const selected = satProduct ? activeSatellites : [];
+    const next = selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key];
+    setSatellites(next);
+    if (!selected.includes(key) && next.length > 1 && satelliteOpacity[key] === undefined) setSatelliteOpacity({ ...satelliteOpacity, [key]: ["rdt", "li", "preciprate"].includes(key) ? 1 : 0.5 });
+    setAnim(next.length ? `sat-${next[0]}` : "none");
+    setPlaying(false);
+  };
   const lightning = useLightning(lightningOn, bbox);
   const marineOn = anim === "marine";
   const marineQ = useMarineCatalog(marineModel, marineForcing, marineOn);
@@ -167,7 +179,10 @@ export default function Home() {
   const sIdx = satFrames.length ? Math.min(satIdx ?? satFrames.length - 1, satFrames.length - 1) : 0;
   const satRenderBounds = useMemo(() => sat ? marineViewportBounds(sat.bounds, bbox) : null, [sat, bbox]);
   const satUrlAt = useCallback((i: number) => (sat && satFrames[i]
-    ? satelliteUrl(sat.wms_url, sat.layer, sat.format, satRenderBounds ?? sat.bounds, satFrames[i], isDesktop ? 1400 : 900) : null), [sat, satFrames, isDesktop, satRenderBounds]);
+    ? satelliteStackUrl(satQ.catalogs.map((catalog, index) => ({
+      url: satelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds ?? sat.bounds, satFrames[i], isDesktop ? 1400 : 900),
+      opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
+    }))) : null), [sat, satFrames, isDesktop, satRenderBounds, satQ.catalogs, satelliteOpacity, activeSatellites]);
   const marineFrames = marine?.frames ?? [];
   const defaultMarineIdx = useMemo(() => {
     const idx = marineFrames.findIndex((time) => Date.parse(time) >= Date.now());
@@ -334,7 +349,7 @@ export default function Home() {
   ) : null;
 
   const layerPanel = (
-    <LayerPanel anim={anim} setAnim={(next) => {
+    <LayerPanel satellites={activeSatellites} toggleSatellite={toggleSatellite} satelliteOpacity={satelliteOpacity} setSatelliteOpacity={(key, value) => setSatelliteOpacity({ ...satelliteOpacity, [key]: value })} anim={anim} setAnim={(next) => {
       setAnim(next);
       if (next === "marine" && anim !== "marine") requestAnimationFrame(() => mapControls.fitMediterranean());
     }} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}

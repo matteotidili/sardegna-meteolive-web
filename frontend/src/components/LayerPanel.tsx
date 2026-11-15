@@ -23,6 +23,10 @@ export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
 ];
 
 interface Props {
+  satellites: string[];
+  toggleSatellite: (key: string) => void;
+  satelliteOpacity: Record<string, number>;
+  setSatelliteOpacity: (key: string, opacity: number) => void;
   anim: AnimLayer;
   setAnim: (a: AnimLayer) => void;
   aromeParam: string;
@@ -110,8 +114,11 @@ export default function LayerPanel(p: Props) {
       <div className={SECTION}>Satelliti EUMETSAT</div>
       <div className="grid grid-cols-1 gap-1.5">
         {SAT_OPTIONS.map((s) => (
-          <Toggle key={s.key} testid={`layer-toggle-sat-${s.key}`} on={p.anim === `sat-${s.key}`} onClick={() => toggleAnim(`sat-${s.key}`)}
+          <div key={s.key}>
+          <Toggle testid={`layer-toggle-sat-${s.key}`} on={p.anim.startsWith("sat-") && p.satellites.includes(s.key)} onClick={() => p.toggleSatellite(s.key)}
             icon={<Satellite className="size-4" />} title={s.title} sub={s.sub} />
+          {p.anim.startsWith("sat-") && p.satellites.includes(s.key) && <label className="flex items-center gap-2 px-2 py-1 text-[10px] text-slate-300">Opacità {Math.round((p.satelliteOpacity[s.key] ?? 1)*100)}%<input aria-label={`Opacità ${s.title}`} type="range" min="0" max="1" step="0.05" value={p.satelliteOpacity[s.key] ?? 1} onChange={(e) => p.setSatelliteOpacity(s.key, Number(e.target.value))} /></label>}
+          </div>
         ))}
       </div>
 
