@@ -36,7 +36,7 @@ export default function TimelinePlayer(p: Props) {
         <button data-testid="timeline-next-btn" onClick={() => step(1)} aria-label="Successivo" className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300 active:scale-95"><SkipForward className="size-4" /></button>
         <input data-testid="radar-timeline-slider" type="range" min={0} max={n - 1} step={1} value={p.index}
           onChange={(e) => { p.setPlaying(false); p.setIndex(Number(e.target.value)); }} className="meteo-range mx-1 flex-1" aria-label="Timeline" />
-        <button data-testid="radar-speed-btn" onClick={() => p.setSpeed(p.speed >= 3 ? 1 : p.speed + 1)}
+        <button data-testid="radar-speed-btn" aria-label={`Velocità animazione ${p.speed} per`} title="Cambia velocità: 1×, 2×, 3×, 5×" onClick={() => p.setSpeed(p.speed === 1 ? 2 : p.speed === 2 ? 3 : p.speed === 3 ? 5 : 1)}
           className={cn("rounded-md border border-slate-700 px-2 py-1 font-num text-xs transition-colors hover:bg-slate-800", p.speed > 1 && "text-sky-300")}>
           {p.speed}×
         </button>
