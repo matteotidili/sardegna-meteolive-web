@@ -1,5 +1,5 @@
 // Retain original decoded WMS images; never resize or recompress them.
-const images = new Map<string, { promise: Promise<HTMLImageElement>; pixels: number }>();
+const images = new Map<string, { promise: Promise<HTMLImageElement>; pixels: number; controller: AbortController }>();
 const MAX_PIXELS = 96_000_000;
 const MAX_IMAGES = 100;
 export const isSatelliteImage = (url: string) => url.startsWith("https://view.eumetsat.int/") || url.startsWith("satellite-stack:");
@@ -13,9 +13,9 @@ export function satelliteImage(url: string): Promise<HTMLImageElement> {
   if (hit) { images.delete(url); images.set(url, hit); return hit.promise; }
   const image = new Image();
   image.crossOrigin = "anonymous";
-  const entry = { promise: null as unknown as Promise<HTMLImageElement>, pixels: 0 };
+  const entry = { promise: null as unknown as Promise<HTMLImageElement>, pixels: 0, controller: new AbortController() };
   entry.promise = new Promise<HTMLImageElement>((resolve, reject) => {
-    const timer = setTimeout(() => { image.src = ""; reject(new Error("Satellite image timed out")); }, 30_000);
+    const timer = setTimeout(() => { entry.controller.abort(); image.src = ""; reject(new Error("Satellite image timed out")); }, 30_000);
     image.onerror = () => { clearTimeout(timer); reject(new Error("Satellite image unavailable")); };
     image.onload = async () => {
       clearTimeout(timer);
@@ -43,7 +43,7 @@ export function satelliteImage(url: string): Promise<HTMLImageElement> {
     } else {
       // Keep the original encoded bytes locally: display clones and MapLibre
       // must not issue a second WMS request for an already downloaded frame.
-      void fetch(url, { signal: AbortSignal.timeout(30_000) }).then(async (response) => {
+      void fetch(url, { signal: entry.controller.signal }).then(async (response) => {
         if (!response.ok) throw new Error(`Satellite HTTP ${response.status}`);
         const blob = await response.blob();
         const reader = new FileReader();
@@ -75,4 +75,22 @@ export function waitForSatelliteImage(url: string, signal: AbortSignal): Promise
       if (!signal.aborted) resolve(image);
     }).catch((error) => { signal.removeEventListener("abort", abort); reject(error); });
   });
+}
+
+/** Release obsolete viewport downloads before requesting the next view. */
+export function retainSatelliteRequests(urls: (string | null)[]) {
+  const wanted = new Set<string>();
+  for (const url of urls) {
+    if (!url) continue;
+    wanted.add(url);
+    if (url.startsWith("satellite-stack:")) {
+      for (const layer of JSON.parse(url.slice("satellite-stack:".length)) as { url: string }[]) wanted.add(layer.url);
+    }
+  }
+  for (const [url, entry] of images) {
+    if (!entry.pixels && !wanted.has(url)) {
+      images.delete(url);
+      entry.controller.abort();
+    }
+  }
 }

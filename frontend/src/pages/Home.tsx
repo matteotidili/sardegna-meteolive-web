@@ -1,5 +1,5 @@
 import { useSatelliteStack } from "@/hooks/useSatelliteStack";
-import { satelliteImage, satelliteStackUrl } from "@/lib/satelliteImages";
+import { retainSatelliteRequests, satelliteImage, satelliteStackUrl } from "@/lib/satelliteImages";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box, MonitorPlay, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import OpsClock from "@/components/OpsClock";
@@ -186,6 +186,9 @@ export default function Home() {
       url: satelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds ?? sat.bounds, satFrames[i], isDesktop ? 1400 : 900),
       opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
     }))) : null), [sat, satFrames, isDesktop, satRenderBounds, satQ.catalogs, satelliteOpacity, activeSatellites]);
+  useEffect(() => {
+    retainSatelliteRequests(satFrames.map((_, i) => satUrlAt(i)));
+  }, [satUrlAt, satFrames]);
   const marineFrames = marine?.frames ?? [];
   const defaultMarineIdx = useMemo(() => {
     const idx = marineFrames.findIndex((time) => Date.parse(time) >= Date.now());
