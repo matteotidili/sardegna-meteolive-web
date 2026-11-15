@@ -1,3 +1,4 @@
+import { satelliteImage } from "@/lib/satelliteImages";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box, MonitorPlay, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import OpsClock from "@/components/OpsClock";
@@ -225,15 +226,29 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, frameReady, speed, rIdx, lIdx, sIdx, mIdx, currentKey]);
 
-  // prefetch the next frames (AROME warped images / satellite images)
+  // Prefetch the next projected AROME frames.
   useEffect(() => {
     if (anim === "arome" && arome) {
       const [[s], [n]] = arome.bounds;
       [1, 2].forEach((d) => { const u = aromeUrlAt((lIdx + d) % aromeFrames.length); if (u) void mercatorImage(u, s, n); });
-    } else if (sat && satFrames.length) {
-      [1, 2].forEach((d) => { const u = satUrlAt((sIdx + d) % satFrames.length); if (u) { const im = new Image(); im.crossOrigin = "anonymous"; im.src = u; } });
     }
-  }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length, sat, sIdx, satUrlAt, satFrames.length]);
+  }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length]);
+
+  // Warm the whole satellite archive after the selected full-quality image is ready.
+  // Three workers avoid flooding WMS while sharing in-flight requests with playback.
+  useEffect(() => {
+    if (!sat || !satFrames.length || readyKey !== `overlay:${satUrlAt(sIdx)}`) return;
+    let stopped = false, next = 0;
+    const urls = Array.from({ length: satFrames.length - 1 }, (_, i) => satUrlAt((sIdx + i + 1) % satFrames.length));
+    const worker = async () => {
+      while (!stopped && next < urls.length) {
+        const url = urls[next++];
+        if (url) { try { await satelliteImage(url); } catch { /* retry on selection */ } }
+      }
+    };
+    void Promise.all(Array.from({ length: Math.min(3, urls.length) }, worker));
+    return () => { stopped = true; };
+  }, [sat, satFrames, satUrlAt, sIdx, readyKey]);
 
   // Only one marine frame is prefetched, after the selected raster has loaded.
   useEffect(() => {

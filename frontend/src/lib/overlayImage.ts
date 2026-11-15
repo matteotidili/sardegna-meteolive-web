@@ -1,7 +1,10 @@
+import { isSatelliteImage, waitForSatelliteImage } from "./satelliteImages";
+
 /** One cancellable overlay preload, including any preceding projection job. */
 export function preloadOverlayImage(
   source: string | Promise<string | null>, signal: AbortSignal, timeoutMs = 20_000,
 ): Promise<HTMLImageElement> {
+  if (typeof source === "string" && isSatelliteImage(source)) return waitForSatelliteImage(source, signal);
   return new Promise((resolve, reject) => {
     if (signal.aborted) { reject(new DOMException("Overlay cancelled", "AbortError")); return; }
     let image: HTMLImageElement | null = null;
