@@ -23,7 +23,7 @@ import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { radarFrameErrorKey, radarFrameKey } from "@/lib/radarFrame";
 import RadarPointPanel from "@/components/RadarPointPanel";
-import type { RadarPoint } from "@/lib/radarPoint";
+import { quantitativeRadarFrames, useRadarNumericManifest, type RadarPoint } from "@/lib/radarPoint";
 import MarineControls, { MARINE_LABELS, MarineAttribution } from "@/components/MarineControls";
 import MarineLegend from "@/components/MarineLegend";
 import HydroLegend from "@/components/HydroLegend";
@@ -114,6 +114,7 @@ export default function Home() {
   const alertsQ = useAlerts();
   const radarProduct = anim.startsWith("radar-") ? anim.slice(6) : null;
   const radarQ = useRadar(radarProduct);
+  const radarNumericQ = useRadarNumericManifest(!!radarProduct);
   const aromeQ = useArome(true);
   const frpQ = useFrp(firesOn);
   const rain48Q = useRain48();
@@ -138,7 +139,10 @@ export default function Home() {
   const selected = all.find((s) => s.id === selectedId) ?? null;
 
   // ---- timeline state ----
-  const radarFrames = radarQ.data?.frames ?? [];
+  // The displayed image and point value must share the exact scan timestamp.
+  const radarFrames = useMemo(() => quantitativeRadarFrames(
+    radarQ.data?.frames ?? [], radarNumericQ.data, radarProduct,
+  ), [radarQ.data, radarNumericQ.data, radarProduct]);
   const rIdx = radarFrames.length ? Math.min(radarIdx ?? radarFrames.length - 1, radarFrames.length - 1) : 0;
   const arome = aromeQ.data;
   const aromeFrames = arome?.frames ?? [];

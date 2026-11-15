@@ -134,6 +134,16 @@ export async function sampleRadarPoint(
   return value;
 }
 
+/** Frames with both a map image and quantitative data for the same scan. */
+export function quantitativeRadarFrames(
+  visualFrames: string[], manifest: RadarNumericManifest | undefined, product: string | null,
+): string[] {
+  if (!manifest || !product) return [];
+  const frames = product === "OPERA" ? manifest.opera?.frames : manifest.frames.SRI;
+  const available = new Set((frames ?? []).map((frame) => Date.parse(frame.time)));
+  return visualFrames.filter((time) => available.has(Date.parse(time)));
+}
+
 /** Select the exact product timestamp; never substitute an older rain rate. */
 export function selectedRadarSample(
   samples: RadarPointSample[], time: string, product: RadarPointProduct,

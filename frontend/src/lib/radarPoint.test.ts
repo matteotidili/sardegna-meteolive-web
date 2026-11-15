@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { marshallPalmer, numericCell, radarCell, radarSeries, sampleRadarPoint, selectedRadarSample, type RadarNumericManifest } from "./radarPoint";
+import { marshallPalmer, numericCell, quantitativeRadarFrames, radarCell, radarSeries, sampleRadarPoint, selectedRadarSample, type RadarNumericManifest } from "./radarPoint";
 
 const grid: RadarNumericManifest = {
   schema_version: 1,
@@ -59,5 +59,17 @@ describe("Radar: valore e scansione coerenti", () => {
     expect(series).toHaveLength(37);
     expect(series[0].time).toBe("2026-11-14T18:00:00.000Z");
     expect(series[36]).toEqual({ time: "2026-11-14T21:00:00.000Z", value: null, available: false });
+  });
+});
+
+
+describe("Timeline radar quantitativa", () => {
+  it("esclude le immagini più recenti del dato SRI anche sul layer VMI", () => {
+    const visual = ["2026-11-15T08:40:00Z", "2026-11-15T08:45:00Z", "2026-11-15T08:55:00Z"];
+    const manifest = { ...grid, frames: { ...grid.frames, SRI: [{ time: "2026-11-15T08:40:00.000Z", file: "scan.png" }] } };
+    expect(quantitativeRadarFrames(visual, manifest, "VMI")).toEqual([visual[0]]);
+    expect(quantitativeRadarFrames(visual, manifest, "SRI")).toEqual([visual[0]]);
+    expect(quantitativeRadarFrames(visual, undefined, "SRI")).toEqual([]);
+    expect(quantitativeRadarFrames(visual, manifest, "OPERA")).toEqual([]);
   });
 });
