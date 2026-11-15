@@ -10,6 +10,7 @@ import { SUBREGIONS_CREDIT } from "@/lib/boundaries";
 export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "marine" | `sat-${string}`;
 
 export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
+  { key: "rdt", title: "RDT · Celle temporalesche", sub: "MSG / NWC SAF · passo 15 min" },
   { key: "truecolour", title: "MTG GeoColour RGB", sub: "FCI · giorno e notte" },
   { key: "cloudtype", title: "MTG Cloud Type RGB", sub: "Tipologia delle nubi · diurno" },
   { key: "ir105", title: "MTG IR10.5 µm", sub: "FCI HRFI · giorno e notte" },

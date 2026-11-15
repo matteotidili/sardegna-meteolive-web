@@ -309,7 +309,7 @@ export default function Home() {
       labels={satFrames.map((t) => fmtTime(t))}
       index={sIdx} setIndex={setSatIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady}
-      legend={satProduct === "cloudtype" ? <details className="text-[10px] text-slate-200"><summary className="cursor-pointer">Legenda Cloud Type RGB · italiano</summary><div className="grid grid-cols-2 gap-1 py-2">{[
+      legend={satProduct === "rdt" ? <div className="text-[10px] text-slate-200"><span className="mr-1 inline-block h-3 w-3 border-2 border-red-500" />Contorni delle celle convettive identificate dal satellite · RDT (NWC SAF)</div> : satProduct === "cloudtype" ? <details className="text-[10px] text-slate-200"><summary className="cursor-pointer">Legenda Cloud Type RGB · italiano</summary><div className="grid grid-cols-2 gap-1 py-2">{[
         ["#df2929", "Cirri sottili; rosso più scuro sul mare"],
         ["#ffee35", "Nubi spesse di ghiaccio; ghiaccio alla sommità"],
         ["#6752b3", "Terra emersa (blu/viola)"],

@@ -528,7 +528,25 @@ async function getRgbSatellite(product: string): Promise<SatelliteFrames> {
     wms_url, bounds: satelliteDomain(xml, layer), frames, latest: new Date(end).toISOString(), daytime_only: cloud };
 }
 
+async function getRdtSatellite(): Promise<SatelliteFrames> {
+  const wms_url = "https://view.eumetsat.int/geoserver/msg_fes/rdt/ows";
+  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`EUMETSAT RDT HTTP ${response.status}`);
+  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
+  const parts = dimension?.textContent?.trim().split("/") ?? [];
+  const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
+  const start = Date.parse(parts[0] ?? "");
+  if (!Number.isFinite(end) || parts[2] !== "PT15M") throw new Error("Catalogo temporale RDT non valido");
+  const frames = Array.from({ length: 13 }, (_, i) => end - (12 - i) * 15 * 60000)
+    .filter((t) => !Number.isFinite(start) || t >= start).map((t) => new Date(t).toISOString());
+  return { product: "rdt", label: "RDT · Celle temporalesche", layer: "rdt", attribution: "© EUMETSAT / NWC SAF · Rapidly Developing Thunderstorms",
+    format: "image/png", step_minutes: 15, wms_url, bounds: satelliteDomain(xml, "rdt"), frames,
+    latest: new Date(end).toISOString(), daytime_only: false };
+}
+
 export async function getSatellite(product: string): Promise<SatelliteFrames> {
+  if (product === "rdt") return getRdtSatellite();
   if (product === "truecolour" || product === "cloudtype") return getRgbSatellite(product);
   if (product === "li") return getLightningAfa();
   const def = SAT[product];
