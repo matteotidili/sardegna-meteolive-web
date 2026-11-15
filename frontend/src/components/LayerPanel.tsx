@@ -212,8 +212,6 @@ export default function LayerPanel(p: Props) {
       )}
       <Toggle testid="layer-toggle-alerts" on={p.alerts} onClick={() => p.setAlerts(!p.alerts)} icon={<ShieldAlert className="size-4" />}
         title="Aree allerta MeteoAlarm" sub="Poligoni avvisi ufficiali Sardegna" />
-}
-        title="Anomalie termiche FRP" sub={p.fires && p.fireCount !== null ? `${p.fireCount} rilevazioni MTG FCI · ultimi 90 min` : "EUMETSAT MTG FCI · non incendi confermati"} />
     </div>
   );
 }
