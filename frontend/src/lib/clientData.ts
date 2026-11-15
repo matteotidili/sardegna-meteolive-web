@@ -456,7 +456,7 @@ const SAT: Record<string, [string, string, string, string, number, boolean]> = {
   cloudphase: ["mtg_fd:rgb_cloudphase", "MTG Cloud Phase RGB", "© EUMETSAT · MTG FCI Cloud Phase RGB", "image/jpeg", 10, true],
   snowfog: ["mtg_fd:rgb_snow", "MTG Day Snow Fog RGB", "© EUMETSAT · MTG Day Snow Fog RGB", "image/jpeg", 10, true],
   preciprate: ["mtg_fd:h40b", "H SAF H40B Precipitation Rate", "© EUMETSAT / H SAF · H40B", "image/png", 10, false],
-  li: ["mtg_fd:li_afa", "MTG Lightning Imager (archivio)", "© EUMETSAT · MTG LI Accumulated Flash Area", "image/png", 5, false],
+  li: ["mtg_fd:li_afa", "MTG LI · Area dei lampi (AFA)", "© EUMETSAT · MTG LI Accumulated Flash Area", "image/png", 5, false],
 };
 
 async function probe(layer: string, t: Date, li: boolean): Promise<boolean> {
@@ -471,7 +471,31 @@ async function probe(layer: string, t: Date, li: boolean): Promise<boolean> {
   } catch { return false; }
 }
 
+const LI_AFA_WMS = "https://view.eumetsat.int/geoserver/mtg_fd/li_afa/ows";
+
+async function getLightningAfa(): Promise<SatelliteFrames> {
+  // Empty transparent maps are valid observations, not missing frames.
+  const response = await fetch(`${LI_AFA_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`EUMETSAT LI AFA HTTP ${response.status}`);
+  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension"))
+    .find((node) => node.getAttribute("name") === "time");
+  const interval = dimension?.textContent?.trim().split("/") ?? [];
+  const latest = dimension?.getAttribute("default") ?? interval[1];
+  const end = Date.parse(latest ?? ""), start = Date.parse(interval[0] ?? "");
+  if (!Number.isFinite(end) || interval[2] !== "PT5M") throw new Error("Catalogo temporale LI AFA non valido");
+  const step = 5 * 60_000;
+  const frames = Array.from({ length: 25 }, (_, i) => end - (24 - i) * step)
+    .filter((time) => !Number.isFinite(start) || time >= start)
+    .map((time) => new Date(time).toISOString());
+  return { product: "li", label: "MTG LI · Area dei lampi (AFA)", layer: "li_afa",
+    attribution: "© EUMETSAT · MTG LI Accumulated Flash Area", format: "image/png",
+    step_minutes: 5, wms_url: LI_AFA_WMS, bounds: [[31.5, -6], [49, 20]],
+    frames, latest: new Date(end).toISOString(), daytime_only: false };
+}
+
 export async function getSatellite(product: string): Promise<SatelliteFrames> {
+  if (product === "li") return getLightningAfa();
   const def = SAT[product];
   if (!def) throw new Error("Prodotto satellitare non supportato");
   const [layer, label, attribution, format, step, day] = def;

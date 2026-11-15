@@ -15,7 +15,7 @@ export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
   { key: "cloudphase", title: "MTG Cloud Phase RGB", sub: "Microfisica nubi · diurno" },
   { key: "snowfog", title: "MTG Day Snow Fog RGB", sub: "Neve, nebbia, nubi basse · diurno" },
   { key: "preciprate", title: "H SAF H40B", sub: "Precipitation rate · prodotto derivato" },
-  { key: "li", title: "MTG Lightning Imager", sub: "Archivio satellitare · passo 5 min" },
+  { key: "li", title: "MTG LI · Area dei lampi (AFA)", sub: "EUMETSAT · giorno e notte · passo 5 min" },
 ];
 
 interface Props {
