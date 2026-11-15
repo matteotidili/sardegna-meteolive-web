@@ -293,6 +293,16 @@ export default function Home() {
       labels={satFrames.map((t) => fmtTime(t))}
       index={sIdx} setIndex={setSatIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady}
+      legend={satProduct === "cloudtype" ? <details className="text-[10px] text-slate-200"><summary className="cursor-pointer">Legenda Cloud Type RGB · italiano</summary><div className="grid grid-cols-2 gap-1 py-2">{[
+        ["#df2929", "Cirri sottili; rosso più scuro sul mare"],
+        ["#ffee35", "Nubi spesse di ghiaccio; ghiaccio alla sommità"],
+        ["#6752b3", "Terra emersa (blu/viola)"],
+        ["#a4ecf2", "Nubi d’acqua basse e medie"],
+        ["#41964b", "Nubi a fase mista basse e medie"],
+        ["#ed58c1", "Nubi d’acqua alte e sottili; aranciate con ghiaccio"],
+        ["#ffffff", "Nubi d’acqua sopraffusa"],
+        ["#71ff28", "Neve e ghiaccio al suolo"],
+      ].map(([color, text]) => <div key={text} className="flex items-center gap-1"><span className="h-3 w-3 shrink-0 rounded" style={{backgroundColor: color}} />{text}</div>)}</div><p>Colori indicativi · prodotto diurno.</p><a href="https://user.eumetsat.int/s3/eup-strapi-media/QG_Cloud_Type_RGB_ab06957dd1.pdf" target="_blank" rel="noreferrer">Guida EUMETSAT / EUMeTrain</a></details> : undefined}
       note={`${sat.attribution} · passo ${sat.step_minutes} min · solo frame verificati disponibili.${sat.daytime_only ? " Prodotto diurno: di notte l'immagine è scura." : ""}${frameFailed ? " Frame non caricato: non mostrato." : ""}`}
     />
   ) : satProduct && (satQ.isError || satQ.isLoading) ? (

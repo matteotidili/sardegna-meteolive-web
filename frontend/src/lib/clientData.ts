@@ -494,7 +494,26 @@ async function getLightningAfa(): Promise<SatelliteFrames> {
     frames, latest: new Date(end).toISOString(), daytime_only: false };
 }
 
+async function getRgbSatellite(product: string): Promise<SatelliteFrames> {
+  const cloud = product === "cloudtype";
+  const layer = cloud ? "rgb_cloudtype" : "rgb_geocolour";
+  const wms_url = `https://view.eumetsat.int/geoserver/mtg_fd/${layer}/ows`;
+  const r = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`EUMETSAT HTTP ${r.status}`);
+  const xml = new DOMParser().parseFromString(await r.text(), "application/xml");
+  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
+  const parts = dimension?.textContent?.trim().split("/") ?? [];
+  const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
+  const minutes = Number(parts[2]?.match(/^PT(\d+)M$/)?.[1]);
+  if (!Number.isFinite(end) || !minutes) throw new Error("Catalogo temporale RGB non valido");
+  const label = cloud ? "MTG Cloud Type RGB" : "MTG GeoColour RGB";
+  const frames = Array.from({ length: 19 }, (_, i) => new Date(end - (18-i)*minutes*60000).toISOString());
+  return { product, label, layer, attribution: `© EUMETSAT · ${label}`, format: "image/png", step_minutes: minutes,
+    wms_url, bounds: [[31.5, -6], [49, 20]], frames, latest: new Date(end).toISOString(), daytime_only: cloud };
+}
+
 export async function getSatellite(product: string): Promise<SatelliteFrames> {
+  if (product === "truecolour" || product === "cloudtype") return getRgbSatellite(product);
   if (product === "li") return getLightningAfa();
   const def = SAT[product];
   if (!def) throw new Error("Prodotto satellitare non supportato");

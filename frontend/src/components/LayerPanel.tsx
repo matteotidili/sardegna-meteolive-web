@@ -10,7 +10,8 @@ import { SUBREGIONS_CREDIT } from "@/lib/boundaries";
 export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "marine" | `sat-${string}`;
 
 export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
-  { key: "truecolour", title: "MTG True Colour RGB", sub: "FCI 1 km · solo diurno" },
+  { key: "truecolour", title: "MTG GeoColour RGB", sub: "FCI · giorno e notte" },
+  { key: "cloudtype", title: "MTG Cloud Type RGB", sub: "Tipologia delle nubi · diurno" },
   { key: "ir105", title: "MTG IR10.5 µm", sub: "FCI HRFI · giorno e notte" },
   { key: "cloudphase", title: "MTG Cloud Phase RGB", sub: "Microfisica nubi · diurno" },
   { key: "snowfog", title: "MTG Day Snow Fog RGB", sub: "Neve, nebbia, nubi basse · diurno" },
