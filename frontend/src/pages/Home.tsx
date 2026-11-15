@@ -165,8 +165,9 @@ export default function Home() {
   const sat = satQ.data && satProduct && !satQ.isError ? satQ.data : null;
   const satFrames = sat?.frames ?? [];
   const sIdx = satFrames.length ? Math.min(satIdx ?? satFrames.length - 1, satFrames.length - 1) : 0;
+  const satRenderBounds = useMemo(() => sat ? marineViewportBounds(sat.bounds, bbox) : null, [sat, bbox]);
   const satUrlAt = useCallback((i: number) => (sat && satFrames[i]
-    ? satelliteUrl(sat.wms_url, sat.layer, sat.format, sat.bounds, satFrames[i], isDesktop ? 1400 : 900) : null), [sat, satFrames, isDesktop]);
+    ? satelliteUrl(sat.wms_url, sat.layer, sat.format, satRenderBounds ?? sat.bounds, satFrames[i], isDesktop ? 1400 : 900) : null), [sat, satFrames, isDesktop, satRenderBounds]);
   const marineFrames = marine?.frames ?? [];
   const defaultMarineIdx = useMemo(() => {
     const idx = marineFrames.findIndex((time) => Date.parse(time) >= Date.now());
@@ -186,7 +187,7 @@ export default function Home() {
         group: `marine:${marine.model}:${marineParam}:${marine.forcing ?? ""}:${marine.run_time}` }
     : aromeUrl && arome
     ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)" }
-    : sat && satUrlAt(sIdx) ? { url: satUrlAt(sIdx)!, bounds: sat.bounds, warp: false, attribution: sat.attribution } : null;
+    : sat && satUrlAt(sIdx) ? { url: satUrlAt(sIdx)!, bounds: satRenderBounds ?? sat.bounds, warp: false, attribution: sat.attribution } : null;
   const currentKey = radarLayer ? radarFrameKey(radarLayer) : overlay ? `overlay:${overlay.url}` : "";
   const frameFailed = radarLayer ? readyKey === radarFrameErrorKey(radarLayer)
     : !!overlay && readyKey === `overlay-error:${overlay.url}`;

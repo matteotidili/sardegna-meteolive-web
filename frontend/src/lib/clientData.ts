@@ -471,6 +471,22 @@ async function probe(layer: string, t: Date, li: boolean): Promise<boolean> {
   } catch { return false; }
 }
 
+function satelliteDomain(xml: Document, layer: string): [number, number][] {
+  const layers = Array.from(xml.getElementsByTagNameNS("*", "Layer"));
+  const node = layers.find((l) => Array.from(l.children).some((c) => c.localName === "Name" && c.textContent?.split(":").at(-1) === layer.split(":").at(-1)));
+  let current: Element | null = node ?? null;
+  while (current) {
+    const box = Array.from(current.children).find((c) => c.localName === "EX_GeographicBoundingBox");
+    if (box) {
+      const value = (name: string) => Number(Array.from(box.children).find((c) => c.localName === name)?.textContent);
+      const w = value("westBoundLongitude"), e = value("eastBoundLongitude"), south = value("southBoundLatitude"), north = value("northBoundLatitude");
+      if ([w,e,south,north].every(Number.isFinite) && w < e && south < north) return [[Math.max(-85, south),w],[Math.min(85,north),e]];
+    }
+    current = current.parentElement;
+  }
+  throw new Error("Estensione geografica satellitare non disponibile");
+}
+
 const LI_AFA_WMS = "https://view.eumetsat.int/geoserver/mtg_fd/li_afa/ows";
 
 async function getLightningAfa(): Promise<SatelliteFrames> {
@@ -490,7 +506,7 @@ async function getLightningAfa(): Promise<SatelliteFrames> {
     .map((time) => new Date(time).toISOString());
   return { product: "li", label: "MTG LI · Area dei lampi (AFA)", layer: "li_afa",
     attribution: "© EUMETSAT · MTG LI Accumulated Flash Area", format: "image/png",
-    step_minutes: 5, wms_url: LI_AFA_WMS, bounds: [[31.5, -6], [49, 20]],
+    step_minutes: 5, wms_url: LI_AFA_WMS, bounds: satelliteDomain(xml, "li_afa"),
     frames, latest: new Date(end).toISOString(), daytime_only: false };
 }
 
@@ -509,7 +525,7 @@ async function getRgbSatellite(product: string): Promise<SatelliteFrames> {
   const label = cloud ? "MTG Cloud Type RGB" : "MTG GeoColour RGB";
   const frames = Array.from({ length: 19 }, (_, i) => new Date(end - (18-i)*minutes*60000).toISOString());
   return { product, label, layer, attribution: `© EUMETSAT · ${label}`, format: "image/png", step_minutes: minutes,
-    wms_url, bounds: [[31.5, -6], [49, 20]], frames, latest: new Date(end).toISOString(), daytime_only: cloud };
+    wms_url, bounds: satelliteDomain(xml, layer), frames, latest: new Date(end).toISOString(), daytime_only: cloud };
 }
 
 export async function getSatellite(product: string): Promise<SatelliteFrames> {
@@ -518,6 +534,10 @@ export async function getSatellite(product: string): Promise<SatelliteFrames> {
   const def = SAT[product];
   if (!def) throw new Error("Prodotto satellitare non supportato");
   const [layer, label, attribution, format, step, day] = def;
+  const capabilities = await fetch(`${SAT_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-cache" });
+  if (!capabilities.ok) throw new Error("Catalogo satellitare non disponibile");
+  const domain = satelliteDomain(new DOMParser().parseFromString(await capabilities.text(), "application/xml"), layer);
+
   const n = product === "li" ? 24 : 19, ms = step * 60000;
   const base = Math.floor(Date.now() / ms) * ms;
   const cands = Array.from({ length: n + 6 }, (_, i) => new Date(base - i * ms));
@@ -526,5 +546,5 @@ export async function getSatellite(product: string): Promise<SatelliteFrames> {
   if (!avail.length) throw new Error("EUMETSAT: nessun frame disponibile");
   const latest = avail[0];
   const frames = avail.filter((t) => latest.getTime() - t.getTime() <= ms * (n - 1)).reverse().map((t) => iso(t)!);
-  return { product, label, layer, attribution, format, step_minutes: step, wms_url: SAT_WMS, bounds: [[31.5, -6], [49, 20]], frames, latest: iso(latest), daytime_only: day };
+  return { product, label, layer, attribution, format, step_minutes: step, wms_url: SAT_WMS, bounds: domain, frames, latest: iso(latest), daytime_only: day };
 }
