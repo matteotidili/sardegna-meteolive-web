@@ -38,9 +38,16 @@ export function waitForSatelliteImage(url: string, signal: AbortSignal): Promise
     const abort = () => reject(new DOMException("Overlay cancelled", "AbortError"));
     if (signal.aborted) { abort(); return; }
     signal.addEventListener("abort", abort, { once: true });
-    satelliteImage(url).then((image) => {
+    satelliteImage(url).then(async (cached) => {
+      if (signal.aborted) return;
+      // The cache owns a pristine image. Leaflet mutates DOM transforms and
+      // event handlers, so every displayed layer must own its own element.
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.src = cached.src;
+      await image.decode();
       signal.removeEventListener("abort", abort);
       if (!signal.aborted) resolve(image);
-    }, (error) => { signal.removeEventListener("abort", abort); reject(error); });
+    }).catch((error) => { signal.removeEventListener("abort", abort); reject(error); });
   });
 }

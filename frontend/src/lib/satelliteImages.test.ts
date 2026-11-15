@@ -29,3 +29,28 @@ it("shares one full-resolution decoded image across prefetch and display; cancel
     expect(created).toHaveLength(1);
   } finally { vi.unstubAllGlobals(); }
 });
+
+
+it("gives concurrent display layers independent DOM elements from the shared cache", async () => {
+  const created: FakeImage[] = [];
+  class FakeImage {
+    src = ""; crossOrigin = ""; naturalWidth = 1400; naturalHeight = 1000;
+    onload?: () => Promise<void>;
+    decode = vi.fn().mockResolvedValue(undefined);
+    constructor() { created.push(this); }
+  }
+  vi.stubGlobal("Image", FakeImage);
+  try {
+    const url = "https://view.eumetsat.int/test-zoom-isolation";
+    const original = satelliteImage(url);
+    await created[0].onload!();
+    const cached = await original;
+    const a = await waitForSatelliteImage(url, new AbortController().signal);
+    const b = await waitForSatelliteImage(url, new AbortController().signal);
+    expect(a).not.toBe(cached);
+    expect(b).not.toBe(a);
+    expect(a.src).toBe(url);
+    expect(b.src).toBe(url);
+    expect(await satelliteImage(url)).toBe(cached);
+  } finally { vi.unstubAllGlobals(); }
+});

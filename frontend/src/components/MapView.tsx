@@ -148,6 +148,12 @@ export default function MapView(props: Props) {
       cb.current.onBounds([r(b.getNorth()), r(b.getEast()), r(b.getSouth()), r(b.getWest())]);
     };
     emitBounds();
+    m.on("zoomend", () => {
+      // Reset any CSS zoom transform on the still-visible raster while the
+      // larger viewport image loads, even if its timestamp did not change.
+      const overlay = aromeRef.current;
+      if (overlay) overlay.setBounds(overlay.getBounds());
+    });
     m.on("moveend", () => {
       const c = m.getCenter();
       cb.current.onViewChange({ center: [+c.lat.toFixed(4), +c.lng.toFixed(4)], zoom: m.getZoom() });
