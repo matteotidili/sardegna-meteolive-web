@@ -14,7 +14,7 @@ import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
 import { AromeLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
-import { useAlerts, useArome, useFrp, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
+import { useAlerts, useArome, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
 import { AROME_PRECIP_KEY, NETWORK_META, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
@@ -50,7 +50,6 @@ export default function Home() {
   const [marineForcing, setMarineForcing] = usePersistentState<MarineForcing>("marineForcing", "ECMWF");
   const [marineArrows, setMarineArrows] = usePersistentState<boolean>("marineArrows", true);
   const [opacity, setOpacity] = usePersistentState<number>("opacity", 0.75);
-  const [firesOn, setFiresOn] = usePersistentState<boolean>("fires", false);
   const [hydrometersOn, setHydrometersOn] = usePersistentState<boolean>("hydrometersArpas", false);
   const hydrometersQ = useHydrometers(hydrometersOn);
   const hydroStatus = hydrometersQ.data?.length
@@ -118,7 +117,6 @@ export default function Home() {
   const radarQ = useRadar(radarProduct);
   const radarNumericQ = useRadarNumericManifest(!!radarProduct);
   const aromeQ = useArome(true);
-  const frpQ = useFrp(firesOn);
   const rain48Q = useRain48();
   const satProduct = anim.startsWith("sat-") ? anim.slice(4) : null;
   const [satellites, setSatellites] = usePersistentState<string[]>("satellite-stack", []);
@@ -359,9 +357,9 @@ export default function Home() {
         catalog={marine} loading={marineQ.isFetching} error={marineQ.isError} arrows={marineArrows} onArrows={setMarineArrows}
         onMediterranean={() => { setSheet("none"); mapControls.fitMediterranean(); }}
         onSardinia={() => { setSheet("none"); mapControls.fitSardinia(); }} />}
-      opacity={opacity} setOpacity={setOpacity} fires={firesOn} setFires={setFiresOn} alerts={alertsOn} setAlerts={setAlertsOn}
+      opacity={opacity} setOpacity={setOpacity} alerts={alertsOn} setAlerts={setAlertsOn}
       hydrometers={hydrometersOn} setHydrometers={setHydrometersOn} hydroStatus={hydroStatus}
-      fireCount={frpQ.data ? frpQ.data.detections.length : null} wind={windOn} setWind={setWindOn} windWarning={windWarning}
+      wind={windOn} setWind={setWindOn} windWarning={windWarning}
       is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length}
       liveWind={liveWindOn} setLiveWind={setLiveWindOn} liveWindSub={liveWindSub}
       stationArrows={stationArrowsOn} setStationArrows={setStationArrowsOn}
@@ -385,7 +383,7 @@ export default function Home() {
   const mapProps = {
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer,
     radarPoint: radarLayer ? radarPoint : null, onRadarPoint: setRadarPoint, overlay, opacity,
-    onLayerReady, fires: firesOn ? frpQ.data?.detections ?? null : null,
+    onLayerReady, fires: null,
     hydrometers: hydrometersOn ? hydrometersQ.data ?? null : null,
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
     strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo, boundaries: boundariesOn,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Radar, CloudSun, Flame, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves } from "lucide-react";
+import { Radar, CloudSun, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
@@ -37,11 +37,8 @@ interface Props {
   hydrometers: boolean;
   setHydrometers: (on: boolean) => void;
   hydroStatus: string;
-  fires: boolean;
-  setFires: (b: boolean) => void;
   alerts: boolean;
   setAlerts: (b: boolean) => void;
-  fireCount: number | null;
   wind: boolean;
   setWind: (b: boolean) => void;
   windWarning: string | null;
@@ -215,7 +212,7 @@ export default function LayerPanel(p: Props) {
       )}
       <Toggle testid="layer-toggle-alerts" on={p.alerts} onClick={() => p.setAlerts(!p.alerts)} icon={<ShieldAlert className="size-4" />}
         title="Aree allerta MeteoAlarm" sub="Poligoni avvisi ufficiali Sardegna" />
-      <Toggle testid="layer-toggle-frp" on={p.fires} onClick={() => p.setFires(!p.fires)} icon={<Flame className="size-4" />}
+}
         title="Anomalie termiche FRP" sub={p.fires && p.fireCount !== null ? `${p.fireCount} rilevazioni MTG FCI · ultimi 90 min` : "EUMETSAT MTG FCI · non incendi confermati"} />
     </div>
   );
