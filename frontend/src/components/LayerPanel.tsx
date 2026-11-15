@@ -10,6 +10,8 @@ import { SUBREGIONS_CREDIT } from "@/lib/boundaries";
 export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "marine" | `sat-${string}`;
 
 export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
+  { key: "eview", title: "MSG European HRV RGB", sub: "Vista europea HRV · passo 15 min" },
+  { key: "airmass", title: "MSG Airmass RGB", sub: "Masse d’aria · giorno e notte · passo 15 min" },
   { key: "rdt", title: "RDT · Celle temporalesche", sub: "MSG / NWC SAF · passo 15 min" },
   { key: "truecolour", title: "MTG GeoColour RGB", sub: "FCI · giorno e notte" },
   { key: "cloudtype", title: "MTG Cloud Type RGB", sub: "Tipologia delle nubi · diurno" },
