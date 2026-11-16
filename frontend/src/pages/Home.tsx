@@ -388,7 +388,13 @@ export default function Home() {
       }}
       counts={counts} loading={stationsQ.isLoading} />
   );
+  const tileProductsAt = (time: string) => satQ.catalogs.map((catalog, index) => ({
+    url: catalog.wms_url, layer: catalog.layer, format: catalog.format,
+    time, opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
+    attribution: catalog.attribution, bounds: catalog.bounds,
+  }));
   const mapProps = {
+    satelliteUpcoming: sat && !mode3d ? Array.from({ length: satFrames.length - 1 }, (_, i) => tileProductsAt(satFrames[(sIdx + i + 1) % satFrames.length])) : undefined,
     satelliteTiles: sat && !mode3d ? satQ.catalogs.map((catalog, index) => ({
       url: catalog.wms_url, layer: catalog.layer, format: catalog.format,
       time: satFrames[sIdx], opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
