@@ -23,6 +23,17 @@ export function StationLegend({ param }: { param: ParamDef }) {
             {[-10, 0, 10, 20, 30, 40].map((value) => <span key={value}>{value}</span>)}
           </div>
         </>
+      ) : param.rain ? (
+        <>
+          <div data-testid="station-rainfall-scale" role="img"
+            aria-label={`Scala cromatica ${param.label} (${param.unit}): ${param.ramp.map((stop) => stop.label).join(", ")}`}
+            className="flex h-2.5 w-full overflow-hidden rounded-md border border-white/10">
+            {param.ramp.map((stop) => <span key={stop.label} className="flex-1" style={{ background: stop.color }} />)}
+          </div>
+          <div className="mt-1 grid font-num text-[9px] tabular-nums text-slate-300" style={{ gridTemplateColumns: `repeat(${param.ramp.length}, minmax(0, 1fr))` }}>
+            {param.ramp.map((stop) => <span key={stop.label} className="text-center whitespace-nowrap">{stop.label}</span>)}
+          </div>
+        </>
       ) : (
         <div className="flex gap-px overflow-hidden rounded">
           {param.ramp.map((stop) => (
