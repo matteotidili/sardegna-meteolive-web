@@ -1,5 +1,5 @@
 import type { AromeParameter } from "@/lib/types";
-import { AROME_PRECIP_STOPS, PHASE_LABELS, TEMP_GRADIENT, type ParamDef } from "@/lib/meteo";
+import { AROME_PRECIP_STOPS, PHASE_LABELS, RAIN_GRADIENT, RATE_GRADIENT, TEMP_GRADIENT, type ParamDef } from "@/lib/meteo";
 import { DPC_LEGEND } from "@/lib/dpcRadar";
 import { LIVE_WIND_STOPS } from "@/lib/liveWind";
 
@@ -25,13 +25,11 @@ export function StationLegend({ param }: { param: ParamDef }) {
         </>
       ) : param.rain ? (
         <>
-          <div data-testid="station-rainfall-scale" role="img"
-            aria-label={`Scala cromatica ${param.label} (${param.unit}): ${param.ramp.map((stop) => stop.label).join(", ")}`}
-            className="flex h-2.5 w-full overflow-hidden rounded-md border border-white/10">
-            {param.ramp.map((stop) => <span key={stop.label} className="flex-1" style={{ background: stop.color }} />)}
-          </div>
-          <div className="mt-1 grid font-num text-[9px] tabular-nums text-slate-300" style={{ gridTemplateColumns: `repeat(${param.ramp.length}, minmax(0, 1fr))` }}>
-            {param.ramp.map((stop) => <span key={stop.label} className="text-center whitespace-nowrap">{stop.label}</span>)}
+          <div data-testid="station-rainfall-scale" role="img" aria-label={`Sfumatura continua ${param.label} in ${param.unit}`}
+            className="h-2.5 w-full rounded-md border border-white/10"
+            style={{ background: `linear-gradient(90deg, ${(param.key === "rain_rate" ? RATE_GRADIENT : RAIN_GRADIENT).map(({ value, color }) => `${color} ${Math.log1p(value) / Math.log1p(param.key === "rain_rate" ? 60 : 100) * 100}%`).join(", ")})` }} />
+          <div className="relative mt-1 h-3 font-num text-[9px] tabular-nums text-slate-300">
+            {(param.key === "rain_rate" ? [0, 2, 10, 30, 60] : [0, 1, 5, 20, 100]).map((v, i, a) => <span key={v} className="absolute" style={{ left: `${Math.log1p(v) / Math.log1p(a[a.length-1]) * 100}%`, transform: i === 0 ? undefined : i === a.length-1 ? "translateX(-100%)" : "translateX(-50%)" }}>{v}{i === a.length-1 ? "+" : ""}</span>)}
           </div>
         </>
       ) : (

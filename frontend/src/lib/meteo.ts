@@ -30,6 +30,16 @@ export const TEMP_GRADIENT = [
   { value: 42, color: "#EF4444" },
 ] as const;
 const TEMP: RampStop[] = TEMP_GRADIENT.map(({ value, color }) => ({ max: value, color, label: String(value) }));
+export const RAIN_GRADIENT = [
+  { value: 0, color: "#64748B" }, { value: 1, color: "#38BDF8" },
+  { value: 5, color: "#2563EB" }, { value: 20, color: "#7C3AED" },
+  { value: 50, color: "#DB2777" }, { value: 100, color: "#EF4444" },
+] as const;
+export const RATE_GRADIENT = [
+  { value: 0, color: "#64748B" }, { value: 0.5, color: "#38BDF8" },
+  { value: 2, color: "#2563EB" }, { value: 10, color: "#7C3AED" },
+  { value: 30, color: "#DB2777" }, { value: 60, color: "#EF4444" },
+] as const;
 const RAIN: RampStop[] = [
   { max: 0.2, color: "#64748B", label: "<0,2" },
   { max: 5, color: "#38BDF8", label: "0,2–5" },
@@ -90,14 +100,14 @@ export const NETWORK_META: Record<string, { label: string; short: string; color:
 };
 
 export function colorFor(p: ParamDef, v: number): string {
-  if (p.key === "temp" || p.key === "tmin" || p.key === "tmax") {
+  if (p.rain || p.key === "temp" || p.key === "tmin" || p.key === "tmax") {
     // Interpolazione lineare RGB: il colore non salta più fra soglie discrete.
-    const stops = TEMP_GRADIENT;
+    const stops = p.rain ? p.key === "rain_rate" ? RATE_GRADIENT : RAIN_GRADIENT : TEMP_GRADIENT;
     if (v <= stops[0].value) return stops[0].color;
     for (let i = 1; i < stops.length; i++) {
       const a = stops[i - 1], b = stops[i];
       if (v <= b.value) {
-        const t = (v - a.value) / (b.value - a.value);
+        const t = p.rain ? (Math.log1p(v) - Math.log1p(a.value)) / (Math.log1p(b.value) - Math.log1p(a.value)) : (v - a.value) / (b.value - a.value);
         const ca = [1, 3, 5].map((k) => parseInt(a.color.slice(k, k + 2), 16));
         const cb = [1, 3, 5].map((k) => parseInt(b.color.slice(k, k + 2), 16));
         return "#" + ca.map((x, j) => Math.round(x + (cb[j] - x) * t).toString(16).padStart(2, "0")).join("");
