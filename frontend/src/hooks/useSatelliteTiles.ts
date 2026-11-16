@@ -18,7 +18,7 @@ export function useSatelliteTiles(map: React.RefObject<L.Map | null>, products: 
     if (!m) return;
     let alive = true, moving = false, timer: ReturnType<typeof setTimeout> | undefined;
     const drop = (key: string) => {
-      cache.current.get(key)?.layers.forEach(l => { l.off(); l.remove(); });
+      cache.current.get(key)?.layers.forEach(l => { l.remove(); l.off(); });
       cache.current.delete(key);
     };
     const ready = (e: Entry) => e.ready.size === e.layers.length && e.layers.every(l => !l.isLoading());
