@@ -1,3 +1,4 @@
+import { satelliteTileLayer, type SatelliteTileProduct } from "@/lib/satelliteTiles";
 import { useEffect, useRef } from "react";
 import { radarFrameKey } from "@/lib/radarFrame";
 import type { RadarPoint } from "@/lib/radarPoint";
@@ -52,6 +53,7 @@ const FRESH_PRIORITY = { fresh: 0, stale: 1, historic: 2, unavailable: 3 } as co
 const NET_CLASS: Record<string, string> = { "aeronautica-militare": "stn-net-am", cedoc: "stn-net-cedoc" };
 
 interface Props {
+  satelliteTiles?: SatelliteTileProduct[];
   basemap: Basemap;
   stations: Station[];
   param: ParamDef;
@@ -100,6 +102,7 @@ export default function MapView(props: Props) {
   const aromeTokenRef = useRef(0);
   const overlayGroupRef = useRef<string | null>(null);
   const firesRef = useRef<L.LayerGroup | null>(null);
+  const satelliteTilesRef = useRef<L.TileLayer.WMS[]>([]);
   const hydroRef = useRef<L.LayerGroup | null>(null);
   const alertsRef = useRef<L.GeoJSON | null>(null);
   const windRef = useRef<WindFlowLayer | null>(null);
@@ -340,6 +343,53 @@ export default function MapView(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.radar?.product, props.radar?.time]);
 
+  // WMS tiles cover every new viewport automatically, including pinch zoom.
+  const satelliteSignature = JSON.stringify(props.satelliteTiles ?? []);
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    const products = props.satelliteTiles ?? [];
+    const previous = satelliteTilesRef.current;
+    if (!products.length) {
+      previous.forEach((layer) => layer.remove());
+      satelliteTilesRef.current = [];
+      return;
+    }
+    const layers = products.map((product) => satelliteTileLayer(product, cb.current.opacity));
+    satelliteTilesRef.current = layers;
+    let alive = true;
+    const loaded = new Set<L.TileLayer.WMS>();
+    const check = () => {
+      if (!alive || loaded.size !== layers.length) return;
+      previous.forEach((layer) => layer.remove());
+      const url = cb.current.overlay?.url;
+      if (url) cb.current.onLayerReady(`overlay:${url}`);
+    };
+    layers.forEach((layer) => {
+      layer.on("loading", () => loaded.delete(layer));
+      layer.on("load", () => { loaded.add(layer); check(); });
+      layer.addTo(m);
+    });
+    return () => {
+      alive = false;
+      previous.forEach((layer) => layer.remove());
+      layers.forEach((layer) => layer.off());
+    };
+  }, [satelliteSignature]);
+
+  useEffect(() => {
+    satelliteTilesRef.current.forEach((layer, i) => layer.setOpacity(props.opacity * (props.satelliteTiles?.[i]?.opacity ?? 1)));
+  }, [props.opacity, satelliteSignature]);
+
+  // Viewport changes do not recreate the tile layers. Cached tiles may already
+  // be ready when React receives the new bounds, so acknowledge that frame too.
+  useEffect(() => {
+    const layers = satelliteTilesRef.current;
+    if (layers.length && layers.every((layer) => !layer.isLoading()) && props.overlay) {
+      props.onLayerReady(`overlay:${props.overlay.url}`);
+    }
+  }, [props.overlay?.url]);
+
   // Image overlay (AROME lat/lon rasters → warped to Mercator; satellite WMS already in EPSG:3857).
   // Swap only after the new image is ready (no blank flashes); failed frames are never shown.
   const overlayUrl = props.overlay?.url;
@@ -349,7 +399,7 @@ export default function MapView(props: Props) {
     const m = mapRef.current;
     if (!m) return;
     const token = ++aromeTokenRef.current;
-    if (!props.overlay) {
+    if (!props.overlay || props.satelliteTiles?.length) {
       aromeRef.current?.remove(); aromeRef.current = null;
       overlayGroupRef.current = null;
       return;
@@ -376,7 +426,7 @@ export default function MapView(props: Props) {
     });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlayUrl, overlayGroup, overlayBounds, props.overlay?.warp]);
+  }, [overlayUrl, overlayGroup, overlayBounds, props.overlay?.warp, satelliteSignature]);
 
   useEffect(() => {
     const m = mapRef.current;

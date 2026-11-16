@@ -259,7 +259,7 @@ export default function Home() {
   // Warm the whole satellite archive after the selected full-quality image is ready.
   // Three workers avoid flooding WMS while sharing in-flight requests with playback.
   useEffect(() => {
-    if (!sat || !satFrames.length || readyKey !== `overlay:${satUrlAt(sIdx)}`) return;
+    if (!mode3d || !sat || !satFrames.length || readyKey !== `overlay:${satUrlAt(sIdx)}`) return;
     let stopped = false, next = 0;
     const urls = Array.from({ length: satFrames.length - 1 }, (_, i) => satUrlAt((sIdx + i + 1) % satFrames.length));
     const worker = async () => {
@@ -270,7 +270,7 @@ export default function Home() {
     };
     void Promise.all(Array.from({ length: Math.min(3, urls.length) }, worker));
     return () => { stopped = true; };
-  }, [sat, satFrames, satUrlAt, sIdx, readyKey]);
+  }, [mode3d, sat, satFrames, satUrlAt, sIdx, readyKey]);
 
   // Only one marine frame is prefetched, after the selected raster has loaded.
   useEffect(() => {
@@ -389,6 +389,11 @@ export default function Home() {
       counts={counts} loading={stationsQ.isLoading} />
   );
   const mapProps = {
+    satelliteTiles: sat && !mode3d ? satQ.catalogs.map((catalog, index) => ({
+      url: catalog.wms_url, layer: catalog.layer, format: catalog.format,
+      time: satFrames[sIdx], opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
+      attribution: catalog.attribution, bounds: catalog.bounds,
+    })) : undefined,
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer,
     radarPoint: radarLayer ? radarPoint : null, onRadarPoint: setRadarPoint, overlay, opacity,
     onLayerReady, fires: null,
