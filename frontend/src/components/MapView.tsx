@@ -125,7 +125,9 @@ export default function MapView(props: Props) {
       center: props.initialView.center, zoom: props.initialView.zoom,
       minZoom: 3, maxZoom: 13, zoomControl: false, worldCopyJump: false,
       zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
-      markerZoomAnimation: true,
+      // Commit map tiles and station anchors together; interrupted CSS zooms can
+      // leave tile panes and markers at different transforms.
+      zoomAnimation: false, markerZoomAnimation: false, fadeAnimation: false,
       maxBounds: L.latLngBounds([26, -20], [54, 42]), preferCanvas: false,
     });
     m.createPane("weather").style.zIndex = "350";
