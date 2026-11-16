@@ -124,6 +124,8 @@ export default function MapView(props: Props) {
     const m = L.map(el.current, {
       center: props.initialView.center, zoom: props.initialView.zoom,
       minZoom: 3, maxZoom: 13, zoomControl: false, worldCopyJump: false,
+      zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
+      markerZoomAnimation: true,
       maxBounds: L.latLngBounds([26, -20], [54, 42]), preferCanvas: false,
     });
     m.createPane("weather").style.zIndex = "350";
@@ -153,6 +155,10 @@ export default function MapView(props: Props) {
     };
     emitBounds();
     m.on("zoomend", () => {
+      // Reproject station anchors after every wheel, pinch and programmatic zoom.
+      markersRef.current?.eachLayer((layer) => {
+        if (layer instanceof L.Marker) layer.setLatLng(layer.getLatLng());
+      });
       // Reset any CSS zoom transform on the still-visible raster while the
       // larger viewport image loads, even if its timestamp did not change.
       const overlay = aromeRef.current;
