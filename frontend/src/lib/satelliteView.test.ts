@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { MEDITERRANEAN_BOUNDS, mercBbox } from "./mapControls";
-import { regionalSatelliteUrl, satelliteRegionBounds } from "./satelliteView";
+import { regionalSatelliteUrl, satelliteRegionBounds, satelliteMinZoom } from "./satelliteView";
 
 describe("Mediterranean satellite archive", () => {
+  it("keeps wide and portrait viewports within coverage at the minimum zoom", () => {
+    const [[south, west], [north, east]] = MEDITERRANEAN_BOUNDS;
+    const y = (lat: number) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI);
+    for (const [width, height] of [[1920, 1080], [390, 844], [2560, 720]]) {
+      const z = satelliteMinZoom(MEDITERRANEAN_BOUNDS, width, height);
+      const scale = 256 * 2 ** z;
+      expect(scale * (east - west) / 360).toBeGreaterThan(width);
+      expect(scale * (y(north) - y(south))).toBeGreaterThan(height);
+      expect(satelliteMinZoom(MEDITERRANEAN_BOUNDS, width, height, 512)).toBe(z - 1);
+    }
+  });
   it("clips full-disk products and preserves narrower native coverage", () => {
     expect(satelliteRegionBounds([[-80, -80], [80, 80]])).toEqual(MEDITERRANEAN_BOUNDS);
     expect(satelliteRegionBounds([[35, 0], [50, 20]])).toEqual([[35, 0], [46.5, 20]]);

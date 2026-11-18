@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { satelliteMinZoom } from "@/lib/satelliteView";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { BASEMAPS, type Basemap, type MapViewState } from "@/components/MapView";
@@ -41,6 +42,7 @@ const EMPTY = { type: "FeatureCollection" as const, features: [] as GeoJSON.Feat
 const EMPTY_OVERLAY = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 interface Props {
+  satelliteBounds: [number, number][] | null;
   onUnavailable: () => void;
   basemap: Basemap;
   stations: Station[];
@@ -214,6 +216,37 @@ export default function MapView3D(props: Props) {
     // basemap change remounts (key in parent)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const satelliteBoundsKey = JSON.stringify(props.satelliteBounds);
+  useEffect(() => {
+    const m = mapRef.current, bounds = props.satelliteBounds;
+    if (!m || !bounds) return;
+    const previous = { bounds: m.getMaxBounds(), minZoom: m.getMinZoom(), maxPitch: m.getMaxPitch(), pitch: m.getPitch(), bearing: m.getBearing(), rotate: m.dragRotate.isEnabled() };
+    // A flat satellite camera has no horizon beyond the finite regional raster.
+    m.stop();
+    m.setMaxPitch(0);
+    m.jumpTo({ pitch: 0, bearing: 0 });
+    m.dragRotate.disable();
+    m.touchZoomRotate.disableRotation();
+    m.setMaxBounds([[bounds[0][1], bounds[0][0]], [bounds[1][1], bounds[1][0]]]);
+    const constrain = () => {
+      const container = m.getContainer();
+      m.setMinZoom(satelliteMinZoom(bounds, container.clientWidth, container.clientHeight, 512));
+    };
+    constrain();
+    m.on("resize", constrain);
+    return () => {
+      m.off("resize", constrain);
+      if (mapRef.current !== m) return;
+      m.setMinZoom(previous.minZoom);
+      m.setMaxBounds(previous.bounds);
+      m.setMaxPitch(previous.maxPitch);
+      if (previous.rotate) m.dragRotate.enable();
+      m.touchZoomRotate.enableRotation();
+      m.jumpTo({ pitch: previous.pitch, bearing: previous.bearing });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [satelliteBoundsKey]);
 
   function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncRadarPoint(); syncGeo(); syncHydro(); syncBounds(); syncSubregions(); syncMunicipal(); syncMarineVectors(); }
 

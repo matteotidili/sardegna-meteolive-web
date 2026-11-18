@@ -16,11 +16,11 @@ import HealthDialog from "@/components/HealthDialog";
 import { AromeLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
 import { useAlerts, useArome, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
-import { AROME_PRECIP_KEY, NETWORK_META, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
+import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
 import { useLightning } from "@/lib/lightning";
 import { useLiveWind } from "@/lib/liveWind";
-import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
+import { DEFAULT_CENTER, DEFAULT_ZOOM, MEDITERRANEAN_BOUNDS, mapControls } from "@/lib/mapControls";
 import { regionalSatelliteUrl, satelliteRegionBounds } from "@/lib/satelliteView";
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -141,11 +141,11 @@ export default function Home() {
   const all = useMemo(() => (stationsQ.isError ? [] : stationsQ.data?.stations ?? []), [stationsQ.data, stationsQ.isError]);
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
-    all.forEach((s) => { c[s.network] = (c[s.network] ?? 0) + 1; });
+    all.forEach((s) => { const group = networkGroup(s.network); c[group] = (c[group] ?? 0) + 1; });
     return c;
   }, [all]);
   const visible = useMemo(
-    () => all.filter((s) => networks[s.network] !== false && (param.rain || !s.rain_only)),
+    () => all.filter((s) => networks[networkGroup(s.network)] !== false && (param.rain || !s.rain_only)),
     [all, networks, param.rain],
   );
   const selected = all.find((s) => s.id === selectedId) ?? null;
@@ -385,6 +385,7 @@ export default function Home() {
       counts={counts} loading={stationsQ.isLoading} />
   );
   const mapProps = {
+    satelliteBounds: satProduct ? satRenderBounds ?? MEDITERRANEAN_BOUNDS : null,
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer,
     radarPoint: radarLayer ? radarPoint : null, onRadarPoint: setRadarPoint, overlay, opacity,
     onLayerReady, fires: null,

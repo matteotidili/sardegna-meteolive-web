@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { satelliteMinZoom } from "@/lib/satelliteView";
 import { radarFrameKey } from "@/lib/radarFrame";
 import type { RadarPoint } from "@/lib/radarPoint";
 import L from "leaflet";
@@ -52,6 +53,7 @@ const FRESH_PRIORITY = { fresh: 0, stale: 1, historic: 2, unavailable: 3 } as co
 const NET_CLASS: Record<string, string> = { "aeronautica-militare": "stn-net-am", cedoc: "stn-net-cedoc" };
 
 interface Props {
+  satelliteBounds: [number, number][] | null;
   basemap: Basemap;
   stations: Station[];
   param: ParamDef;
@@ -192,6 +194,34 @@ export default function MapView(props: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Restrict the full viewport to the actual raster while satellite mode is active.
+  const satelliteBoundsKey = JSON.stringify(props.satelliteBounds);
+  useEffect(() => {
+    const m = mapRef.current, bounds = props.satelliteBounds;
+    if (!m || !bounds) return;
+    const previousBounds = m.options.maxBounds;
+    const previousMinZoom = m.getMinZoom();
+    const previousViscosity = m.options.maxBoundsViscosity;
+    const coverage = L.latLngBounds(bounds as L.LatLngTuple[]);
+    m.options.maxBoundsViscosity = 1;
+    const constrain = () => {
+      const size = m.getSize();
+      m.setMinZoom(satelliteMinZoom(bounds, size.x, size.y));
+      m.panInsideBounds(coverage, { animate: false });
+    };
+    m.setMaxBounds(coverage);
+    constrain();
+    m.on("resize", constrain);
+    return () => {
+      m.off("resize", constrain);
+      if (mapRef.current !== m) return;
+      m.setMinZoom(previousMinZoom);
+      m.setMaxBounds(previousBounds ?? L.latLngBounds([26, -20], [54, 42]));
+      m.options.maxBoundsViscosity = previousViscosity;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [satelliteBoundsKey]);
 
   // basemap
   useEffect(() => {

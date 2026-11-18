@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Search, ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import type { Station } from "@/lib/types";
-import { NETWORK_META, colorFor, fmtAge, fmtDay, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
+import { NETWORK_META, networkGroup, colorFor, fmtAge, fmtDay, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -20,7 +20,7 @@ interface Props {
 export default function StationList({ stations, param, selectedId, onPick, networks, onToggleNetwork, onSetAllNetworks, counts, loading }: Props) {
   const [q, setQ] = useState("");
   const [desc, setDesc] = useState(true);
-  const networkKeys = Array.from(new Set([...Object.keys(NETWORK_META), ...Object.keys(counts)]));
+  const networkKeys = Array.from(new Set([...Object.keys(NETWORK_META), ...Object.keys(counts)].map(networkGroup)));
   const anyActive = networkKeys.some((key) => networks[key] !== false);
 
   // Searchable independently of what the map can draw at the current scale.
@@ -62,6 +62,7 @@ export default function StationList({ stations, param, selectedId, onPick, netwo
             key={k}
             type="button"
             data-testid={`network-filter-${k}`}
+            title={NETWORK_META[k]?.label ?? k}
             aria-pressed={networks[k] !== false}
             onClick={() => onToggleNetwork(k)}
             className={cn(
