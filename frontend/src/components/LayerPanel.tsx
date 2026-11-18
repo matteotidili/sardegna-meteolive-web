@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Radar, CloudSun, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves } from "lucide-react";
+import { Radar, CloudSun, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves, Camera } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
@@ -34,6 +34,9 @@ interface Props {
   arome: AromeResponse | undefined;
   opacity: number;
   setOpacity: (n: number) => void;
+  webcams: boolean;
+  setWebcams: (on: boolean) => void;
+  webcamCount: number;
   hydrometers: boolean;
   setHydrometers: (on: boolean) => void;
   hydroStatus: string;
@@ -184,6 +187,12 @@ export default function LayerPanel(p: Props) {
           sub={`Misurato · ${p.arrowCount} stazioni con direzione · tocca per confronto`} />
       )}
 
+      <div className={SECTION}>Webcam</div>
+      <Toggle testid="layer-toggle-webcams" on={p.webcams} onClick={() => p.setWebcams(!p.webcams)}
+        icon={<Camera className="size-4" />} title="Webcam"
+        sub={`${p.webcamCount} località · Panoramicams`} />
+      {p.webcams && <p className="px-1 text-[11px] leading-snug text-slate-400">Foto di copertina Panoramicams, non ultimo frame. Tocca la foto per aprire il live.</p>}
+
       <div className={SECTION}>Idrologia e monitoraggio</div>
       <Toggle testid="layer-toggle-hydrometers" on={p.hydrometers} onClick={() => p.setHydrometers(!p.hydrometers)}
         icon={<Waves className="size-4" />} title="Idrometri ARPAS" sub={p.hydroStatus} />
@@ -215,3 +224,4 @@ export default function LayerPanel(p: Props) {
     </div>
   );
 }
+
