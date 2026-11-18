@@ -2,7 +2,7 @@
  * Browser-side data layer — the app must also run as a STATIC site (GitHub Pages),
  * so every rule of the former FastAPI aggregator lives here:
  * freshness from each station's own observation time, CEDOC last-valid fallback,
- * Sardinia-only MeteoAlarm warnings, AROME catalogue, EUMETSAT frame probing,
+ * Sardinia-only MeteoAlarm warnings, AROME and EUMETSAT catalogues,
  * station-vs-model point values. Upstream files are cache-busted per minute.
  */
 import type {
@@ -14,7 +14,6 @@ import { decodeWind, sampleWind } from "@/lib/windFlow";
 
 export const DATA_BASE = "https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/";
 const RADAR_API = "https://radar-api.protezionecivile.it";
-const SAT_WMS = "https://view.eumetsat.int/geoserver/wms";
 
 type Json = Record<string, unknown>;
 const lastGood = new Map<string, unknown>();
@@ -459,18 +458,6 @@ const SAT: Record<string, [string, string, string, string, number, boolean]> = {
   li: ["mtg_fd:li_afa", "MTG LI · Area dei lampi (AFA)", "© EUMETSAT · MTG LI Accumulated Flash Area", "image/png", 5, false],
 };
 
-async function probe(layer: string, t: Date, li: boolean): Promise<boolean> {
-  const q = new URLSearchParams({
-    service: "WMS", request: "GetMap", version: "1.1.1", layers: layer, styles: "", format: "image/png", transparent: "true", srs: "EPSG:4326",
-    bbox: li ? "-12,28,35,48" : "7.2,38.2,10.8,41.8", width: li ? "128" : "48", height: li ? "64" : "48", time: t.toISOString(),
-  });
-  try {
-    const r = await fetch(`${SAT_WMS}?${q}`, { cache: "force-cache" });
-    if (!r.ok || !(r.headers.get("content-type") ?? "").includes("image")) return false;
-    return (await r.blob()).size > (li ? 1500 : 500);
-  } catch { return false; }
-}
-
 function satelliteDomain(xml: Document, layer: string): [number, number][] {
   const layers = Array.from(xml.getElementsByTagNameNS("*", "Layer"));
   const node = layers.find((l) => Array.from(l.children).some((c) => c.localName === "Name" && c.textContent?.split(":").at(-1) === layer.split(":").at(-1)));
@@ -572,17 +559,19 @@ export async function getSatellite(product: string): Promise<SatelliteFrames> {
   const def = SAT[product];
   if (!def) throw new Error("Prodotto satellitare non supportato");
   const [layer, label, attribution, format, step, day] = def;
-  const capabilities = await fetch(`${SAT_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-cache" });
+  const wms_url = `https://view.eumetsat.int/geoserver/mtg_fd/${layer.split(":").at(-1)}/ows`;
+  const capabilities = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-cache" });
   if (!capabilities.ok) throw new Error("Catalogo satellitare non disponibile");
-  const domain = satelliteDomain(new DOMParser().parseFromString(await capabilities.text(), "application/xml"), layer);
-
-  const n = product === "li" ? 24 : 19, ms = step * 60000;
-  const base = Math.floor(Date.now() / ms) * ms;
-  const cands = Array.from({ length: n + 6 }, (_, i) => new Date(base - i * ms));
-  const ok = await Promise.all(cands.map((t) => probe(layer, t, product === "li")));
-  const avail = cands.filter((_, i) => ok[i]);
-  if (!avail.length) throw new Error("EUMETSAT: nessun frame disponibile");
-  const latest = avail[0];
-  const frames = avail.filter((t) => latest.getTime() - t.getTime() <= ms * (n - 1)).reverse().map((t) => iso(t)!);
-  return { product, label, layer, attribution, format, step_minutes: step, wms_url: SAT_WMS, bounds: domain, frames, latest: iso(latest), daytime_only: day };
+  const xml = new DOMParser().parseFromString(await capabilities.text(), "application/xml");
+  const domain = satelliteDomain(xml, layer);
+  // Read published times directly: probing 25 images delayed the first useful frame.
+  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
+  const parts = dimension?.textContent?.trim().split("/") ?? [];
+  const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
+  const start = Date.parse(parts[0] ?? "");
+  const minutes = Number(parts[2]?.match(/^PT(\d+)M$/)?.[1]) || step;
+  if (!Number.isFinite(end)) throw new Error("Catalogo temporale satellitare non valido");
+  const frames = Array.from({ length: Math.floor(180 / minutes) + 1 }, (_, i) => end - (Math.floor(180 / minutes) - i) * minutes * 60000)
+    .filter((time) => !Number.isFinite(start) || time >= start).map((time) => new Date(time).toISOString());
+  return { product, label, layer, attribution, format, step_minutes: minutes, wms_url, bounds: domain, frames, latest: new Date(end).toISOString(), daytime_only: day };
 }

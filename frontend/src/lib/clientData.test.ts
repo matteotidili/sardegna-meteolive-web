@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", () => ({ default: {} }));
 
-import { getArome, getWindMeta } from "./clientData";
+import { getArome, getSatellite, getWindMeta } from "./clientData";
 
 const oldRun = "2026-11-10T18:00:00Z";
 const newRun = "2026-11-11T03:00:00Z";
@@ -25,6 +25,29 @@ function manifests(run: string) {
 }
 
 afterEach(() => vi.unstubAllGlobals());
+
+it("opens the IR archive from published catalogue times with no image probes", async () => {
+  const latest = "2026-11-18T12:00:00Z";
+  const dimension = {
+    textContent: `2024-09-23T00:00:00Z/${latest}/PT10M`,
+    getAttribute: (key: string) => key === "name" ? "time" : key === "default" ? latest : null,
+  };
+  const value = (localName: string, textContent: string) => ({ localName, textContent });
+  const layer = { parentElement: null, children: [value("Name", "ir105_hrfi"), {
+    localName: "EX_GeographicBoundingBox", children: [value("westBoundLongitude", "-80"), value("eastBoundLongitude", "80"), value("southBoundLatitude", "-80"), value("northBoundLatitude", "80")],
+  }] };
+  vi.stubGlobal("DOMParser", class {
+    parseFromString() { return { getElementsByTagNameNS: (_ns: string, tag: string) => tag === "Layer" ? [layer] : [dimension] }; }
+  });
+  const fetcher = vi.fn(async (_url: string) => new Response("<catalogue/>"));
+  vi.stubGlobal("fetch", fetcher);
+  const catalog = await getSatellite("ir105");
+  expect(fetcher).toHaveBeenCalledOnce();
+  expect(fetcher.mock.calls[0][0]).toContain("/mtg_fd/ir105_hrfi/ows?service=WMS&request=GetCapabilities");
+  expect(catalog.frames).toHaveLength(19);
+  expect(catalog.frames[0]).toBe("2026-11-18T09:00:00.000Z");
+  expect(catalog.frames.at(-1)).toBe("2026-11-18T12:00:00.000Z");
+});
 
 describe("AROME model-run changes", () => {
   it("reloads raster and wind assets when filenames are reused for a new run", async () => {

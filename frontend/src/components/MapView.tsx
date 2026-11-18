@@ -1,5 +1,3 @@
-import { useSatelliteTiles } from "@/hooks/useSatelliteTiles";
-import { type SatelliteTileProduct } from "@/lib/satelliteTiles";
 import { useEffect, useRef } from "react";
 import { radarFrameKey } from "@/lib/radarFrame";
 import type { RadarPoint } from "@/lib/radarPoint";
@@ -54,8 +52,6 @@ const FRESH_PRIORITY = { fresh: 0, stale: 1, historic: 2, unavailable: 3 } as co
 const NET_CLASS: Record<string, string> = { "aeronautica-militare": "stn-net-am", cedoc: "stn-net-cedoc" };
 
 interface Props {
-  satelliteTiles?: SatelliteTileProduct[];
-  satelliteUpcoming?: SatelliteTileProduct[][];
   basemap: Basemap;
   stations: Station[];
   param: ParamDef;
@@ -352,9 +348,6 @@ export default function MapView(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.radar?.product, props.radar?.time]);
 
-  const satelliteSignature = JSON.stringify(props.satelliteTiles ?? []);
-  useSatelliteTiles(mapRef, props.satelliteTiles ?? [], props.satelliteUpcoming ?? [], props.opacity, props.overlay?.url, props.onLayerReady);
-
   // Image overlay (AROME lat/lon rasters → warped to Mercator; satellite WMS already in EPSG:3857).
   // Swap only after the new image is ready (no blank flashes); failed frames are never shown.
   const overlayUrl = props.overlay?.url;
@@ -364,7 +357,7 @@ export default function MapView(props: Props) {
     const m = mapRef.current;
     if (!m) return;
     const token = ++aromeTokenRef.current;
-    if (!props.overlay || props.satelliteTiles?.length) {
+    if (!props.overlay) {
       aromeRef.current?.remove(); aromeRef.current = null;
       overlayGroupRef.current = null;
       return;
@@ -391,7 +384,7 @@ export default function MapView(props: Props) {
     });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlayUrl, overlayGroup, overlayBounds, props.overlay?.warp, satelliteSignature]);
+  }, [overlayUrl, overlayGroup, overlayBounds, props.overlay?.warp]);
 
   useEffect(() => {
     const m = mapRef.current;

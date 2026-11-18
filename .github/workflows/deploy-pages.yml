@@ -26,11 +26,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Test proiezione numerica radar DPC e conversione Z–R
+      - name: Test radar e archivio satellitare mediterraneo
         working-directory: frontend
         run: |
           if [ -f yarn.lock ]; then yarn install --frozen-lockfile; else yarn install --network-timeout 600000; fi
-          yarn vitest run src/lib/radarPoint.test.ts
+          yarn vitest run src/lib/radarPoint.test.ts src/lib/satelliteView.test.ts src/lib/satelliteImages.test.ts src/lib/overlayImage.test.ts src/hooks/useSatelliteStack.test.ts src/lib/clientData.test.ts
       - name: Build static site
         working-directory: frontend
         env:

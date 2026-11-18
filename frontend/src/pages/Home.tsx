@@ -20,7 +20,8 @@ import { AROME_PRECIP_KEY, NETWORK_META, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTi
 import { mercatorImage } from "@/lib/mercator";
 import { useLightning } from "@/lib/lightning";
 import { useLiveWind } from "@/lib/liveWind";
-import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls, satelliteUrl } from "@/lib/mapControls";
+import { DEFAULT_CENTER, DEFAULT_ZOOM, mapControls } from "@/lib/mapControls";
+import { regionalSatelliteUrl, satelliteRegionBounds } from "@/lib/satelliteView";
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { radarFrameErrorKey, radarFrameKey } from "@/lib/radarFrame";
@@ -175,15 +176,10 @@ export default function Home() {
   const sat = satQ.data && satProduct && !satQ.isError ? satQ.data : null;
   const satFrames = sat?.frames ?? [];
   const sIdx = satFrames.length ? Math.min(satIdx ?? satFrames.length - 1, satFrames.length - 1) : 0;
-  const [satViewport, setSatViewport] = useState(bbox);
-  useEffect(() => {
-    const timer = setTimeout(() => setSatViewport(bbox), 180);
-    return () => clearTimeout(timer);
-  }, [bbox]);
-  const satRenderBounds = useMemo(() => sat ? marineViewportBounds(sat.bounds, satViewport) : null, [sat, satViewport]);
-  const satUrlAt = useCallback((i: number) => (sat && satFrames[i]
+  const satRenderBounds = useMemo(() => sat ? satelliteRegionBounds(sat.bounds) : null, [sat]);
+  const satUrlAt = useCallback((i: number) => (sat && satRenderBounds && satFrames[i]
     ? satelliteStackUrl(satQ.catalogs.map((catalog, index) => ({
-      url: satelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds ?? sat.bounds, satFrames[i], isDesktop ? 1400 : 900),
+      url: regionalSatelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds, satFrames[i], isDesktop),
       opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
     }))) : null), [sat, satFrames, isDesktop, satRenderBounds, satQ.catalogs, satelliteOpacity, activeSatellites]);
   useEffect(() => {
@@ -208,7 +204,7 @@ export default function Home() {
         group: `marine:${marine.model}:${marineParam}:${marine.forcing ?? ""}:${marine.run_time}` }
     : aromeUrl && arome
     ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)" }
-    : sat && satUrlAt(sIdx) ? { url: satUrlAt(sIdx)!, bounds: satRenderBounds ?? sat.bounds, warp: false, attribution: sat.attribution } : null;
+    : sat && satRenderBounds && satUrlAt(sIdx) ? { url: satUrlAt(sIdx)!, bounds: satRenderBounds, warp: false, attribution: sat.attribution } : null;
   const currentKey = radarLayer ? radarFrameKey(radarLayer) : overlay ? `overlay:${overlay.url}` : "";
   const frameFailed = radarLayer ? readyKey === radarFrameErrorKey(radarLayer)
     : !!overlay && readyKey === `overlay-error:${overlay.url}`;
@@ -256,10 +252,10 @@ export default function Home() {
     }
   }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length]);
 
-  // Warm the whole satellite archive after the selected full-quality image is ready.
+  // Both renderers share the same fixed Mediterranean archive, retained across zoom/pan.
   // Three workers avoid flooding WMS while sharing in-flight requests with playback.
   useEffect(() => {
-    if (!mode3d || !sat || !satFrames.length || readyKey !== `overlay:${satUrlAt(sIdx)}`) return;
+    if (!sat || !satFrames.length || readyKey !== `overlay:${satUrlAt(sIdx)}`) return;
     let stopped = false, next = 0;
     const urls = Array.from({ length: satFrames.length - 1 }, (_, i) => satUrlAt((sIdx + i + 1) % satFrames.length));
     const worker = async () => {
@@ -270,7 +266,7 @@ export default function Home() {
     };
     void Promise.all(Array.from({ length: Math.min(3, urls.length) }, worker));
     return () => { stopped = true; };
-  }, [mode3d, sat, satFrames, satUrlAt, sIdx, readyKey]);
+  }, [sat, satFrames, satUrlAt, sIdx, readyKey]);
 
   // Only one marine frame is prefetched, after the selected raster has loaded.
   useEffect(() => {
@@ -340,7 +336,7 @@ export default function Home() {
         ["#ffffff", "Nubi d’acqua sopraffusa"],
         ["#71ff28", "Neve e ghiaccio al suolo"],
       ].map(([color, text]) => <div key={text} className="flex items-center gap-1"><span className="h-3 w-3 shrink-0 rounded" style={{backgroundColor: color}} />{text}</div>)}</div><p>Colori indicativi · prodotto diurno.</p><a href="https://user.eumetsat.int/s3/eup-strapi-media/QG_Cloud_Type_RGB_ab06957dd1.pdf" target="_blank" rel="noreferrer">Guida EUMETSAT / EUMeTrain</a></details> : undefined}
-      note={`${sat.attribution} · passo ${sat.step_minutes} min · solo frame verificati disponibili.${sat.daytime_only ? " Prodotto diurno: di notte l'immagine è scura." : ""}${frameFailed ? " Frame non caricato: non mostrato." : ""}`}
+      note={`${sat.attribution} · Mediterraneo · passo ${sat.step_minutes} min.${sat.daytime_only ? " Prodotto diurno: di notte l'immagine è scura." : ""}${frameFailed ? " Frame non caricato: non mostrato." : ""}`}
     />
   ) : satProduct && (satQ.isError || satQ.isLoading) ? (
     <div className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-300" data-testid="satellite-status">
@@ -388,18 +384,7 @@ export default function Home() {
       }}
       counts={counts} loading={stationsQ.isLoading} />
   );
-  const tileProductsAt = (time: string) => satQ.catalogs.map((catalog, index) => ({
-    url: catalog.wms_url, layer: catalog.layer, format: catalog.format,
-    time, opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
-    attribution: catalog.attribution, bounds: catalog.bounds,
-  }));
   const mapProps = {
-    satelliteUpcoming: sat && !mode3d ? Array.from({ length: satFrames.length - 1 }, (_, i) => tileProductsAt(satFrames[(sIdx + i + 1) % satFrames.length])) : undefined,
-    satelliteTiles: sat && !mode3d ? satQ.catalogs.map((catalog, index) => ({
-      url: catalog.wms_url, layer: catalog.layer, format: catalog.format,
-      time: satFrames[sIdx], opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
-      attribution: catalog.attribution, bounds: catalog.bounds,
-    })) : undefined,
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer,
     radarPoint: radarLayer ? radarPoint : null, onRadarPoint: setRadarPoint, overlay, opacity,
     onLayerReady, fires: null,
