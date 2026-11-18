@@ -92,7 +92,7 @@ export const PARAMS: ParamDef[] = [
 export const PARAM_BY_KEY = Object.fromEntries(PARAMS.map((p) => [p.key, p])) as Record<ParamKey, ParamDef>;
 
 /** Local stations share one filter; their original provider remains on each observation. */
-export const networkGroup = (network: string) => network === "meteoproject" ? "ecowitt" : network;
+export const networkGroup = (network: string) => ["meteoproject", "local"].includes(network) ? "ecowitt" : network;
 
 export const NETWORK_META: Record<string, { label: string; short: string; color: string }> = {
   "dpcn-sardegna": { label: "MeteoHub / DPCN", short: "DPCN", color: "#38BDF8" },
@@ -100,6 +100,7 @@ export const NETWORK_META: Record<string, { label: string; short: string; color:
   ecowitt: { label: "Ecowitt e stazioni locali", short: "ECO", color: "#4ADE80" },
   meteonetwork: { label: "MeteoNetwork", short: "MNW", color: "#F472B6" },
   meteoproject: { label: "MeteoProject", short: "MPR", color: "#2DD4BF" },
+  local: { label: "Stazioni locali", short: "ECO", color: "#4ADE80" },
   cedoc: { label: "CEDOC Pluviometri", short: "CEDOC", color: "#A78BFA" },
 };
 

@@ -49,17 +49,18 @@ const romeDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europ
 
 // ---------------------------------------------------------------- stations
 const THRESHOLDS: Record<string, [number, number]> = {
-  "dpcn-sardegna": [30, 180], "aeronautica-militare": [90, 240], ecowitt: [30, 180], meteonetwork: [30, 180], cedoc: [90, 180],
+  "dpcn-sardegna": [30, 180], "aeronautica-militare": [90, 240], ecowitt: [30, 180], local: [30, 180], meteonetwork: [30, 180], cedoc: [90, 180],
 };
 const NETWORKS: [string, string, string][] = [
   ["dpcn-sardegna", "MeteoHub / DPCN", "data/stations.json"],
   ["aeronautica-militare", "Aeronautica Militare", "data/am.json"],
   ["ecowitt", "Ecowitt", "data/ecowitt.json"],
   ["meteoproject", "MeteoProject", "data/meteoproject.json"],
+  ["local", "Stazioni locali", "data/local_stations.json"],
   ["meteonetwork", "MeteoNetwork", "data/meteonetwork.json"],
 ];
 /** Networks shown only once their collector has published at least one file (no red status before activation). */
-const OPTIONAL_NETWORKS = new Set(["meteonetwork"]);
+const OPTIONAL_NETWORKS = new Set(["meteonetwork", "local"]);
 
 function normalize(raw: Json, network: string, now: Date, today: string, rainOnly = false): Station | null {
   const lat = num(raw.lat), lon = num(raw.lon);
