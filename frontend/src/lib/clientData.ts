@@ -55,6 +55,7 @@ const NETWORKS: [string, string, string][] = [
   ["dpcn-sardegna", "MeteoHub / DPCN", "data/stations.json"],
   ["aeronautica-militare", "Aeronautica Militare", "data/am.json"],
   ["ecowitt", "Ecowitt", "data/ecowitt.json"],
+  ["meteoproject", "MeteoProject", "data/meteoproject.json"],
   ["meteonetwork", "MeteoNetwork", "data/meteonetwork.json"],
 ];
 /** Networks shown only once their collector has published at least one file (no red status before activation). */

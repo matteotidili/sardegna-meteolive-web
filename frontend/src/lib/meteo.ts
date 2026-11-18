@@ -96,6 +96,7 @@ export const NETWORK_META: Record<string, { label: string; short: string; color:
   "aeronautica-militare": { label: "Aeronautica Militare", short: "AM", color: "#FBBF24" },
   ecowitt: { label: "Ecowitt", short: "ECO", color: "#4ADE80" },
   meteonetwork: { label: "MeteoNetwork", short: "MNW", color: "#F472B6" },
+  meteoproject: { label: "MeteoProject", short: "MPR", color: "#2DD4BF" },
   cedoc: { label: "CEDOC Pluviometri", short: "CEDOC", color: "#A78BFA" },
 };
 
