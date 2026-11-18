@@ -1,4 +1,3 @@
-import { webcamLink, type Webcam } from "@/lib/webcams";
 import { useEffect, useRef } from "react";
 import { satelliteMinZoom } from "@/lib/satelliteView";
 import { radarFrameKey } from "@/lib/radarFrame";
@@ -72,7 +71,6 @@ interface Props {
   onLayerReady: (key: string) => void;
   fires: FireDetection[] | null;
   alerts: AlertWarning[] | null;
-  webcams: Webcam[];
   hydrometers: HydroStation[] | null;
   initialView: MapViewState;
   onViewChange: (v: MapViewState) => void;
@@ -104,7 +102,6 @@ export default function MapView(props: Props) {
   const aromeTokenRef = useRef(0);
   const overlayGroupRef = useRef<string | null>(null);
   const firesRef = useRef<L.LayerGroup | null>(null);
-  const webcamsRef = useRef<L.LayerGroup | null>(null);
   const hydroRef = useRef<L.LayerGroup | null>(null);
   const alertsRef = useRef<L.GeoJSON | null>(null);
   const windRef = useRef<WindFlowLayer | null>(null);
@@ -146,8 +143,6 @@ export default function MapView(props: Props) {
     firesRef.current = L.layerGroup().addTo(m);
     m.createPane("hydrometers").style.zIndex = "615";
     hydroRef.current = L.layerGroup().addTo(m);
-    m.createPane("webcams").style.zIndex = "625";
-    webcamsRef.current = L.layerGroup().addTo(m);
     m.createPane("windArrows").style.zIndex = "610";
     arrowsRef.current = L.layerGroup().addTo(m);
     m.createPane("lightning").style.zIndex = "445";
@@ -522,17 +517,6 @@ export default function MapView(props: Props) {
       group.addLayer(marker);
     }
   }, [props.hydrometers]);
-
-  useEffect(() => {
-    const group = webcamsRef.current;
-    if (!group) return;
-    group.clearLayers();
-    for (const webcam of props.webcams) {
-      const icon = L.divIcon({ className: "webcam-map-icon", html: webcamLink(webcam), iconSize: [30, 30], iconAnchor: [15, 15] });
-      L.marker([webcam.lat, webcam.lon], { pane: "webcams", icon, keyboard: false }).addTo(group);
-    }
-    return () => { group.clearLayers(); };
-  }, [props.webcams]);
 
   // lightning strokes (canvas, colour by age)
   useEffect(() => {
