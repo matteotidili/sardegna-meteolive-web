@@ -136,22 +136,15 @@ export const WEBCAMS: Webcam[] = [
   }
 ];
 export const webcamIcon = `<span style="display:grid;place-items:center;width:30px;height:30px;border:2px solid white;border-radius:50%;background:#0369a1;color:white;box-shadow:0 2px 8px #0008"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h-4L8 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-4z"/><circle cx="12" cy="13" r="4"/></svg></span>`;
-export function webcamPopup(webcam: Webcam): HTMLElement {
-  const panel = document.createElement("div");
-  panel.dataset.testid = "webcam-popup";
-  panel.style.cssText = "min-width:210px;line-height:1.5";
-  const title = document.createElement("strong");
-  title.textContent = webcam.name;
-  title.style.cssText = "display:block;font-size:16px;margin-bottom:8px";
-  const note = document.createElement("p");
-  note.textContent = "Webcam Vedetta · posizione della località indicata dalla fonte. Diretta e orario delle immagini consultabili sul sito originale.";
-  note.style.cssText = "font-size:13px;margin:0 0 12px";
+export function webcamLink(webcam: Webcam): HTMLAnchorElement {
   const link = document.createElement("a");
-  link.textContent = "Apri webcam su Vedetta";
   link.href = webcam.url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
-  link.style.cssText = "display:inline-block;padding:8px 12px;border-radius:6px;background:#0369a1;color:white;font-size:14px;text-decoration:none";
-  panel.append(title, note, link);
-  return panel;
+  link.title = `Webcam ${webcam.name}`;
+  link.setAttribute("aria-label", `Apri live webcam ${webcam.name}`);
+  link.style.cssText = "display:block;width:30px;height:30px;text-decoration:none";
+  link.innerHTML = webcamIcon;
+  link.addEventListener("click", (event) => event.stopPropagation());
+  return link;
 }

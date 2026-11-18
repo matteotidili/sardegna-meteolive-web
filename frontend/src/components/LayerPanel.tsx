@@ -189,9 +189,9 @@ export default function LayerPanel(p: Props) {
 
       <div className={SECTION}>Webcam</div>
       <Toggle testid="layer-toggle-webcams" on={p.webcams} onClick={() => p.setWebcams(!p.webcams)}
-        icon={<Camera className="size-4" />} title="Webcam Sardegna · Vedetta"
+        icon={<Camera className="size-4" />} title="Webcam"
         sub={`${p.webcamCount} località · apri la diretta originale`} />
-      {p.webcams && <p className="px-1 text-[11px] leading-snug text-slate-400">Icone fotocamera: tocca per aprire Vedetta. Posizioni riferite alla località indicata dalla fonte.</p>}
+      {p.webcams && <p className="px-1 text-[11px] leading-snug text-slate-400">Tocca la fotocamera per aprire direttamente il live su Vedetta.</p>}
 
       <div className={SECTION}>Idrologia e monitoraggio</div>
       <Toggle testid="layer-toggle-hydrometers" on={p.hydrometers} onClick={() => p.setHydrometers(!p.hydrometers)}

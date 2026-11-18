@@ -1,4 +1,4 @@
-import { webcamPopup, webcamIcon, type Webcam } from "@/lib/webcams";
+import { webcamLink, type Webcam } from "@/lib/webcams";
 import { useEffect, useRef } from "react";
 import { satelliteMinZoom } from "@/lib/satelliteView";
 import { radarFrameKey } from "@/lib/radarFrame";
@@ -528,10 +528,8 @@ export default function MapView(props: Props) {
     if (!group) return;
     group.clearLayers();
     for (const webcam of props.webcams) {
-      const icon = L.divIcon({ className: "webcam-map-icon", html: webcamIcon, iconSize: [30, 30], iconAnchor: [15, 15] });
-      const marker = L.marker([webcam.lat, webcam.lon], { pane: "webcams", icon, title: `Webcam ${webcam.name}`, keyboard: true }).addTo(group);
-      marker.bindPopup(webcamPopup(webcam), { maxWidth: 300 });
-      marker.on("click", (event) => L.DomEvent.stopPropagation(event.originalEvent));
+      const icon = L.divIcon({ className: "webcam-map-icon", html: webcamLink(webcam), iconSize: [30, 30], iconAnchor: [15, 15] });
+      L.marker([webcam.lat, webcam.lon], { pane: "webcams", icon, keyboard: false }).addTo(group);
     }
     return () => { group.clearLayers(); };
   }, [props.webcams]);

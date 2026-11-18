@@ -1,4 +1,4 @@
-import { webcamPopup, webcamIcon, type Webcam } from "@/lib/webcams";
+import { webcamLink, type Webcam } from "@/lib/webcams";
 import { useEffect, useRef } from "react";
 import { satelliteMinZoom } from "@/lib/satelliteView";
 import maplibregl from "maplibre-gl";
@@ -444,14 +444,7 @@ export default function MapView3D(props: Props) {
     const m = mapRef.current;
     if (!m || !readyRef.current) return;
     webcamsRef.current = cb.current.webcams.map((webcam) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.setAttribute("aria-label", `Webcam ${webcam.name}`);
-      button.style.cssText = "width:30px;height:30px;padding:0;border:0;background:transparent;cursor:pointer";
-      button.innerHTML = webcamIcon;
-      button.addEventListener("click", (event) => event.stopPropagation());
-      return new maplibregl.Marker({ element: button }).setLngLat([webcam.lon, webcam.lat])
-        .setPopup(new maplibregl.Popup({ maxWidth: "300px" }).setDOMContent(webcamPopup(webcam))).addTo(m);
+      return new maplibregl.Marker({ element: webcamLink(webcam) }).setLngLat([webcam.lon, webcam.lat]).addTo(m);
     });
   }
 
