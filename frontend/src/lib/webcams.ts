@@ -702,14 +702,13 @@ export const WEBCAMS: Webcam[] = [
 export function webcamLink(webcam: Webcam): HTMLAnchorElement {
  const link=document.createElement("a");
  link.href=webcam.url; link.target="_blank"; link.rel="noopener noreferrer";
- link.title=`${webcam.name} · anteprima di copertina, clic per il live`;
+ link.title=`${webcam.name} · clic per il live`;
  link.setAttribute("aria-label",`Apri live webcam ${webcam.name}`);
  link.style.cssText="display:block;width:64px;height:44px;border:2px solid white;border-radius:5px;overflow:hidden;background:#0369a1;box-shadow:0 2px 6px #0008;position:relative;text-decoration:none";
  const image=document.createElement("img"); image.src=webcam.image; image.alt=webcam.name;
  image.loading="lazy"; image.decoding="async"; image.referrerPolicy="no-referrer";
  image.style.cssText="display:block;width:100%;height:100%;object-fit:cover";
  image.addEventListener("error",()=>{image.remove();link.textContent="Webcam";link.style.color="white";link.style.fontSize="11px";});
- const label=document.createElement("span"); label.textContent="Anteprima";
- label.style.cssText="position:absolute;bottom:0;left:0;right:0;font-size:8px;line-height:12px;background:#0009;color:white;text-align:center";
- link.append(image,label);link.addEventListener("click",e=>e.stopPropagation());return link;
+ link.append(image);link.addEventListener("click",e=>e.stopPropagation());return link;
 }
+
