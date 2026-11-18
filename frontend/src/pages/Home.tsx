@@ -1,3 +1,4 @@
+import { WEBCAMS } from "@/lib/webcams";
 import { useSatelliteStack } from "@/hooks/useSatelliteStack";
 import { retainSatelliteRequests, satelliteImage, satelliteStackUrl } from "@/lib/satelliteImages";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -51,6 +52,7 @@ export default function Home() {
   const [marineForcing, setMarineForcing] = usePersistentState<MarineForcing>("marineForcing", "ECMWF");
   const [marineArrows, setMarineArrows] = usePersistentState<boolean>("marineArrows", true);
   const [opacity, setOpacity] = usePersistentState<number>("opacity", 0.75);
+  const [webcamsOn, setWebcamsOn] = usePersistentState<boolean>("webcams", false);
   const [hydrometersOn, setHydrometersOn] = usePersistentState<boolean>("hydrometersArpas", false);
   const hydrometersQ = useHydrometers(hydrometersOn);
   const hydroStatus = hydrometersQ.data?.length
@@ -362,6 +364,7 @@ export default function Home() {
         onMediterranean={() => { setSheet("none"); mapControls.fitMediterranean(); }}
         onSardinia={() => { setSheet("none"); mapControls.fitSardinia(); }} />}
       opacity={opacity} setOpacity={setOpacity} alerts={alertsOn} setAlerts={setAlertsOn}
+      webcams={webcamsOn} setWebcams={setWebcamsOn} webcamCount={WEBCAMS.length}
       hydrometers={hydrometersOn} setHydrometers={setHydrometersOn} hydroStatus={hydroStatus}
       wind={windOn} setWind={setWindOn} windWarning={windWarning}
       is3d={mode3d} lightning={lightningOn} setLightning={setLightningOn} lightningStatus={lightning.status} strokeCount={lightning.strokes.length}
@@ -389,6 +392,7 @@ export default function Home() {
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer,
     radarPoint: radarLayer ? radarPoint : null, onRadarPoint: setRadarPoint, overlay, opacity,
     onLayerReady, fires: null,
+    webcams: webcamsOn ? WEBCAMS : [],
     hydrometers: hydrometersOn ? hydrometersQ.data ?? null : null,
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
     strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo, boundaries: boundariesOn,

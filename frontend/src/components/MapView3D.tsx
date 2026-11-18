@@ -1,3 +1,4 @@
+import { webcamPopup, webcamIcon, type Webcam } from "@/lib/webcams";
 import { useEffect, useRef } from "react";
 import { satelliteMinZoom } from "@/lib/satelliteView";
 import maplibregl from "maplibre-gl";
@@ -58,6 +59,7 @@ interface Props {
   onLayerReady: (key: string) => void;
   fires: FireDetection[] | null;
   alerts: AlertWarning[] | null;
+  webcams: Webcam[];
   hydrometers: HydroStation[] | null;
   strokes: Stroke[] | null;
   initialView: MapViewState;
@@ -74,6 +76,7 @@ export default function MapView3D(props: Props) {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const readyRef = useRef(false);
   const subLabelsRef = useRef<maplibregl.Marker[]>([]);
+  const webcamsRef = useRef<maplibregl.Marker[]>([]);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const radarRef = useRef<Radar3D | null>(null);
   const radarPointRef = useRef<maplibregl.Marker | null>(null);
@@ -248,7 +251,7 @@ export default function MapView3D(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [satelliteBoundsKey]);
 
-  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncRadarPoint(); syncGeo(); syncHydro(); syncBounds(); syncSubregions(); syncMunicipal(); syncMarineVectors(); }
+  function syncAll() { syncMarkers(); syncOverlay(); syncRadar(); syncRadarPoint(); syncGeo(); syncHydro(); syncWebcams(); syncBounds(); syncSubregions(); syncMunicipal(); syncMarineVectors(); }
 
   function queueMarineVectors() {
     if (marineRafRef.current) return;
@@ -435,6 +438,23 @@ export default function MapView3D(props: Props) {
     radarRef.current?.set(cb.current.radar);
   }
 
+  function syncWebcams() {
+    webcamsRef.current.forEach((marker) => { marker.getPopup()?.remove(); marker.remove(); });
+    webcamsRef.current = [];
+    const m = mapRef.current;
+    if (!m || !readyRef.current) return;
+    webcamsRef.current = cb.current.webcams.map((webcam) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.setAttribute("aria-label", `Webcam ${webcam.name}`);
+      button.style.cssText = "width:30px;height:30px;padding:0;border:0;background:transparent;cursor:pointer";
+      button.innerHTML = webcamIcon;
+      button.addEventListener("click", (event) => event.stopPropagation());
+      return new maplibregl.Marker({ element: button }).setLngLat([webcam.lon, webcam.lat])
+        .setPopup(new maplibregl.Popup({ maxWidth: "300px" }).setDOMContent(webcamPopup(webcam))).addTo(m);
+    });
+  }
+
   function syncHydro() {
     const m = mapRef.current;
     if (!m || !readyRef.current) return;
@@ -478,6 +498,8 @@ export default function MapView3D(props: Props) {
   useEffect(syncRadar, [props.radar?.product, props.radar?.time]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncRadarPoint, [props.radarPoint, props.radar?.product]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncGeo, [props.alerts, props.fires, props.strokes]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(syncWebcams, [props.webcams]);
+  useEffect(() => () => { webcamsRef.current.forEach((marker) => { marker.getPopup()?.remove(); marker.remove(); }); }, []);
   useEffect(syncHydro, [props.hydrometers]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncBounds, [props.boundaries]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(syncSubregions, [props.subregions]); // eslint-disable-line react-hooks/exhaustive-deps
