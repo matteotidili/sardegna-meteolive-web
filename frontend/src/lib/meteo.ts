@@ -97,10 +97,10 @@ export const networkGroup = (network: string) => ["meteoproject", "local"].inclu
 export const NETWORK_META: Record<string, { label: string; short: string; color: string }> = {
   "dpcn-sardegna": { label: "MeteoHub / DPCN", short: "DPCN", color: "#38BDF8" },
   "aeronautica-militare": { label: "Aeronautica Militare", short: "AM", color: "#FBBF24" },
-  ecowitt: { label: "Ecowitt e stazioni locali", short: "ECO", color: "#4ADE80" },
+  ecowitt: { label: "Amatoriali", short: "Amatoriali", color: "#4ADE80" },
   meteonetwork: { label: "MeteoNetwork", short: "MNW", color: "#F472B6" },
   meteoproject: { label: "MeteoProject", short: "MPR", color: "#2DD4BF" },
-  local: { label: "Stazioni locali", short: "ECO", color: "#4ADE80" },
+  local: { label: "Stazioni locali", short: "Amatoriali", color: "#4ADE80" },
   cedoc: { label: "CEDOC Pluviometri", short: "CEDOC", color: "#A78BFA" },
 };
 
