@@ -405,7 +405,7 @@ export default function Home() {
   return (
     <div data-testid="app-root" data-wall={wallOn ? "on" : "off"} className={cn("fixed inset-0 overflow-hidden bg-[#0B0F17]", wallOn && "wall")}>
       {mode3d
-        ? <MapView3D key={`3d-${basemap}`} {...mapProps} />
+        ? <MapView3D key={`3d-${basemap}`} {...mapProps} onUnavailable={() => setMode3d(false)} />
         : <MapView key="2d" {...mapProps} liveWind={liveWindOn ? liveWindQ.data?.field ?? null : null} stationArrows={liveWindOn && stationArrowsOn} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
 
       {radarLayer && radarPoint && (

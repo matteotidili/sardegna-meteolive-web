@@ -41,6 +41,7 @@ const EMPTY = { type: "FeatureCollection" as const, features: [] as GeoJSON.Feat
 const EMPTY_OVERLAY = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 interface Props {
+  onUnavailable: () => void;
   basemap: Basemap;
   stations: Station[];
   param: ParamDef;
@@ -87,7 +88,9 @@ export default function MapView3D(props: Props) {
     if (!el.current) return;
     ensureProtocol();
     const b = BASEMAPS[props.basemap];
-    const m = new maplibregl.Map({
+    let m: maplibregl.Map;
+    try {
+      m = new maplibregl.Map({
       container: el.current,
       center: [props.initialView.center[1], props.initialView.center[0]],
       zoom: props.initialView.zoom - 1, minZoom: 2, pitch: 55, bearing: -12, maxPitch: 75,
@@ -106,7 +109,12 @@ export default function MapView3D(props: Props) {
           ...(b.labels ? [{ id: "labels", type: "raster" as const, source: "labels" }] : []),
         ],
       },
-    });
+      });
+    } catch {
+      // Keep the regional map usable on browsers/devices without WebGL.
+      cb.current.onUnavailable();
+      return;
+    }
     mapRef.current = m;
     m.on("load", () => {
       readyRef.current = true;
