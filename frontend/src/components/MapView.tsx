@@ -73,6 +73,8 @@ interface Props {
   fires: FireDetection[] | null;
   alerts: AlertWarning[] | null;
   webcams: Webcam[];
+  enaHazards?: boolean;
+  enaOpacity?: number;
   hydrometers: HydroStation[] | null;
   initialView: MapViewState;
   onViewChange: (v: MapViewState) => void;
@@ -105,6 +107,8 @@ export default function MapView(props: Props) {
   const overlayGroupRef = useRef<string | null>(null);
   const firesRef = useRef<L.LayerGroup | null>(null);
   const webcamsRef = useRef<L.LayerGroup | null>(null);
+  const enaLayerRef = useRef<L.TileLayer.WMS | null>(null);
+  const enaRequestRef = useRef(0);
   const hydroRef = useRef<L.LayerGroup | null>(null);
   const alertsRef = useRef<L.GeoJSON | null>(null);
   const windRef = useRef<WindFlowLayer | null>(null);
@@ -140,6 +144,7 @@ export default function MapView(props: Props) {
     m.createPane("sublabels").style.zIndex = "395";
     m.getPane("sublabels")!.style.pointerEvents = "none";
     m.createPane("alerts").style.zIndex = "380";
+    m.createPane("enaHazards").style.zIndex = "385";
     m.createPane("labels").style.zIndex = "390";
     m.getPane("labels")!.style.pointerEvents = "none";
     markersRef.current = L.layerGroup().addTo(m);
@@ -199,6 +204,74 @@ export default function MapView(props: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ENEA CI-RES: clickable national multi-hazard classification for major roads.
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m) return;
+    enaLayerRef.current?.remove();
+    enaLayerRef.current = null;
+    if (!props.enaHazards) return;
+    const layer = L.tileLayer.wms("https://resilientity.enea.it/geoserver/ows", {
+      layers: "geonode:mh_ita_italy_895f", styles: "geonode:multihazard_class", format: "image/png",
+      transparent: true, version: "1.1.1", crs: L.CRS.EPSG3857, opacity: props.enaOpacity ?? 0.8,
+      pane: "enaHazards", updateWhenZooming: false, keepBuffer: 2,
+      attribution: "© ENEA CI-RES · OpenStreetMap · ODbL",
+    });
+    layer.addTo(m);
+    enaLayerRef.current = layer;
+    return () => { layer.remove(); if (enaLayerRef.current === layer) enaLayerRef.current = null; };
+  }, [props.enaHazards, props.enaOpacity]);
+
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!m || !props.enaHazards) return;
+    const onClick = (event: L.LeafletMouseEvent) => {
+      if (cb.current.radar) return;
+      const size = m.getSize();
+      const bounds = m.getBounds();
+      const sw = L.CRS.EPSG3857.project(bounds.getSouthWest());
+      const ne = L.CRS.EPSG3857.project(bounds.getNorthEast());
+      const point = event.containerPoint;
+      const query = new URLSearchParams({
+        service: "WMS", version: "1.1.1", request: "GetFeatureInfo",
+        layers: "geonode:mh_ita_italy_895f", query_layers: "geonode:mh_ita_italy_895f",
+        styles: "geonode:multihazard_class", srs: "EPSG:3857",
+        bbox: `${sw.x},${sw.y},${ne.x},${ne.y}`, width: String(size.x), height: String(size.y),
+        x: String(Math.round(point.x)), y: String(Math.round(point.y)),
+        info_format: "application/json", feature_count: "5",
+      });
+      const request = ++enaRequestRef.current;
+      void fetch(`https://resilientity.enea.it/geoserver/ows?${query}`)
+        .then((response) => { if (!response.ok) throw new Error("ENEA request failed"); return response.json(); })
+        .then((data: { features?: { properties?: Record<string, unknown> }[] }) => {
+          if (request !== enaRequestRef.current) return;
+          const properties = data.features?.[0]?.properties;
+          if (!properties) return;
+          const fields: [string, string][] = [
+            ["Name", "Strada"], ["name", "Strada"], ["class", "Categoria"], ["mh_class", "Classe multi-pericolo"],
+            ["mh_score", "Indice multi-pericolo"], ["ag_prob10", "Accelerazione sismica di riferimento"],
+            ["h_seismic", "Pericolosità sismica"], ["h_flood", "Pericolosità alluvionale"],
+            ["flood_hazard", "Classi di pericolosità idraulica"], ["flood_probability", "Probabilità alluvionale"],
+            ["h_landslide", "Pericolosità frana"], ["landslide_hazard", "Pericolosità frana"],
+            ["landslide_level", "Livello di pericolosità frana"], ["h_volcanic", "Pericolosità vulcanica"],
+            ["h_wildfire", "Pericolosità incendi"], ["h_tsunami", "Pericolosità tsunami"],
+          ];
+          const rendered = new Set<string>();
+          const rows = fields.filter(([key, label]) => {
+            if (rendered.has(label) || properties[key] === undefined || properties[key] === null || properties[key] === "") return false;
+            rendered.add(label); return true;
+          }).map(([key, label]) => `<div style="display:flex;justify-content:space-between;gap:12px"><span>${esc(label)}</span><b>${esc(String(properties[key]))}</b></div>`).join("");
+          const html = `<div style="min-width:220px"><strong>ENEA · Rischio multi-pericolo</strong><div style="margin-top:7px;display:grid;gap:4px">${rows || "Nessun attributo disponibile"}</div><div style="margin-top:7px;color:#64748b;font-size:10px">Fonte: ENEA CI-RES · dati stradali ODbL</div></div>`;
+          L.popup({ maxWidth: 340 }).setLatLng(event.latlng).setContent(html).openOn(m);
+        })
+        .catch(() => {
+          if (request === enaRequestRef.current) L.popup().setLatLng(event.latlng).setContent("Dati ENEA temporaneamente non disponibili.").openOn(m);
+        });
+    };
+    m.on("click", onClick);
+    return () => { m.off("click", onClick); enaRequestRef.current++; };
+  }, [props.enaHazards]);
 
   // Restrict the full viewport to the actual raster while satellite mode is active.
   const satelliteBoundsKey = JSON.stringify(props.satelliteBounds);

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Radar, CloudSun, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves, Camera } from "lucide-react";
+import { Radar, CloudSun, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves, Camera, Route } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
@@ -37,6 +37,10 @@ interface Props {
   webcams: boolean;
   setWebcams: (on: boolean) => void;
   webcamCount: number;
+  enaHazards: boolean;
+  setEnaHazards: (on: boolean) => void;
+  enaOpacity: number;
+  setEnaOpacity: (value: number) => void;
   hydrometers: boolean;
   setHydrometers: (on: boolean) => void;
   hydroStatus: string;
@@ -192,6 +196,11 @@ export default function LayerPanel(p: Props) {
         icon={<Camera className="size-4" />} title="Webcam"
         sub={`${p.webcamCount} località · Panoramicams`} />
       {p.webcams && <p className="px-1 text-[11px] leading-snug text-slate-400">Foto di copertina Panoramicams, non ultimo frame. Tocca la foto per aprire il live.</p>}
+
+      <div className={SECTION}>Pericolosità territoriali</div>
+      <Toggle testid="layer-toggle-ena-hazards" on={p.enaHazards && !p.is3d} disabled={p.is3d} onClick={() => p.setEnaHazards(!p.enaHazards)}
+        icon={<Route className="size-4" />} title="ENEA · Rischio multi-pericolo" sub={p.is3d ? "Disponibile solo in 2D" : "Strade · clicca un tratto per i dettagli"} />
+      {p.enaHazards && !p.is3d && <label className="flex items-center gap-2 px-2 py-1 text-[10px] text-slate-300">Opacità {Math.round(p.enaOpacity * 100)}%<input aria-label="Opacità rischio multi-pericolo ENEA" type="range" min="0.2" max="1" step="0.05" value={p.enaOpacity} onChange={(e) => p.setEnaOpacity(Number(e.target.value))} /></label>}
 
       <div className={SECTION}>Idrologia e monitoraggio</div>
       <Toggle testid="layer-toggle-hydrometers" on={p.hydrometers} onClick={() => p.setHydrometers(!p.hydrometers)}
