@@ -31,6 +31,11 @@ export default function StationCard({ station: s, param, onClose, className }: P
             <span data-testid="station-card-network">{net?.label ?? s.network}</span>
           </div>
           <h3 data-testid="station-card-name" className="font-heading truncate text-lg font-semibold tracking-tight">{s.name}</h3>
+          {s.observation_type?.startsWith("Panoramicams · Ecowitt") && (
+            <p className="mt-0.5 text-[10px] leading-snug text-slate-400" data-testid="station-card-location-note">
+              Centralina condivisa nell’area webcam; posizione indicativa.
+            </p>
+          )}
         </div>
         <button data-testid="station-card-close" onClick={onClose} aria-label="Chiudi" className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100">
           <X className="size-4" />
