@@ -15,6 +15,7 @@ export interface Station {
   tmax: number | null;
   tmax_provisional: boolean | null;
   tmin_provisional: boolean | null;
+  extrema_source: string | null;
   rh: number | null;
   wind_kmh: number | null;
   wind_dir: number | null;
