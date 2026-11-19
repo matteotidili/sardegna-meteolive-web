@@ -76,7 +76,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
                 <dd className={cn("font-num", old ? "text-slate-500" : "text-slate-100")}>
                   {fmtValue(pv, p)} {p.unit}
                   {p.key === "wind_kmh" && s.wind_dir != null ? ` ${windDirLabel(s.wind_dir)}` : ""}
-                  {p.key === "tmax" && s.tmax_provisional ? " (prov.)" : ""}
+                  {(p.key === "tmin" && s.tmin_provisional) || (p.key === "tmax" && s.tmax_provisional) ? (s.extrema_source?.includes("network_sampled_10min") ? " (camp.)" : " (prov.)") : ""}
                 </dd>
               </div>
             );
@@ -84,6 +84,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
         </dl>
       )}
       {rows.some((p) => p.dayBound) && !s.is_today && <p className="mt-1 text-[10px] text-slate-500">* valori del {fmtDay(s.obs_day)}</p>}
+      {s.extrema_source?.includes("network_sampled_10min") && <p className="mt-1 text-[10px] leading-snug text-slate-500">Estremi campionati dalle letture della rete (circa ogni 10 minuti); eventuali picchi tra due rilevazioni possono non essere intercettati.</p>}
       {s.raw_message && <p className="mt-2 break-all rounded bg-slate-950/70 p-1.5 font-num text-[10px] text-slate-400" data-testid="station-card-raw">{s.raw_message}</p>}
       <StationHistoryChart station={s} />
       <ModelCompare station={s} />
