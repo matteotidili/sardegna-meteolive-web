@@ -63,9 +63,9 @@ export default function StationCard({ station: s, param, onClose, className }: P
             : dem.data != null ? <>Quota ~{dem.data} m s.l.m. <span className="text-slate-500">· stima DEM Mapterhorn (terreno, non sensore)</span></>
             : dem.isLoading ? "Stima quota dal DEM…" : "Quota non disponibile"}
         </span>
-      </div>
+      </div>}
 
-      {rows.length > 0 && s.network !== "mareografico" && (
+      {rows.length > 0 && s.network !== "mareografico" && s.network !== "ron" && (
         <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-800 pt-2 text-[11px]">
           {rows.map((p) => {
             const pv = valueOf(s, p)!;
@@ -93,7 +93,11 @@ export default function StationCard({ station: s, param, onClose, className }: P
               ["Livello del mare", s.marine?.sea_level_m, "m"], ["Temperatura acqua", s.marine?.water_temp_c, "°C"],
               ["Temperatura aria", s.temp, "°C"], ["Umidità relativa", s.rh, "%"], ["Pressione atmosferica", s.pressure_hpa, "hPa"],
               ["Direzione vento", s.wind_dir, "°"], ["Velocità vento", s.wind_kmh == null ? null : s.wind_kmh / 3.6, "m/s"],
-              ["Radiazione solare media (30 min)", s.marine?.solar_wm2, "W/m²"], ["Precipitazione cumulata", s.marine?.precip_mm, "mm"],\n              ["Periodo medio onda", s.sea_state?.period_mean_s, "s"], ["Periodo di picco onda", s.sea_state?.period_peak_s, "s"],\n              ["Altezza significativa onda", s.sea_state?.wave_height_significant_m, "m"], ["Direzione media onda", s.sea_state?.wave_direction_mean_deg, "°"],\n              ["Altezza massima onda", s.sea_state?.wave_height_max_m, "m"], ["Velocità corrente", s.sea_state?.current_speed_ms, "m/s"],\n              ["Direzione corrente", s.sea_state?.current_direction_deg, "°"],
+              ["Radiazione solare media (30 min)", s.marine?.solar_wm2, "W/m²"], ["Precipitazione cumulata", s.marine?.precip_mm, "mm"],
+              ["Periodo medio onda", s.sea_state?.period_mean_s, "s"], ["Periodo di picco onda", s.sea_state?.period_peak_s, "s"],
+              ["Altezza significativa onda", s.sea_state?.wave_height_significant_m, "m"], ["Direzione media onda", s.sea_state?.wave_direction_mean_deg, "°"],
+              ["Altezza massima onda", s.sea_state?.wave_height_max_m, "m"], ["Velocità corrente", s.sea_state?.current_speed_ms, "m/s"],
+              ["Direzione corrente", s.sea_state?.current_direction_deg, "°"],
             ].map(([label, value, unit]) => (
               <div key={String(label)} className="flex justify-between gap-2">
                 <dt className="text-slate-400">{label}</dt>
