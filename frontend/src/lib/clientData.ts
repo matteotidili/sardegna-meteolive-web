@@ -58,9 +58,10 @@ const NETWORKS: [string, string, string][] = [
   ["meteoproject", "MeteoProject", "data/meteoproject.json"],
   ["local", "Stazioni locali", "data/local_stations.json"],
   ["meteonetwork", "MeteoNetwork", "data/meteonetwork.json"],
+  ["mareografico", "Mareografico · ISPRA", "data/mareografico.json"],
 ];
 /** Networks shown only once their collector has published at least one file (no red status before activation). */
-const OPTIONAL_NETWORKS = new Set(["meteonetwork", "local"]);
+const OPTIONAL_NETWORKS = new Set(["meteonetwork", "local", "mareografico"]);
 
 function normalize(raw: Json, network: string, now: Date, today: string, rainOnly = false): Station | null {
   const lat = num(raw.lat), lon = num(raw.lon);
@@ -83,6 +84,11 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
     last: iso(last), obs_day: obsDay, is_today: obsDay === today, age_min: null, freshness: "unavailable",
     rain_only: rainOnly, observation_type: (raw.observation_type as string) ?? null,
     raw_message: ((raw.raw_metar ?? raw.raw_synop) as string) ?? null, source_url: (raw.source_url as string) ?? null,
+    marine: network === "mareografico" ? {
+      sea_level_m: num(raw.sea_level_m), water_temp_c: num(raw.water_temp_c),
+      solar_wm2: num(raw.solar_wm2), precip_mm: num(raw.precip_mm),
+      snapshot_at: (raw.snapshot_at as string) ?? null,
+    } : undefined,
   };
   const hasValue = [s.temp, s.rh, s.wind_kmh, s.rain_rate, s.rain_today, s.tmin, s.tmax].some((v) => v !== null);
   if (last && hasValue) {
