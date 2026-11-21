@@ -150,7 +150,7 @@ export function valueOf(s: Station, p: ParamDef): number | null {
     const value = marine[p.key];
     return typeof value === "number" && Number.isFinite(value) ? value : null;
   }
-  const v = s[p.key];
+  const v = s[p.key as keyof Station];
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
