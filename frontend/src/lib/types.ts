@@ -34,6 +34,8 @@ export interface Station {
   observation_type: string | null;
   raw_message: string | null;
   source_url: string | null;
+  /** Parameters published by ISPRA's mareographic network. */
+  marine?: { sea_level_m: number | null; water_temp_c: number | null; solar_wm2: number | null; precip_mm: number | null; snapshot_at: string | null };
 }
 
 export interface NetworkStatus {
