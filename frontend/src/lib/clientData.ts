@@ -266,6 +266,34 @@ function invert(rgb: number[], stops: [number, number[]][]): number | null {
   return Math.sqrt(bestD) <= 14 ? bestV : null;
 }
 
+export async function getAromePointValue(
+  lat: number, lon: number, url: string, bounds: [number, number][],
+  key: string, label: string, unit: string, stops: [number, number[]][], maskUrl?: string,
+): Promise<PointValue> {
+  let value: number | null = null;
+  if (bounds.length >= 2) {
+    const [[south, west], [north, east]] = bounds;
+    if (lat >= south && lat <= north && lon >= west && lon <= east) {
+      const img = await imageData(url);
+      if (img) {
+        const x = Math.min(img.width - 1, Math.max(0, Math.floor(((lon - west) / (east - west)) * img.width)));
+        const y = Math.min(img.height - 1, Math.max(0, Math.floor(((north - lat) / (north - south)) * img.height)));
+        const i = (y * img.width + x) * 4;
+        if (img.data[i + 3] > 0) value = invert([img.data[i], img.data[i + 1], img.data[i + 2]], stops);
+        else if (key === "precip_1h" && maskUrl) {
+          const mask = await imageData(maskUrl);
+          if (mask) {
+            const mx = Math.min(mask.width - 1, Math.max(0, Math.floor(((lon - west) / (east - west)) * mask.width)));
+            const my = Math.min(mask.height - 1, Math.max(0, Math.floor(((north - lat) / (north - south)) * mask.height)));
+            if (mask.data[(my * mask.width + mx) * 4 + 3] > 0) value = 0;
+          }
+        }
+      }
+    }
+  }
+  return { key, label, unit, value: value === null ? null : Math.round(value * 10) / 10, direction_deg: null, method: "pixel del prodotto AROME" };
+}
+
 /** Decode AROME gust palette on the coarser U/V vector grid once per forecast frame. */
 const gustGridCache = new Map<string, Promise<Float32Array | null>>();
 export function getGustGrid(url: string, grid: WindGrid, bounds: [number, number][], stops: [number, number[]][]): Promise<Float32Array | null> {

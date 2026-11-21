@@ -15,7 +15,7 @@ import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
 import { AromeLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
-import { useAlerts, useArome, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
+import { useAlerts, useArome, useAromePoint, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
 import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
@@ -26,7 +26,7 @@ import { regionalSatelliteUrl, satelliteRegionBounds } from "@/lib/satelliteView
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { radarFrameErrorKey, radarFrameKey } from "@/lib/radarFrame";
-import RadarPointPanel from "@/components/RadarPointPanel";
+import RadarPointPanel from "@/components/RadarPointPanel";\nimport AromePointPanel from "@/components/AromePointPanel";
 import { quantitativeRadarFrames, useRadarNumericManifest, type RadarPoint } from "@/lib/radarPoint";
 import MarineControls, { MARINE_LABELS, MarineAttribution } from "@/components/MarineControls";
 import MarineLegend from "@/components/MarineLegend";
@@ -102,7 +102,7 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; seq: number } | null>(null);
   const [radarIdx, setRadarIdx] = useState<number | null>(null);
-  const [radarPoint, setRadarPoint] = useState<RadarPoint | null>(null);
+  const [radarPoint, setRadarPoint] = useState<RadarPoint | null>(null);\n  const [aromePoint, setAromePoint] = useState<RadarPoint | null>(null);
   const [leadIdx, setLeadIdx] = useState<number | null>(null);
   const [marineIdx, setMarineIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -297,6 +297,20 @@ export default function Home() {
   };
 
   const aromeMeta = arome?.parameters.find((p) => p.key === aromeParam);
+  const aromePointStops = aromeParam === AROME_PRECIP_KEY ? arome?.hourly_precip_stops : aromeMeta?.stops;
+  const aromePointRequest = useMemo(() => {
+    if (!aromePoint || anim !== "arome" || !aromeUrl || !arome || !aromePointStops?.length) return null;
+    return {
+      ...aromePoint, url: aromeUrl, bounds: arome.bounds, key: aromeParam,
+      label: aromeParam === AROME_PRECIP_KEY ? "Precipitazione oraria" : aromeMeta?.label ?? aromeParam,
+      unit: aromeParam === AROME_PRECIP_KEY ? "mm" : aromeMeta?.unit ?? "",
+      stops: aromePointStops,
+      maskUrl: aromeParam === AROME_PRECIP_KEY
+        ? arome.product_url_template.replace("{parameter}", "t2m").replace("{lead}", String(aromeFrames[lIdx]?.lead_hours ?? 0).padStart(2, "0"))
+        : undefined,
+    };
+  }, [aromePoint, anim, aromeUrl, arome, aromeParam, aromePointStops, aromeMeta, aromeFrames, lIdx]);
+  const aromePointQ = useAromePoint(aromePointRequest);
   const timeline = marineOn ? marine && marineUrl ? (
     <TimelinePlayer
       title={`${marine.model === "ww3" ? "WW3 MEDITA" : `SHYFEM · ${marine.forcing === "ICON" ? "ICON-2I" : marine.forcing}`} · ${MARINE_LABELS[marineParam].short} (${MARINE_LABELS[marineParam].unit})`}
@@ -329,7 +343,7 @@ export default function Home() {
       labels={aromeFrames.map((f) => `H+${String(f.lead_hours).padStart(2, "0")} · ${fmtDayTime(f.valid_time)}`)}
       index={lIdx} setIndex={setLeadIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady} legend={<AromeLegend meta={aromeMeta} isPrecip={aromeParam === AROME_PRECIP_KEY} hourlyPrecipStops={arome.hourly_precip_stops} />}
-      note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Flussi 10 m animati in base alle raffiche previste." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
+      note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · clicca sulla mappa per interrogare un punto. Celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Flussi 10 m animati in base alle raffiche previste." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
     />
   ) : sat ? (
     <TimelinePlayer
@@ -399,7 +413,11 @@ export default function Home() {
   const mapProps = {
     satelliteBounds: satProduct ? satRenderBounds ?? MEDITERRANEAN_BOUNDS : null,
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer,
-    radarPoint: radarLayer ? radarPoint : null, onRadarPoint: setRadarPoint, overlay, opacity,
+    radarPoint: radarLayer ? radarPoint : null,
+    onRadarPoint: (point: RadarPoint) => { setRadarPoint(point); setAromePoint(null); },
+    aromePointEnabled: anim === "arome" && !!aromeUrl && !mode3d,
+    onAromePoint: (point: RadarPoint) => { setAromePoint(point); setRadarPoint(null); },
+    overlay, opacity,
     onLayerReady, fires: null,
     webcams: webcamsOn ? WEBCAMS : [],
     hydrometers: hydrometersOn ? hydrometersQ.data ?? null : null,
@@ -426,6 +444,13 @@ export default function Home() {
         <div className="pointer-events-none fixed right-3 top-[115px] z-40 w-[min(360px,calc(100vw-24px))] md:right-4 md:top-[92px]">
           <RadarPointPanel product={radarLayer.product} time={radarLayer.time}
             point={radarPoint} onClose={() => setRadarPoint(null)} />
+        </div>
+      )}
+      {anim === "arome" && aromePoint && (
+        <div className="pointer-events-none fixed right-3 top-[115px] z-40 w-[min(360px,calc(100vw-24px))] md:right-4 md:top-[92px]">
+          <AromePointPanel point={aromePoint} time={aromeFrames[lIdx]?.valid_time ?? ""}
+            value={aromePointQ.data} loading={aromePointQ.isLoading || aromePointQ.isFetching}
+            error={aromePointQ.isError} onClose={() => setAromePoint(null)} />
         </div>
       )}
 

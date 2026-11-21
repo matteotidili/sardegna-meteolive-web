@@ -67,7 +67,7 @@ interface Props {
   onSelect: (id: string | null) => void;
   radar: { product: string; time: string } | null;
   radarPoint: RadarPoint | null;
-  onRadarPoint: (p: RadarPoint) => void;
+  onRadarPoint: (p: RadarPoint) => void;\n  aromePointEnabled: boolean;\n  onAromePoint: (p: RadarPoint) => void;
   overlay: { url: string; bounds: [number, number][]; warp: boolean; attribution: string; group?: string } | null;
   marineVectors: GeoJSON.FeatureCollection | null;
   wind: WindField | null;
@@ -183,6 +183,9 @@ export default function MapView(props: Props) {
       if (cb.current.radar) {
         cb.current.onSelect(null);
         cb.current.onRadarPoint({ lat: e.latlng.lat, lon: e.latlng.lng });
+      } else if (cb.current.aromePointEnabled) {
+        cb.current.onSelect(null);
+        cb.current.onAromePoint({ lat: e.latlng.lat, lon: e.latlng.lng });
       } else cb.current.onSelect(null);
     });
     mapRef.current = m;

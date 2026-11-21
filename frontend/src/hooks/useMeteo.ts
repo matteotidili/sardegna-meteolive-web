@@ -3,9 +3,23 @@ import { apiGet } from "@/lib/api";
 import { decodeWind } from "@/lib/windFlow";
 import {
   getAlerts, getArome, getDemElevation, getFrp, getModelPoint, getOpera, getRadar, getRain48, getSatellite, getStationHistory,
-  getGustGrid, getStations, getWindMeta,
+  getAromePointValue, getGustGrid, getStations, getWindMeta,
 } from "@/lib/clientData";
-import type { RadarFrames, Station, WindGrid } from "@/lib/types";
+import type { PointValue, RadarFrames, Station, WindGrid } from "@/lib/types";
+
+export interface AromePointRequest {
+  lat: number; lon: number; url: string; bounds: [number, number][];
+  key: string; label: string; unit: string; stops: [number, [number, number, number]][]; maskUrl?: string;
+}
+
+export const useAromePoint = (request: AromePointRequest | null) => useQuery<PointValue>({
+  queryKey: ["arome-point", request?.url, request?.key, request?.lat.toFixed(4), request?.lon.toFixed(4)],
+  enabled: !!request,
+  staleTime: Infinity,
+  retry: false,
+  queryFn: () => getAromePointValue(request!.lat, request!.lon, request!.url, request!.bounds,
+    request!.key, request!.label, request!.unit, request!.stops, request!.maskUrl),
+});
 
 export const useStationHistory = (s: Station | null) =>
   useQuery({ queryKey: ["history", s?.id, s?.last], queryFn: () => getStationHistory(s!), enabled: !!s, staleTime: 5 * 60_000, retry: 1 });
