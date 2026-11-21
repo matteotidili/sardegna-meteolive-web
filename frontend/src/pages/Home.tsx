@@ -149,8 +149,8 @@ export default function Home() {
     return c;
   }, [all]);
   const visible = useMemo(
-    () => all.filter((s) => networks[networkGroup(s.network)] !== false && (param.rain || !s.rain_only)),
-    [all, networks, param.rain],
+    () => all.filter((s) => networks[networkGroup(s.network)] !== false && (param.rain || !s.rain_only) && (!param.marine || s.network === "ron")),
+    [all, networks, param.rain, param.marine],
   );
   const selected = all.find((s) => s.id === selectedId) ?? null;
 
