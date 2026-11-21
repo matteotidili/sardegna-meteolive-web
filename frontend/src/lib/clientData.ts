@@ -266,6 +266,35 @@ function invert(rgb: number[], stops: [number, number[]][]): number | null {
   return Math.sqrt(bestD) <= 14 ? bestV : null;
 }
 
+/** Decode AROME gust palette on the coarser U/V vector grid once per forecast frame. */
+const gustGridCache = new Map<string, Promise<Float32Array | null>>();
+export function getGustGrid(url: string, grid: WindGrid, bounds: [number, number][], stops: [number, number[]][]): Promise<Float32Array | null> {
+  const cached = gustGridCache.get(url);
+  if (cached) return cached;
+  const task = imageData(url).then((img) => {
+    if (!img || bounds.length < 2) return null;
+    const [[south, west], [north, east]] = bounds;
+    const values = new Float32Array(grid.width * grid.height);
+    values.fill(NaN);
+    for (let y = 0; y < grid.height; y++) {
+      const lat = grid.north - y * grid.step_degrees;
+      if (lat < south || lat > north) continue;
+      const py = Math.min(img.height - 1, Math.max(0, Math.floor(((north - lat) / (north - south)) * img.height)));
+      for (let x = 0; x < grid.width; x++) {
+        const lon = grid.west + x * grid.step_degrees;
+        if (lon < west || lon > east) continue;
+        const px = Math.min(img.width - 1, Math.max(0, Math.floor(((lon - west) / (east - west)) * img.width)));
+        const i = (py * img.width + px) * 4;
+        if (img.data[i + 3] > 0) values[y * grid.width + x] = invert([img.data[i], img.data[i + 1], img.data[i + 2]], stops) ?? NaN;
+      }
+    }
+    return values;
+  });
+  gustGridCache.set(url, task);
+  while (gustGridCache.size > 4) gustGridCache.delete(gustGridCache.keys().next().value as string);
+  return task;
+}
+
 const POINT_PARAMS = ["t2m", "rh2m", "gust10"];
 const windCache = new Map<string, Promise<ReturnType<typeof decodeWind> | null>>();
 

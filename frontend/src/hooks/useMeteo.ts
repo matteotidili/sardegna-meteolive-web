@@ -3,7 +3,7 @@ import { apiGet } from "@/lib/api";
 import { decodeWind } from "@/lib/windFlow";
 import {
   getAlerts, getArome, getDemElevation, getFrp, getModelPoint, getOpera, getRadar, getRain48, getSatellite, getStationHistory,
-  getStations, getWindMeta,
+  getGustGrid, getStations, getWindMeta,
 } from "@/lib/clientData";
 import type { RadarFrames, Station, WindGrid } from "@/lib/types";
 
@@ -53,16 +53,26 @@ export const useWindMeta = (enabled: boolean) =>
   useQuery({ queryKey: ["windMeta"], queryFn: getWindMeta, enabled, refetchInterval: 15 * 60_000, retry: 1 });
 
 /** Raw U/V binary for one lead (static file on the data repo). */
-export const useWindField = (url: string | null, grid: WindGrid | undefined) =>
+export const useWindField = (
+  url: string | null, grid: WindGrid | undefined, gustUrl?: string | null,
+  gustStops?: [number, [number, number, number]][], bounds?: [number, number][],
+) =>
   useQuery({
-    queryKey: ["windBin", url],
+    queryKey: ["windBin", url, gustUrl],
     enabled: !!url && !!grid,
     staleTime: Infinity,
     retry: 1,
     queryFn: async () => {
       const r = await fetch(url!);
       if (!r.ok) throw new Error(`vento ${r.status}`);
-      return decodeWind(await r.arrayBuffer(), grid!);
+      const field = decodeWind(await r.arrayBuffer(), grid!);
+      if (gustUrl && gustStops?.length && bounds?.length) {
+        try {
+          const gustKmh = await getGustGrid(gustUrl, grid!, bounds, gustStops);
+          if (gustKmh) field.gustKmh = gustKmh;
+        } catch { /* retain wind vectors if the gust raster is unavailable */ }
+      }
+      return field;
     },
   });
 

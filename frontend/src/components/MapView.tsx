@@ -12,6 +12,11 @@ import { preloadOverlayImage } from "@/lib/overlayImage";
 import { MarineVectorLayer } from "@/lib/marineVectorLayer";
 import { WindFlowLayer, type WindField } from "@/lib/windFlow";
 import { liveWindColor } from "@/lib/liveWind";
+
+const aromeGustColor = (kmh: number) => kmh >= 95 ? "rgba(255,104,92,.98)"
+  : kmh >= 65 ? "rgba(255,190,75,.98)"
+  : kmh >= 40 ? "rgba(255,239,120,.96)"
+  : "rgba(218,249,255,.94)";
 import { sampleWind } from "@/lib/windFlow";
 import { fmtTime, windDirLabel } from "@/lib/meteo";
 import { lightningColor } from "@/lib/lightning";
@@ -450,7 +455,7 @@ export default function MapView(props: Props) {
     const m = mapRef.current;
     if (!m) return;
     if (!props.wind) { windRef.current?.destroy(); windRef.current = null; return; }
-    if (!windRef.current) windRef.current = new WindFlowLayer(m);
+    if (!windRef.current) windRef.current = new WindFlowLayer(m, { colorFor: aromeGustColor, lineWidth: 1.65, pxPerParticle: 1250, fade: 0.88 });
     windRef.current.setField(props.wind);
   }, [props.wind]);
 

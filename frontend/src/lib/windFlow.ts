@@ -6,7 +6,7 @@ import type { WindGrid } from "@/lib/types";
  * U/V in m/s on a 0.1° sub-sampled grid. The animation speed is ILLUSTRATIVE:
  * it is not a real-time simulation of atmospheric transport.
  */
-export interface WindField { grid: WindGrid; vec: Float32Array; /** optional higher-resolution nested field, sampled first */ fine?: WindField }
+export interface WindField { grid: WindGrid; vec: Float32Array; /** AROME gust forecast (km/h) on the same grid. */ gustKmh?: Float32Array; /** optional higher-resolution nested field, sampled first */ fine?: WindField }
 
 export function decodeWind(buf: ArrayBuffer, grid: WindGrid): WindField {
   if (grid.encoding !== "interleaved_signed_int16_little_endian" || buf.byteLength !== grid.width * grid.height * 4) {
@@ -35,6 +35,23 @@ export function sampleWind(f: WindField, lon: number, lat: number): [number, num
     u += v[c[n]] * w[n]; vv += v[c[n] + 1] * w[n];
   }
   return [u, vv];
+}
+
+export function sampleGust(f: WindField, lon: number, lat: number): number | null {
+  const g = f.grid, values = f.gustKmh;
+  if (!values || lon < g.west || lon > g.east || lat < g.south || lat > g.north) return null;
+  const gx = (lon - g.west) / g.step_degrees, gy = (g.north - lat) / g.step_degrees;
+  const x = Math.min(g.width - 2, Math.floor(gx)), y = Math.min(g.height - 2, Math.floor(gy));
+  const tx = gx - x, ty = gy - y, W = g.width;
+  const ids = [y * W + x, y * W + x + 1, (y + 1) * W + x, (y + 1) * W + x + 1];
+  const weights = [(1 - tx) * (1 - ty), tx * (1 - ty), (1 - tx) * ty, tx * ty];
+  let value = 0;
+  for (let i = 0; i < ids.length; i++) {
+    const v = values[ids[i]];
+    if (!Number.isFinite(v)) return null;
+    value += v * weights[i];
+  }
+  return value;
 }
 
 interface Particle { lon: number; lat: number; age: number; life: number }
@@ -147,12 +164,12 @@ export class WindFlowLayer {
     ctx.fillStyle = `rgba(0,0,0,${this.opts.fade ?? 0.915})`;
     ctx.fillRect(0, 0, this.w, this.h);
     ctx.globalCompositeOperation = "source-over";
-    ctx.lineWidth = 1.25; ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(247,252,255,.8)";
+    ctx.lineWidth = this.opts.lineWidth ?? 1.25; ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(247,252,255,.92)";
     const byColor = this.colorFor ? new Map<string, number[]>() : null;
-    ctx.shadowColor = "rgba(0,16,27,.8)"; ctx.shadowBlur = 1.6;
+    ctx.shadowColor = "rgba(0,12,25,.95)"; ctx.shadowBlur = 2.4;
     const target = this.opts.pxPerParticle
-      ? Math.min(window.innerWidth <= 800 ? 700 : 2200, Math.round((this.w * this.h) / this.opts.pxPerParticle))
+      ? Math.min(window.innerWidth <= 800 ? 700 : 2600, Math.round((this.w * this.h) / this.opts.pxPerParticle))
       : window.innerWidth <= 800 ? 130 : 330;
     if (this.particles.length > target) this.particles.length = target;
     while (this.particles.length < target) { const p = this.spawn(); if (!p) break; this.particles.push(p); }
@@ -162,16 +179,23 @@ export class WindFlowLayer {
       const uv = sampleWind(f, p.lon, p.lat);
       if (!uv || Math.hypot(uv[0], uv[1]) < 0.5 || p.age >= p.life) { this.particles[n] = this.spawn(); continue; }
       const a = this.map.latLngToContainerPoint([p.lat, p.lon]);
-      let dLat = (uv[1] * 500) / 111320;
-      let dLon = (uv[0] * 500) / (111320 * Math.max(0.2, Math.cos((p.lat * Math.PI) / 180)));
-      const e = this.map.latLngToContainerPoint([p.lat + dLat, p.lon + dLon]);
-      const k = Math.min(1, 3.2 / Math.max(0.01, Math.hypot(e.x - a.x, e.y - a.y)));
+      const gust = sampleGust(f, p.lon, p.lat);
+      const dLat0 = (uv[1] * 500) / 111320;
+      const dLon0 = (uv[0] * 500) / (111320 * Math.max(0.2, Math.cos((p.lat * Math.PI) / 180)));
+      const e = this.map.latLngToContainerPoint([p.lat + dLat0, p.lon + dLon0]);
+      const windSpeed = Math.hypot(uv[0], uv[1]);
+      // Gust forecast controls the visual pace; U/V vectors retain wind direction.
+      const targetPixels = gust === null
+        ? Math.min(3.2, Math.max(0.7, Math.hypot(e.x - a.x, e.y - a.y)))
+        : (0.8 + Math.min(120, Math.max(0, gust)) * 0.045) * Math.min(1, windSpeed / 5);
+      const k = targetPixels / Math.max(0.01, Math.hypot(e.x - a.x, e.y - a.y));
+      let dLat = dLat0, dLon = dLon0;
       dLat *= k; dLon *= k;
       const lat = p.lat + dLat, lon = p.lon + dLon;
       const b = this.map.latLngToContainerPoint([lat, lon]);
       if (a.x >= -4 && a.x <= this.w + 4 && a.y >= -4 && a.y <= this.h + 4) {
         if (byColor) {
-          const c = this.colorFor!(Math.hypot(uv[0], uv[1]));
+          const c = this.colorFor!(gust ?? Math.hypot(uv[0], uv[1]) * 3.6);
           let seg = byColor.get(c);
           if (!seg) byColor.set(c, (seg = []));
           seg.push(a.x, a.y, b.x, b.y);

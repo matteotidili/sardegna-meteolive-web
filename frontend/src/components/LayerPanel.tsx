@@ -151,7 +151,7 @@ export default function LayerPanel(p: Props) {
           {p.arome && !p.arome.complete && <p className="text-[10px] text-red-300">Corsa incompleta: {p.arome.frames.length}/{p.arome.horizon_hours} scadenze.</p>}
           <Toggle testid="layer-toggle-wind-flow" on={p.wind && !p.is3d} disabled={p.is3d} onClick={() => p.setWind(!p.wind)}
             icon={<Wind className="size-4" />} title="Linee di flusso vento 10 m"
-            sub={p.is3d ? "Disponibili solo in 2D" : "Sincronizzate con la scadenza · velocità illustrativa"} />
+            sub={p.is3d ? "Disponibili solo in 2D" : "Colore e velocità seguono le raffiche previste"} />
           {p.wind && p.windWarning && <p className="text-[10px] text-amber-200/90" data-testid="wind-flow-warning">{p.windWarning}</p>}
         </div>
       )}

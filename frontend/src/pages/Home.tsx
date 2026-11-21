@@ -220,7 +220,16 @@ export default function Home() {
   const windMeta = windMetaQ.data;
   const windRunOk = !!windMeta && !!arome && windMeta.run_time === arome.run_time;
   const windFrame = windRunOk ? windMeta!.frames.find((f) => f.lead_hours === aromeFrames[lIdx]?.lead_hours) : undefined;
-  const windQ = useWindField(anim === "arome" && windOn && !mode3d && windFrame ? windFrame.url : null, windMeta?.grid);
+  const gustParam = arome?.parameters.find((p) => p.key === "gust10");
+  const gustUrl = arome && windFrame
+    ? arome.product_url_template.replace("{parameter}", "gust10").replace("{lead}", String(windFrame.lead_hours).padStart(2, "0")) : null;
+  const windQ = useWindField(
+    anim === "arome" && windOn && !mode3d && windFrame ? windFrame.url : null,
+    windMeta?.grid,
+    anim === "arome" && windOn && !mode3d && windFrame ? gustUrl : null,
+    gustParam?.stops,
+    arome?.bounds,
+  );
   const windWarning = !windOn || anim !== "arome" ? null
     : windMetaQ.isError ? "Vettori vento non disponibili."
     : windMeta && arome && !windRunOk ? `Vettori della corsa ${fmtTime(windMeta.run_time)} diversa dal campo AROME mostrato: linee non visualizzate.`
@@ -320,7 +329,7 @@ export default function Home() {
       labels={aromeFrames.map((f) => `H+${String(f.lead_hours).padStart(2, "0")} · ${fmtDayTime(f.valid_time)}`)}
       index={lIdx} setIndex={setLeadIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady} legend={<AromeLegend meta={aromeMeta} isPrecip={aromeParam === AROME_PRECIP_KEY} hourlyPrecipStops={arome.hourly_precip_stops} />}
-      note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Linee di flusso 10 m: velocità illustrativa." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
+      note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Flussi 10 m animati in base alle raffiche previste." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
     />
   ) : sat ? (
     <TimelinePlayer
