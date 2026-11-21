@@ -99,6 +99,7 @@ export const NETWORK_META: Record<string, { label: string; short: string; color:
   "aeronautica-militare": { label: "Aeronautica Militare", short: "AM", color: "#FBBF24" },
   ecowitt: { label: "Amatoriali", short: "Amatoriali", color: "#4ADE80" },
   meteonetwork: { label: "MeteoNetwork", short: "MNW", color: "#F472B6" },
+  mareografico: { label: "Mareografico · ISPRA", short: "ISPRA", color: "#22D3EE" },
   meteoproject: { label: "MeteoProject", short: "MPR", color: "#2DD4BF" },
   local: { label: "Stazioni locali", short: "Amatoriali", color: "#4ADE80" },
   cedoc: { label: "CEDOC Pluviometri", short: "CEDOC", color: "#A78BFA" },
