@@ -49,7 +49,7 @@ const romeDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europ
 
 // ---------------------------------------------------------------- stations
 const THRESHOLDS: Record<string, [number, number]> = {
-  "dpcn-sardegna": [30, 180], "aeronautica-militare": [90, 240], ecowitt: [30, 180], local: [30, 180], meteonetwork: [30, 180], cedoc: [90, 180],
+  "dpcn-sardegna": [30, 180], "aeronautica-militare": [90, 240], ecowitt: [30, 180], local: [30, 180], meteonetwork: [30, 180], mareografico: [30, 90], cedoc: [90, 180],
 };
 const NETWORKS: [string, string, string][] = [
   ["dpcn-sardegna", "MeteoHub / DPCN", "data/stations.json"],
@@ -90,7 +90,7 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
       snapshot_at: (raw.snapshot_at as string) ?? null,
     } : undefined,
   };
-  const hasValue = [s.temp, s.rh, s.wind_kmh, s.rain_rate, s.rain_today, s.tmin, s.tmax].some((v) => v !== null);
+  const hasValue = [s.temp, s.rh, s.wind_kmh, s.rain_rate, s.rain_today, s.tmin, s.tmax, s.marine?.sea_level_m, s.marine?.water_temp_c].some((v) => v != null);
   if (last && hasValue) {
     const age = Math.max(0, (now.getTime() - last.getTime()) / 60000);
     const [fresh, stale] = THRESHOLDS[network] ?? [60, 180];
