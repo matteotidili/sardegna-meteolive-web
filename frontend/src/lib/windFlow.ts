@@ -82,7 +82,7 @@ export class WindFlowLayer {
   private h = 0;
   private onResize = () => this.resize();
   private onPause = () => this.stop();
-  private onResume = () => { this.resize(); this.start(); };
+  private onResume = () => { this.clearTrails(); this.resize(); this.start(); };
   private onVis = () => (document.hidden ? this.stop() : this.start());
 
   private colorFor: ((ms: number) => string) | undefined;
@@ -109,10 +109,14 @@ export class WindFlowLayer {
 
   setField(f: WindField | null) {
     this.field = f;
-    this.particles = [];
-    this.ctx.clearRect(0, 0, this.w, this.h);
+    this.clearTrails();
     this.stop();
     this.start();
+  }
+
+  private clearTrails() {
+    this.particles = [];
+    this.ctx.clearRect(0, 0, this.w, this.h);
   }
 
   private resize() {
@@ -180,16 +184,17 @@ export class WindFlowLayer {
       if (!uv || Math.hypot(uv[0], uv[1]) < 0.5 || p.age >= p.life) { this.particles[n] = this.spawn(); continue; }
       const a = this.map.latLngToContainerPoint([p.lat, p.lon]);
       const gust = sampleGust(f, p.lon, p.lat);
-      const dLat0 = (uv[1] * 500) / 111320;
-      const dLon0 = (uv[0] * 500) / (111320 * Math.max(0.2, Math.cos((p.lat * Math.PI) / 180)));
-      const e = this.map.latLngToContainerPoint([p.lat + dLat0, p.lon + dLon0]);
-      const windSpeed = Math.hypot(uv[0], uv[1]);
-      // Gust forecast controls the visual pace; U/V vectors retain wind direction.
-      const targetPixels = gust === null
-        ? Math.min(3.2, Math.max(0.7, Math.hypot(e.x - a.x, e.y - a.y)))
-        : (0.8 + Math.min(120, Math.max(0, gust)) * 0.045) * Math.min(1, windSpeed / 5);
-      const k = targetPixels / Math.max(0.01, Math.hypot(e.x - a.x, e.y - a.y));
-      let dLat = dLat0, dLon = dLon0;
+      // Use a fixed physical step. The old minimum pixel target produced
+      // enormous geographic jumps when the map was zoomed out.
+      const stepMeters = 350;
+      let dLat = (uv[1] * stepMeters) / 111320;
+      let dLon = (uv[0] * stepMeters) / (111320 * Math.max(0.2, Math.cos((p.lat * Math.PI) / 180)));
+      const e = this.map.latLngToContainerPoint([p.lat + dLat, p.lon + dLon]);
+      const basePixels = Math.hypot(e.x - a.x, e.y - a.y);
+      const gustScale = gust === null
+        ? 1
+        : 0.65 + (Math.min(120, Math.max(0, gust)) / 120) * 0.75;
+      const k = Math.min(gustScale, 3.2 / Math.max(0.01, basePixels));
       dLat *= k; dLon *= k;
       const lat = p.lat + dLat, lon = p.lon + dLon;
       const b = this.map.latLngToContainerPoint([lat, lon]);
