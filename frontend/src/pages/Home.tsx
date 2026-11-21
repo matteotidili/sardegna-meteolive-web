@@ -26,7 +26,8 @@ import { regionalSatelliteUrl, satelliteRegionBounds } from "@/lib/satelliteView
 import type { Station } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { radarFrameErrorKey, radarFrameKey } from "@/lib/radarFrame";
-import RadarPointPanel from "@/components/RadarPointPanel";\nimport AromePointPanel from "@/components/AromePointPanel";
+import RadarPointPanel from "@/components/RadarPointPanel";
+import AromePointPanel from "@/components/AromePointPanel";
 import { quantitativeRadarFrames, useRadarNumericManifest, type RadarPoint } from "@/lib/radarPoint";
 import MarineControls, { MARINE_LABELS, MarineAttribution } from "@/components/MarineControls";
 import MarineLegend from "@/components/MarineLegend";
@@ -102,7 +103,8 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; seq: number } | null>(null);
   const [radarIdx, setRadarIdx] = useState<number | null>(null);
-  const [radarPoint, setRadarPoint] = useState<RadarPoint | null>(null);\n  const [aromePoint, setAromePoint] = useState<RadarPoint | null>(null);
+  const [radarPoint, setRadarPoint] = useState<RadarPoint | null>(null);
+  const [aromePoint, setAromePoint] = useState<RadarPoint | null>(null);
   const [leadIdx, setLeadIdx] = useState<number | null>(null);
   const [marineIdx, setMarineIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);

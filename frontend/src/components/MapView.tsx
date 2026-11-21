@@ -67,7 +67,9 @@ interface Props {
   onSelect: (id: string | null) => void;
   radar: { product: string; time: string } | null;
   radarPoint: RadarPoint | null;
-  onRadarPoint: (p: RadarPoint) => void;\n  aromePointEnabled: boolean;\n  onAromePoint: (p: RadarPoint) => void;
+  onRadarPoint: (p: RadarPoint) => void;
+  aromePointEnabled: boolean;
+  onAromePoint: (p: RadarPoint) => void;
   overlay: { url: string; bounds: [number, number][]; warp: boolean; attribution: string; group?: string } | null;
   marineVectors: GeoJSON.FeatureCollection | null;
   wind: WindField | null;
