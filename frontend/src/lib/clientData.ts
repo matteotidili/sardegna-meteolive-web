@@ -58,7 +58,8 @@ const NETWORKS: [string, string, string][] = [
   ["meteoproject", "MeteoProject", "data/meteoproject.json"],
   ["local", "Stazioni locali", "data/local_stations.json"],
   ["meteonetwork", "MeteoNetwork", "data/meteonetwork.json"],
-  ["mareografico", "Mareografico · ISPRA", "data/mareografico.json"],\n  ["ron", "Ondametrico · ISPRA", "data/ron.json"],
+  ["mareografico", "Mareografico · ISPRA", "data/mareografico.json"],
+  ["ron", "Ondametrico · ISPRA", "data/ron.json"],
 ];
 /** Networks shown only once their collector has published at least one file (no red status before activation). */
 const OPTIONAL_NETWORKS = new Set(["meteonetwork", "local", "mareografico", "ron"]);
@@ -88,6 +89,12 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
       sea_level_m: num(raw.sea_level_m), water_temp_c: num(raw.water_temp_c),
       solar_wm2: num(raw.solar_wm2), precip_mm: num(raw.precip_mm),
       snapshot_at: (raw.snapshot_at as string) ?? null,
+    } : undefined,
+    sea_state: network === "ron" ? {
+      period_mean_s: num(raw.period_mean_s), period_peak_s: num(raw.period_peak_s),
+      wave_height_significant_m: num(raw.wave_height_significant_m), wave_direction_mean_deg: num(raw.wave_direction_mean_deg),
+      wave_height_max_m: num(raw.wave_height_max_m), current_speed_ms: num(raw.current_speed_ms),
+      current_direction_deg: num(raw.current_direction_deg),
     } : undefined,
   };
   const hasValue = [s.temp, s.rh, s.wind_kmh, s.rain_rate, s.rain_today, s.tmin, s.tmax, s.marine?.sea_level_m, s.marine?.water_temp_c, s.sea_state?.wave_height_significant_m].some((v) => v != null);
