@@ -22,6 +22,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
   const v = valueOf(s, param);
   const rows = PARAMS.filter((p) => p.key !== param.key && valueOf(s, p) !== null);
   const dem = useDemElevation(s);
+  const marineForecast = s.marine_forecast;
   return (
     <div data-testid="station-popup-card" className={cn("hud-in rounded-xl border border-slate-700/80 bg-slate-900/95 p-3.5 text-slate-100 shadow-2xl shadow-black/60 backdrop-blur-xl", className)}>
       <div className="flex items-start gap-2">
@@ -54,7 +55,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
       )}
 
       <div className="mt-3 flex items-center gap-1.5 font-num text-[11px] text-slate-300" data-testid="station-card-time">
-        <Clock className="size-3 shrink-0" /> {(s.network === "mareografico" || s.network === "ron") ? `Acquisizione feed: ${fmtTime(s.last)}` : `Osservazione: ${fmtTime(s.last)}`}
+        <Clock className="size-3 shrink-0" /> {(s.network === "mareografico" || s.network === "ron") ? `Ultimo rilievo ${s.network === "ron" ? "RON" : "ISPRA"}: ${fmtTime(s.last)}` : `Osservazione: ${fmtTime(s.last)}`}
       </div>
       {s.network !== "mareografico" && s.network !== "ron" && <div className="mt-1.5 flex items-start gap-1 text-[11px] text-slate-400" data-testid="station-card-elev">
         <Mountain className="mt-0.5 size-3 shrink-0" />
@@ -105,6 +106,42 @@ export default function StationCard({ station: s, param, onClose, className }: P
               </div>
             ))}
           </dl>
+          {marineForecast && (
+            <section className="mt-3 border-t border-slate-700 pt-2" data-testid="station-card-marine-forecast">
+              <div className="flex items-baseline justify-between gap-2">
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300">Previsione marina · modello</h4>
+                <span className="font-num text-[10px] text-slate-400">valida {fmtTime(marineForecast.valid_time)}</span>
+              </div>
+              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                {[
+                  ["Altezza significativa onde", marineForecast.wave_height_m, "m"],
+                  ["Direzione onde", marineForecast.wave_direction_deg, "°"],
+                  ["Periodo medio onde", marineForecast.wave_period_s, "s"],
+                  ["Periodo di picco onde", marineForecast.wave_peak_period_s, "s"],
+                  ["Altezza onde di vento", marineForecast.wind_wave_height_m, "m"],
+                  ["Direzione onde di vento", marineForecast.wind_wave_direction_deg, "°"],
+                  ["Periodo onde di vento", marineForecast.wind_wave_period_s, "s"],
+                  ["Altezza swell", marineForecast.swell_wave_height_m, "m"],
+                  ["Direzione swell", marineForecast.swell_wave_direction_deg, "°"],
+                  ["Periodo swell", marineForecast.swell_wave_period_s, "s"],
+                  ["Temperatura superficiale mare", marineForecast.sea_surface_temp_c, "°C"],
+                  ["Corrente superficiale", marineForecast.current_speed_ms, "m/s"],
+                  ["Direzione corrente", marineForecast.current_direction_deg, "°"],
+                  ["Livello marino modellistico", marineForecast.sea_level_msl_m, "m"],
+                  ["Massimo Hs previsto", marineForecast.wave_height_max_day_m, "m"],
+                ].map(([label, value, unit]) => (
+                  <div key={String(label)} className="flex justify-between gap-2">
+                    <dt className="text-slate-400">{label}</dt>
+                    <dd className="font-num text-slate-100">{value == null ? "n.d." : Number(value).toLocaleString("it-IT", { maximumFractionDigits: 1 })} {value == null ? "" : unit}</dd>
+                  </div>
+                ))}
+              </dl>
+              {marineForecast.wave_height_max_day && <p className="mt-1 text-[10px] text-slate-400">Massimo Hs giornaliero riferito al {marineForecast.wave_height_max_day}.</p>}
+              <p className="mt-1 text-[10px] leading-snug text-slate-400">
+                {marineForecast.source}. Previsione modellistica, distinta dai rilievi ISPRA; aggiornamento {fmtTime(marineForecast.generated_at)}. Dato di griglia (~5–8 km), indicativo vicino alla costa e non adatto alla navigazione. <a href="https://open-meteo.com/en/docs/marine-weather-api" target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">Fonte e dettagli</a>
+              </p>
+            </section>
+          )}
           <p className="mt-2 text-[10px] leading-snug text-slate-400">Dati dinamici ISPRA non validati. La precipitazione è cumulata (periodo non specificato per RON). L’orario indica l’acquisizione del feed, non necessariamente quello di ogni parametro.</p>
         </>
       )}
