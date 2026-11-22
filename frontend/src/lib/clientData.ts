@@ -96,6 +96,7 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
       wave_height_max_m: num(raw.wave_height_max_m), current_speed_ms: num(raw.current_speed_ms),
       current_direction_deg: num(raw.current_direction_deg),
     } : undefined,
+    marine_forecast: (network === "mareografico" || network === "ron") ? (raw.marine_forecast as Station["marine_forecast"] ?? undefined) : undefined,
   };
   const hasValue = [s.temp, s.rh, s.wind_kmh, s.rain_rate, s.rain_today, s.tmin, s.tmax, s.marine?.sea_level_m, s.marine?.water_temp_c, s.sea_state?.wave_height_significant_m].some((v) => v != null);
   if (last && hasValue) {
