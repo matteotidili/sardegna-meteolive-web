@@ -37,6 +37,14 @@ export interface Station {
   /** Parameters published by ISPRA's mareographic network. */
   marine?: { sea_level_m: number | null; water_temp_c: number | null; solar_wm2: number | null; precip_mm: number | null; snapshot_at: string | null };
   sea_state?: { period_mean_s: number | null; period_peak_s: number | null; wave_height_significant_m: number | null; wave_direction_mean_deg: number | null; wave_height_max_m: number | null; current_speed_ms: number | null; current_direction_deg: number | null };
+  marine_forecast?: {
+    source: string; generated_at: string | null; valid_time: string | null;
+    wave_height_m: number | null; wave_direction_deg: number | null; wave_period_s: number | null; wave_peak_period_s: number | null;
+    wind_wave_height_m: number | null; wind_wave_direction_deg: number | null; wind_wave_period_s: number | null; wind_wave_peak_period_s: number | null;
+    swell_wave_height_m: number | null; swell_wave_direction_deg: number | null; swell_wave_period_s: number | null; swell_wave_peak_period_s: number | null;
+    sea_surface_temp_c: number | null; current_speed_ms: number | null; current_direction_deg: number | null;
+    sea_level_msl_m: number | null; wave_height_max_day_m: number | null; wave_height_max_day: string | null;
+  };
 }
 
 export interface NetworkStatus {
