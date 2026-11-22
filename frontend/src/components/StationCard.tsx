@@ -138,7 +138,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
               </dl>
               {marineForecast.wave_height_max_day && <p className="mt-1 text-[10px] text-slate-400">Massimo Hs giornaliero riferito al {marineForecast.wave_height_max_day}.</p>}
               <p className="mt-1 text-[10px] leading-snug text-slate-400">
-                {marineForecast.source}. Previsione modellistica, distinta dai rilievi ISPRA; aggiornamento {fmtTime(marineForecast.generated_at)}. Dato di griglia (~5–8 km), indicativo vicino alla costa e non adatto alla navigazione. <a href="https://open-meteo.com/en/docs/marine-weather-api" target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">Fonte e dettagli</a>
+                {marineForecast.source}. Previsione modellistica, distinta dai rilievi ISPRA; modelli oceanografici Copernicus/Météo-France e d’onda ECMWF, DWD o NOAA, selezionati per posizione. Aggiornamento {fmtTime(marineForecast.generated_at)}. Griglia ~5–8 km, indicativa vicino alla costa e non adatta alla navigazione. <a href="https://open-meteo.com/en/docs/marine-weather-api" target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">Fonte e dettagli</a>
               </p>
             </section>
           )}
