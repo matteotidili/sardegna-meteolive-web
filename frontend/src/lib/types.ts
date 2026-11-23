@@ -20,6 +20,9 @@ export interface Station {
   wind_kmh: number | null;
   wind_dir: number | null;
   gust_kmh: number | null;
+  gust_day_max_kmh: number | null;
+  gust_day_max_at: string | null;
+  gust_day_source: string | null;
   rain_rate: number | null;
   rain_today: number | null;
   rain_48h: number | null;
