@@ -46,6 +46,8 @@ export default function Home() {
   const [basemap, setBasemap] = usePersistentState<Basemap>("basemap", "dark");
   const [paramKey, setParamKey] = usePersistentState<ParamKey>("param", "temp");
   const [networks, setNetworks] = usePersistentState<Record<string, boolean>>("networks", {});
+  const [showIspraBuoys, setShowIspraBuoys] = usePersistentState<boolean>("showIspraBuoys", false);
+  const [showRonBuoys, setShowRonBuoys] = usePersistentState<boolean>("showRonBuoys", false);
   const [anim, setAnim] = usePersistentState<AnimLayer>("anim", "none");
   const [aromeParam, setAromeParam] = usePersistentState<string>("aromeParam", AROME_PRECIP_KEY);
   const [marineModel, setMarineModel] = usePersistentState<MarineModel>("marineModel", "ww3");
@@ -148,9 +150,15 @@ export default function Home() {
     all.forEach((s) => { const group = networkGroup(s.network); c[group] = (c[group] ?? 0) + 1; });
     return c;
   }, [all]);
+  const marineView = showIspraBuoys || showRonBuoys;
   const visible = useMemo(
-    () => all.filter((s) => networks[networkGroup(s.network)] !== false && (param.rain || !s.rain_only) && (!param.marine || s.network === "ron")),
-    [all, networks, param.rain, param.marine],
+    () => all.filter((s) => {
+      const isIspra = s.network === "mareografico";
+      const isRon = s.network === "ron";
+      if (isIspra || isRon) return (isIspra && showIspraBuoys || isRon && showRonBuoys) && networks[networkGroup(s.network)] !== false;
+      return !marineView && networks[networkGroup(s.network)] !== false && (param.rain || !s.rain_only);
+    }),
+    [all, networks, param.rain, marineView, showIspraBuoys, showRonBuoys],
   );
   const selected = all.find((s) => s.id === selectedId) ?? null;
 
@@ -382,6 +390,16 @@ export default function Home() {
       setAnim(next);
       if (next === "marine" && anim !== "marine") requestAnimationFrame(() => mapControls.fitMediterranean());
     }} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}
+      showIspraBuoys={showIspraBuoys} setShowIspraBuoys={(on) => {
+        setShowIspraBuoys(on);
+        if (on) setParamKey("water_temp_c");
+        else if (!showRonBuoys) setParamKey("temp");
+      }}
+      showRonBuoys={showRonBuoys} setShowRonBuoys={(on) => {
+        setShowRonBuoys(on);
+        if (on) setParamKey("water_temp_c");
+        else if (!showIspraBuoys) setParamKey("temp");
+      }}
       marineControls={<MarineControls model={marineModel} onModel={(model) => {
         setMarineModel(model); setMarineParameter(model === "shyfem" ? "wl" : "hs");
       }} parameter={marineParam} onParameter={setMarineParameter} forcing={marineForcing} onForcing={setMarineForcing}
@@ -467,8 +485,8 @@ export default function Home() {
             </div>
           </div>
           <div data-testid="parameter-selector-bar" className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg border border-slate-800/80 bg-slate-950/60 p-1">
-            {PARAMS.map((p) => (
-              <button key={p.key} data-testid={`parameter-chip-${p.key}`} aria-pressed={p.key === paramKey} onClick={() => setParamKey(p.key)}
+            {PARAMS.filter((p) => !p.marine).map((p) => (
+              <button key={p.key} data-testid={`parameter-chip-${p.key}`} aria-pressed={p.key === paramKey} onClick={() => { setShowIspraBuoys(false); setShowRonBuoys(false); setParamKey(p.key); }}
                 className={cn("shrink-0 rounded-md px-2.5 py-1 text-xs transition-colors duration-150",
                   p.key === paramKey ? "bg-sky-600 font-medium text-white shadow-sm shadow-sky-500/30" : "text-slate-300 hover:bg-slate-800 hover:text-slate-100")}>
                 {p.label}
