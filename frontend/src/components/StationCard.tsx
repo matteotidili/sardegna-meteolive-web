@@ -66,6 +66,16 @@ export default function StationCard({ station: s, param, onClose, className }: P
         </span>
       </div>}
 
+      {s.gust_day_max_kmh != null && (
+        <div className="mt-3 border-t border-slate-800 pt-2 text-[11px]" data-testid="station-card-daily-gust">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-slate-400">Raffica massima oggi</span>
+            <strong className="font-num text-slate-100">{s.gust_day_max_kmh.toLocaleString("it-IT", { maximumFractionDigits: 1 })} km/h</strong>
+          </div>
+          <div className="mt-0.5 text-right font-num text-slate-400">rilevata alle {fmtTime(s.gust_day_max_at)}</div>
+          <p className="mt-1 text-[10px] leading-snug text-slate-500">Massimo ricostruito dai valori acquisiti dalla web app ogni circa 10 minuti; l’orario è quello del campionamento e il picco tra due letture può non essere intercettato.</p>
+        </div>
+      )}
       {rows.length > 0 && s.network !== "mareografico" && s.network !== "ron" && (
         <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-800 pt-2 text-[11px]">
           {rows.map((p) => {
