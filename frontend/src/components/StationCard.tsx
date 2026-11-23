@@ -7,6 +7,7 @@ import {
 import { cn } from "@/lib/utils";
 import ModelCompare from "@/components/ModelCompare";
 import StationHistoryChart from "@/components/StationHistoryChart";
+import MarineBuoyHistoryChart from "@/components/MarineBuoyHistoryChart";
 import { useDemElevation } from "@/hooks/useMeteo";
 
 const ELEV_SOURCE: Record<string, string> = {
@@ -116,6 +117,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
               </div>
             ))}
           </dl>
+          <MarineBuoyHistoryChart station={s} />
           {marineForecast && (
             <section className="mt-3 border-t border-slate-700 pt-2" data-testid="station-card-marine-forecast">
               <div className="flex items-baseline justify-between gap-2">
