@@ -63,6 +63,10 @@ interface Props {
   municipalities: boolean;
   setMunicipalities: (b: boolean) => void;
   marineControls: React.ReactNode;
+  showIspraBuoys: boolean;
+  setShowIspraBuoys: (on: boolean) => void;
+  showRonBuoys: boolean;
+  setShowRonBuoys: (on: boolean) => void;
 }
 
 function Toggle({ on, onClick, icon, title, sub, testid, disabled }: { on: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string; testid: string; disabled?: boolean }) {
@@ -155,6 +159,13 @@ export default function LayerPanel(p: Props) {
           {p.wind && p.windWarning && <p className="text-[10px] text-amber-200/90" data-testid="wind-flow-warning">{p.windWarning}</p>}
         </div>
       )}
+
+      <div className={SECTION}>Mare · boe osservate</div>
+      <Toggle testid="layer-toggle-ispra-mareografico" on={p.showIspraBuoys} onClick={() => p.setShowIspraBuoys(!p.showIspraBuoys)}
+        icon={<Waves className="size-4" />} title="ISPRA · Rete Mareografica" sub="Livello mare, temperatura acqua e parametri meteo" />
+      <Toggle testid="layer-toggle-ispra-ron" on={p.showRonBuoys} onClick={() => p.setShowRonBuoys(!p.showRonBuoys)}
+        icon={<Waves className="size-4" />} title="ISPRA · RON" sub="Boe ondametriche · onde, correnti e dati meteo" />
+      {(p.showIspraBuoys || p.showRonBuoys) && <p className="px-1 text-[10px] leading-snug text-slate-400">Attiva le reti che vuoi vedere e clicca una boa per aprire rilievi e previsione marina.</p>}
 
       <div className={SECTION}>Previsioni marine</div>
       <Toggle testid="layer-toggle-marine" on={p.anim === "marine"} onClick={() => toggleAnim("marine")}
