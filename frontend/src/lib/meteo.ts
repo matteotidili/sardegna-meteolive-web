@@ -3,7 +3,7 @@ import type { Freshness, Station } from "@/lib/types";
 export type ParamKey =
   | "temp" | "tmin" | "tmax" | "rh" | "wind_kmh" | "gust_kmh"
   | "rain_rate" | "rain_today" | "rain_48h" | "pressure_hpa"
-  | "water_temp_c" | "wave_height_significant_m" | "wave_height_max_m" | "period_mean_s" | "period_peak_s" | "wave_direction_mean_deg" | "current_speed_ms" | "current_direction_deg";
+  | "water_temp_c" | "sea_level_m" | "wave_height_significant_m" | "wave_height_max_m" | "period_mean_s" | "period_peak_s" | "wave_direction_mean_deg" | "current_speed_ms" | "current_direction_deg";
 
 interface RampStop { max: number; color: string; label: string }
 
@@ -16,7 +16,7 @@ export interface ParamDef {
   ramp: RampStop[];
   dayBound: boolean; // daily extreme / accumulation: valid only for the current local day
   rain: boolean; // includes rain-only gauges (CEDOC)
-  marine?: boolean; // parameter supplied by ISPRA RON buoys
+  marine?: boolean; // parameter supplied by marine observation networks
 }
 
 // Colori continui per temperatura, Tmin e Tmax: gli stessi nodi
@@ -90,6 +90,7 @@ export const PARAMS: ParamDef[] = [
   { key: "rain_48h", label: "Pioggia 48 h", short: "48h", unit: "mm", decimals: 1, ramp: RAIN, dayBound: false, rain: true },
   { key: "pressure_hpa", label: "Pressione", short: "hPa", unit: "hPa", decimals: 1, ramp: PRESS, dayBound: false, rain: false },
   { key: "water_temp_c", label: "Temperatura acqua", short: "T acqua", unit: "°C", decimals: 1, ramp: TEMP, dayBound: false, rain: false, marine: true },
+  { key: "sea_level_m", label: "Livello del mare", short: "Livello", unit: "m", decimals: 3, ramp: [{ max: -0.5, color: "#2563EB", label: "<−0,5" }, { max: 0, color: "#06B6D4", label: "−0,5–0" }, { max: 0.5, color: "#10B981", label: "0–0,5" }, { max: 1, color: "#EAB308", label: "0,5–1" }, { max: 2, color: "#F97316", label: "1–2" }, { max: Infinity, color: "#EF4444", label: ">2" }], dayBound: false, rain: false, marine: true },
   { key: "wave_height_significant_m", label: "Altezza significativa onda", short: "Hs", unit: "m", decimals: 2, ramp: [{ max: 0.25, color: "#38BDF8", label: "<0,25" }, { max: 0.5, color: "#14B8A6", label: "0,25–0,5" }, { max: 1, color: "#84CC16", label: "0,5–1" }, { max: 1.5, color: "#EAB308", label: "1–1,5" }, { max: 2.5, color: "#F97316", label: "1,5–2,5" }, { max: Infinity, color: "#EF4444", label: ">2,5" }], dayBound: false, rain: false, marine: true },
   { key: "wave_height_max_m", label: "Altezza massima onda", short: "H max", unit: "m", decimals: 2, ramp: [{ max: 0.5, color: "#38BDF8", label: "<0,5" }, { max: 1, color: "#14B8A6", label: "0,5–1" }, { max: 2, color: "#84CC16", label: "1–2" }, { max: 3, color: "#EAB308", label: "2–3" }, { max: 4, color: "#F97316", label: "3–4" }, { max: Infinity, color: "#EF4444", label: ">4" }], dayBound: false, rain: false, marine: true },
   { key: "period_mean_s", label: "Periodo medio onda", short: "T medio", unit: "s", decimals: 1, ramp: [{ max: 4, color: "#38BDF8", label: "<4" }, { max: 6, color: "#14B8A6", label: "4–6" }, { max: 8, color: "#84CC16", label: "6–8" }, { max: 10, color: "#EAB308", label: "8–10" }, { max: Infinity, color: "#F97316", label: ">10" }], dayBound: false, rain: false, marine: true },
@@ -139,6 +140,7 @@ export function valueOf(s: Station, p: ParamDef): number | null {
   if (p.marine) {
     const marine: Partial<Record<ParamKey, number | null | undefined>> = {
       water_temp_c: s.marine?.water_temp_c,
+      sea_level_m: s.marine?.sea_level_m,
       wave_height_significant_m: s.sea_state?.wave_height_significant_m,
       wave_height_max_m: s.sea_state?.wave_height_max_m,
       period_mean_s: s.sea_state?.period_mean_s,

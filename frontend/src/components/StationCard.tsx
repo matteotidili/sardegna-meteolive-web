@@ -117,6 +117,16 @@ export default function StationCard({ station: s, param, onClose, className }: P
               </div>
             ))}
           </dl>
+          {s.tad && <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-800 pt-2 text-[11px]" data-testid="station-card-tad-data">
+            {([
+              ["RMS 30 min", s.tad.rms_30_m, "m"], ["Segnale di allerta", s.tad.alert_signal_m, "m"],
+              ["Previsione +30 min", s.tad.forecast_30_m, "m"], ["Previsione +300 min", s.tad.forecast_300_m, "m"],
+            ] as const).map(([label, value, unit]) => <div key={label} className="flex justify-between gap-2">
+              <dt className="text-slate-400">{label}</dt><dd className="font-num text-slate-100">{value == null ? "n.d." : `${Number(value).toLocaleString("it-IT", { maximumFractionDigits: 3 })} ${unit}`}</dd>
+            </div>)}
+            <div className="flex justify-between gap-2"><dt className="text-slate-400">Stato allerta TAD</dt>
+              <dd className="font-num text-slate-100">{s.tad.alert == null ? "n.d." : s.tad.alert === 0 ? "nessun allarme" : s.tad.alert}</dd></div>
+          </dl>}
           <MarineBuoyHistoryChart station={s} />
           {marineForecast && (
             <section className="mt-3 border-t border-slate-700 pt-2" data-testid="station-card-marine-forecast">

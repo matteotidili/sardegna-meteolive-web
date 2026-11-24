@@ -93,6 +93,11 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
       solar_wm2: num(raw.solar_wm2), precip_mm: num(raw.precip_mm),
       snapshot_at: (raw.snapshot_at as string) ?? null,
     } : undefined,
+    tad: network === "mareografico" && raw.tad ? {
+      rms_30_m: num((raw.tad as Json).rms_30_m), alert: num((raw.tad as Json).alert),
+      alert_signal_m: num((raw.tad as Json).alert_signal_m), forecast_30_m: num((raw.tad as Json).forecast_30_m),
+      forecast_300_m: num((raw.tad as Json).forecast_300_m),
+    } : undefined,
     sea_state: network === "ron" ? {
       period_mean_s: num(raw.period_mean_s), period_peak_s: num(raw.period_peak_s),
       wave_height_significant_m: num(raw.wave_height_significant_m), wave_direction_mean_deg: num(raw.wave_direction_mean_deg),

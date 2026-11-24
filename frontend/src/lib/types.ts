@@ -39,6 +39,7 @@ export interface Station {
   source_url: string | null;
   /** Parameters published by ISPRA's mareographic network. */
   marine?: { sea_level_m: number | null; water_temp_c: number | null; solar_wm2: number | null; precip_mm: number | null; snapshot_at: string | null };
+  tad?: { rms_30_m: number | null; alert: number | null; alert_signal_m: number | null; forecast_30_m: number | null; forecast_300_m: number | null };
   sea_state?: { period_mean_s: number | null; period_peak_s: number | null; wave_height_significant_m: number | null; wave_direction_mean_deg: number | null; wave_height_max_m: number | null; current_speed_ms: number | null; current_direction_deg: number | null };
   marine_forecast?: {
     source: string; generated_at: string | null; valid_time: string | null;
