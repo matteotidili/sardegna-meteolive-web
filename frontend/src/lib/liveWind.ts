@@ -57,7 +57,7 @@ const SARD: GridSpec = { key: "sard-v1", grid: mkGrid(7.75, 10.25, 38.75, 41.5, 
 
 export interface LiveWind { field: WindField; time: string; points: number }
 
-/** Speed ramp in km/h (legend) — lines are coloured by the same stops. */
+/** Accepts km/h, matching the flow renderer and the visible legend. */
 export const LIVE_WIND_STOPS: { max: number; color: string; label: string }[] = [
   { max: 10, color: "#7dd3fc", label: "<10" },
   { max: 20, color: "#34d399", label: "10–20" },
@@ -66,10 +66,8 @@ export const LIVE_WIND_STOPS: { max: number; color: string; label: string }[] = 
   { max: 70, color: "#fb923c", label: "50–70" },
   { max: Infinity, color: "#f43f5e", label: ">70" },
 ];
-export const liveWindColor = (ms: number) => {
-  const kmh = ms * 3.6;
-  return (LIVE_WIND_STOPS.find((s) => kmh < s.max) ?? LIVE_WIND_STOPS[LIVE_WIND_STOPS.length - 1]).color;
-};
+export const liveWindColor = (kmh: number) =>
+  (LIVE_WIND_STOPS.find((s) => kmh < s.max) ?? LIVE_WIND_STOPS[LIVE_WIND_STOPS.length - 1]).color;
 
 interface OmPoint { current?: { time?: string; wind_speed_10m?: number | null; wind_direction_10m?: number | null } }
 interface GridResult { vec: number[]; time: string; points: number; fetchedAt: number; partial?: boolean; cachedFallback?: boolean }
