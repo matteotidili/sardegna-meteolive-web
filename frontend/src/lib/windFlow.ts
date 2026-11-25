@@ -61,7 +61,7 @@ export interface WindFlowOptions {
   pane?: string;
   zIndex?: number;
   testid?: string;
-  /** Per-particle colour from wind speed (m/s); white streamlines when omitted. */
+  /** Per-particle colour from gust (when available) or wind speed, both in km/h. */
   colorFor?: (speedMs: number) => string;
   lineWidth?: number;
   /** screen px² per particle (smaller = denser); default fixed count 330/130 */
