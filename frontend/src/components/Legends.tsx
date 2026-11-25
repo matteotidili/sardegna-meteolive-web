@@ -155,3 +155,14 @@ export function RadarLegend({ product }: { product: string }) {
     </div>
   );
 }
+
+export function DpcAccumulationLegend({ product, time }: { product: string; time: string }) {
+  const band = product === "SRT1" ? "1 h" : product === "CUM3" ? "3 h" : product === "CUM6" ? "6 h" : product === "CUM12" ? "12 h" : "24 h";
+  const stamp = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(time));
+  return <div data-testid="dpc-accumulation-legend" className="pointer-events-auto rounded-xl border border-slate-800 bg-slate-900/90 px-2.5 py-2 text-slate-200 shadow-xl backdrop-blur-xl">
+    <div className="mb-1 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.14em] text-slate-300"><span>Accumulo Radar-DPC · {band}</span><span>mm</span></div>
+    <div className="h-2 rounded-full" style={{ background: DPC_LEGEND(product) }} />
+    <div className="mt-1 flex justify-between text-[9px] text-slate-400"><span>Debole</span><span>Moderato</span><span>Intenso</span><span>Molto intenso</span></div>
+    <div className="mt-1 text-[9px] text-slate-500">Ultimo prodotto disponibile · {stamp} ora italiana · scala cromatica qualitativa, non LUT ufficiale.</div>
+  </div>;
+}

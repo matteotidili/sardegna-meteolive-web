@@ -402,6 +402,14 @@ export async function getModelPoint(lat: number, lon: number, at: string): Promi
 }
 
 // ---------------------------------------------------------------- radar / FRP / rain48
+export async function getDpcAccumulationTime(product: string): Promise<string> {
+  const r = await fetch(`${RADAR_API}/findLastProductByType?type=${encodeURIComponent(product)}&lang=it`, { cache: "no-store" });
+  if (!r.ok) throw new Error("Accumulo Radar-DPC non disponibile");
+  const ms = Number(((await r.json()) as { lastProducts?: { time: number }[] }).lastProducts?.[0]?.time);
+  if (!Number.isFinite(ms)) throw new Error("Timestamp dell'accumulo non disponibile");
+  return new Date(ms).toISOString();
+}
+
 export async function getRadar(product: string): Promise<RadarFrames> {
   const r = await fetch(`${RADAR_API}/findLastProductByType?type=${product}&lang=it`, { cache: "no-store" });
   if (!r.ok) throw new Error("Radar-DPC non disponibile");

@@ -8,11 +8,19 @@ import L from "leaflet";
  */
 const TILES = "https://s3-prod-dpc-radar-webp-cache.s3.eu-south-1.amazonaws.com";
 const MAX_NATIVE_Z = 7;
+const DPC_ACCUM_PRODUCTS: Record<string, { path: string; file: string }> = {
+  SRT1: { path: "SRT1", file: "srt1" }, CUM3: { path: "CUM3", file: "cum3" },
+  CUM6: { path: "CUM6", file: "cum6" }, CUM12: { path: "CUM12", file: "cum12" }, CUM24: { path: "CUM24", file: "cum24" },
+};
 
 type Band = [number, [number, number, number]];
 export const DPC_VMI_BANDS: Band[] = [
   [0, [126, 209, 246]], [0.18, [70, 173, 225]], [0.32, [47, 172, 120]], [0.45, [133, 213, 72]],
   [0.57, [246, 223, 57]], [0.7, [244, 154, 47]], [0.84, [225, 72, 45]], [1, [178, 38, 51]],
+];
+export const DPC_ACCUM_BANDS: Band[] = [
+  [0, [135, 218, 246]], [0.04, [79, 191, 237]], [0.10, [42, 147, 225]], [0.18, [44, 191, 135]],
+  [0.30, [166, 217, 76]], [0.43, [246, 216, 62]], [0.58, [249, 141, 52]], [0.76, [228, 69, 62]], [1, [168, 49, 152]],
 ];
 export const DPC_SRI_BANDS: Band[] = [
   [0, [125, 207, 246]], [0.18, [70, 176, 229]], [0.33, [54, 188, 125]], [0.47, [151, 216, 75]],
@@ -33,6 +41,26 @@ function paletteAt(t: number, bands: Band[]) {
 
 function decode(ctx: CanvasRenderingContext2D, product: string) {
   const img = ctx.getImageData(0, 0, 256, 256), px = img.data;
+  if (DPC_ACCUM_PRODUCTS[product]) {
+    let colored = 0, encoded = 0;
+    for (let i = 0; i < px.length; i += 4) {
+      if (!px[i + 3] || (px[i] === 0 && px[i + 1] === 0 && px[i + 2] === 0)) continue;
+      colored++;
+      if (px[i] > 0 && px[i + 1] <= 2 && px[i + 2] <= 2) encoded++;
+    }
+    if (colored > 0 && encoded / colored >= 0.95) {
+      for (let i = 0; i < px.length; i += 4) {
+        if (!px[i + 3]) continue;
+        const r = px[i];
+        if (r === 0 && px[i + 1] === 0 && px[i + 2] === 0) { px[i + 3] = 0; continue; }
+        const c = paletteAt(r / 255, DPC_ACCUM_BANDS);
+        px[i] = c[0]; px[i + 1] = c[1]; px[i + 2] = c[2];
+        px[i + 3] = Math.round(px[i + 3] * Math.min(1, 0.65 + r / 75));
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+    return;
+  }
   let active = 0, redLike = 0;
   for (let i = 0; i < px.length; i += 4) {
     if (px[i + 3] === 0) continue;
@@ -84,7 +112,8 @@ function tileUrl(product: string, iso: string, z: number, x: number, y: number) 
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   const path = `${d.getUTCFullYear()}/${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}/${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
-  return `${TILES}/${product}/${path}/${z}/${x}/${y}/${product.toLowerCase()}.webp`;
+  const accumulation = DPC_ACCUM_PRODUCTS[product];
+  return `${TILES}/${accumulation?.path ?? product}/${path}/${z}/${x}/${y}/${accumulation?.file ?? product.toLowerCase()}.webp`;
 }
 
 function sourceTile(c: L.Coords) {
@@ -123,7 +152,7 @@ export function createDpcLayer(product: string, iso: string, opacity: number, pa
 }
 
 export const DPC_LEGEND = (product: string) =>
-  `linear-gradient(90deg, ${(product === "VMI" ? DPC_VMI_BANDS : DPC_SRI_BANDS)
+  `linear-gradient(90deg, ${(DPC_ACCUM_PRODUCTS[product] ? DPC_ACCUM_BANDS : product === "VMI" ? DPC_VMI_BANDS : DPC_SRI_BANDS)
     .map(([t, c]) => `rgb(${c.join(",")}) ${t * 100}%`).join(", ")})`;
 
 const PNG_CACHE_LIMIT = 128;

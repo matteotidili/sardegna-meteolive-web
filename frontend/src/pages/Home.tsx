@@ -14,8 +14,8 @@ import LayerPanel, { SAT_OPTIONS, type AnimLayer } from "@/components/LayerPanel
 import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
-import { AromeLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
-import { useAlerts, useArome, useAromePoint, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
+import { AromeLegend, DpcAccumulationLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
+import { useAlerts, useArome, useAromePoint, useDpcAccumulation, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
 import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
@@ -49,6 +49,7 @@ export default function Home() {
   const [showIspraBuoys, setShowIspraBuoys] = usePersistentState<boolean>("showIspraBuoys", false);
   const [showRonBuoys, setShowRonBuoys] = usePersistentState<boolean>("showRonBuoys", false);
   const [anim, setAnim] = usePersistentState<AnimLayer>("anim", "none");
+  const [accumulation, setAccumulation] = usePersistentState<string | null>("dpc-accumulation", null);
   const [aromeParam, setAromeParam] = usePersistentState<string>("aromeParam", AROME_PRECIP_KEY);
   const [marineModel, setMarineModel] = usePersistentState<MarineModel>("marineModel", "ww3");
   const [marineParameter, setMarineParameter] = usePersistentState<MarineParameter>("marineParameter", "hs");
@@ -122,6 +123,8 @@ export default function Home() {
   const alertsQ = useAlerts();
   const radarProduct = anim.startsWith("radar-") ? anim.slice(6) : null;
   const radarQ = useRadar(radarProduct);
+  const accumulationProduct = anim === "none" ? accumulation : null;
+  const accumulationQ = useDpcAccumulation(accumulationProduct);
   const radarNumericQ = useRadarNumericManifest(!!radarProduct);
   const aromeQ = useArome(true);
   const rain48Q = useRain48();
@@ -184,6 +187,8 @@ export default function Home() {
   }, [aromeFrames, arome, aromeParam]);
 
   const radarLayer = radarProduct && radarFrames.length ? { product: radarProduct, time: radarFrames[rIdx] } : null;
+  const accumulationLayer = accumulationProduct && accumulationQ.data ? { product: accumulationProduct, time: accumulationQ.data } : null;
+  const mapRadarLayer = radarLayer ?? accumulationLayer;
   const aromeUrl = anim === "arome" ? aromeUrlAt(lIdx) : null;
   const sat = satQ.data && satProduct && !satQ.isError ? satQ.data : null;
   const satFrames = sat?.frames ?? [];
@@ -386,8 +391,11 @@ export default function Home() {
   ) : null;
 
   const layerPanel = (
-    <LayerPanel satellites={activeSatellites} toggleSatellite={toggleSatellite} satelliteOpacity={satelliteOpacity} setSatelliteOpacity={(key, value) => setSatelliteOpacity({ ...satelliteOpacity, [key]: value })} anim={anim} setAnim={(next) => {
+    <LayerPanel satellites={activeSatellites} toggleSatellite={toggleSatellite} satelliteOpacity={satelliteOpacity} setSatelliteOpacity={(key, value) => setSatelliteOpacity({ ...satelliteOpacity, [key]: value })} anim={anim} accumulation={accumulationProduct} setAccumulation={setAccumulation}
+      accumulationStatus={accumulationProduct ? accumulationQ.isFetching && !accumulationQ.data ? "Ricerca dell'ultimo prodotto DPC…" : accumulationQ.isError && !accumulationQ.data ? "Prodotto DPC temporaneamente non disponibile." : accumulationQ.data ? `Aggiornato: ${fmtDayTime(accumulationQ.data)} · Protezione Civile` : "" : ""}
+      setAnim={(next) => {
       setAnim(next);
+      if (next !== "none") setAccumulation(null);
       if (next === "marine" && anim !== "marine") requestAnimationFrame(() => mapControls.fitMediterranean());
     }} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}
       showIspraBuoys={showIspraBuoys} setShowIspraBuoys={(on) => {
@@ -432,7 +440,7 @@ export default function Home() {
   );
   const mapProps = {
     satelliteBounds: satProduct ? satRenderBounds ?? MEDITERRANEAN_BOUNDS : null,
-    basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: radarLayer,
+    basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: mapRadarLayer,
     radarPoint: radarLayer ? radarPoint : null,
     onRadarPoint: (point: RadarPoint) => { setRadarPoint(point); setAromePoint(null); },
     aromePointEnabled: anim === "arome" && !!aromeUrl && !mode3d,
@@ -449,6 +457,7 @@ export default function Home() {
     <>
       <StationLegend param={param} />
       {hydrometersOn && <HydroLegend count={hydrometersQ.data?.length ?? 0} />}
+      {accumulationLayer && <DpcAccumulationLegend product={accumulationLayer.product} time={accumulationLayer.time} />}
       {liveWindOn && !mode3d && <LiveWindLegend time={liveWindQ.isError ? "non disponibile" : liveWindTime} />}
       {lightningOn && <LightningLegend live={lightning.status === "live"} count={lightning.strokes.length} />}
     </>

@@ -29,6 +29,9 @@ interface Props {
   setSatelliteOpacity: (key: string, opacity: number) => void;
   anim: AnimLayer;
   setAnim: (a: AnimLayer) => void;
+  accumulation: string | null;
+  setAccumulation: (product: string | null) => void;
+  accumulationStatus: string;
   aromeParam: string;
   setAromeParam: (k: string) => void;
   arome: AromeResponse | undefined;
@@ -114,6 +117,17 @@ export default function LayerPanel(p: Props) {
         icon={<Radar className="size-4" />} title="Radar DPC · SRI" sub="Intensità di precipitazione al suolo (mm/h)" />
       <Toggle testid="layer-toggle-radar-opera" on={p.anim === "radar-OPERA"} onClick={() => toggleAnim("radar-OPERA")}
         icon={<Radar className="size-4" />} title="Radar Europa · OPERA" sub="EUMETNET NIMBUS rain rate (mm/h) · passo 15 min" />
+      <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5" data-testid="dpc-accumulation-control">
+        <div className="mb-1.5 flex items-center justify-between gap-2"><span className="text-[13px] font-medium text-slate-200">Cumulate Radar-DPC</span><span className="text-[10px] text-slate-500">mm</span></div>
+        <div className="grid grid-cols-5 gap-1">
+          {[['SRT1','1 h'],['CUM3','3 h'],['CUM6','6 h'],['CUM12','12 h'],['CUM24','24 h']].map(([code, label]) => (
+            <button key={code} type="button" data-testid={`dpc-accumulation-${code.toLowerCase()}`} aria-pressed={p.accumulation === code}
+              onClick={() => { const next = p.accumulation === code ? null : code; p.setAccumulation(next); if (next) p.setAnim("none"); }}
+              className={cn("rounded-md border px-1 py-1.5 text-[10px] font-semibold transition-colors", p.accumulation === code ? "border-sky-500 bg-sky-600 text-white" : "border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500")}>{label}</button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[10px] leading-snug text-slate-400">{p.accumulationStatus || "Seleziona la fascia di accumulo osservata."}</p>
+      </div>
 
       <div className={SECTION}>Satelliti EUMETSAT</div>
       <div className="grid grid-cols-1 gap-1.5">

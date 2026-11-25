@@ -3,7 +3,7 @@ import { apiGet } from "@/lib/api";
 import { decodeWind } from "@/lib/windFlow";
 import {
   getAlerts, getArome, getDemElevation, getFrp, getModelPoint, getOpera, getRadar, getRain48, getSatellite, getStationHistory,
-  getAromePointValue, getGustGrid, getStations, getWindMeta,
+  getAromePointValue, getDpcAccumulationTime, getGustGrid, getStations, getWindMeta,
 } from "@/lib/clientData";
 import type { PointValue, RadarFrames, Station, WindGrid } from "@/lib/types";
 
@@ -46,6 +46,10 @@ export const useAlerts = () =>
 
 export const useArome = (enabled = true) =>
   useQuery({ queryKey: ["arome"], queryFn: getArome, refetchInterval: 15 * 60_000, enabled, retry: 1 });
+
+export const useDpcAccumulation = (product: string | null) =>
+  useQuery({ queryKey: ["dpc-accumulation", product], queryFn: () => getDpcAccumulationTime(product!), enabled: !!product,
+    refetchInterval: 5 * 60_000, refetchOnWindowFocus: "always", retry: 1 });
 
 export const useRadar = (product: string | null) =>
   useQuery({
