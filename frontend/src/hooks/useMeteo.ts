@@ -35,7 +35,7 @@ export const useStations = () =>
   useQuery({
     queryKey: ["stations"],
     queryFn: getStations,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: "always",
     refetchOnReconnect: "always",
     retry: 1,
