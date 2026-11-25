@@ -78,6 +78,7 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
     temp: g("temp", "temp"), tmin: g("tmin", "temp"), tmax: g("tmax", "temp"),
     tmin_provisional: (raw.tmin_provisional as boolean) ?? null, tmax_provisional: (raw.tmax_provisional as boolean) ?? null,
     extrema_source: (raw.extrema_source as string) ?? null,
+    temperature_quality_note: (raw.temperature_quality_note as string) ?? null,
     rh: g("rh", "rh"), wind_kmh: g("wind_kmh", "wind"), wind_dir: g("wind_dir", "wind_dir"), gust_kmh: g("gust_kmh", "gust"),
     gust_day_max_kmh: raw.gust_day === today ? num(raw.gust_day_max_kmh) : null,
     gust_day_max_at: raw.gust_day === today ? (raw.gust_day_max_at as string) ?? null : null,

@@ -58,6 +58,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
       <div className="mt-3 flex items-center gap-1.5 font-num text-[11px] text-slate-300" data-testid="station-card-time">
         <Clock className="size-3 shrink-0" /> {(s.network === "mareografico" || s.network === "ron") ? `Ultimo rilievo ${s.network === "ron" ? "RON" : "ISPRA"}: ${fmtTime(s.last)}` : `Osservazione: ${fmtTime(s.last)}`}
       </div>
+      {s.temperature_quality_note && <p className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[10px] leading-snug text-amber-200/90" data-testid="station-card-temperature-quality-note">{s.temperature_quality_note}</p>}
       {s.network !== "mareografico" && s.network !== "ron" && <div className="mt-1.5 flex items-start gap-1 text-[11px] text-slate-400" data-testid="station-card-elev">
         <Mountain className="mt-0.5 size-3 shrink-0" />
         <span>

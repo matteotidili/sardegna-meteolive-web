@@ -16,6 +16,7 @@ export interface Station {
   tmax_provisional: boolean | null;
   tmin_provisional: boolean | null;
   extrema_source: string | null;
+  temperature_quality_note: string | null;
   rh: number | null;
   wind_kmh: number | null;
   wind_dir: number | null;
