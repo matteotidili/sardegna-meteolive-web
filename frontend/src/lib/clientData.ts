@@ -3,7 +3,7 @@
  * so every rule of the former FastAPI aggregator lives here:
  * freshness from each station's own observation time, CEDOC last-valid fallback,
  * Sardinia-only MeteoAlarm warnings, AROME and EUMETSAT catalogues,
- * station-vs-model point values. Upstream files are cache-busted per minute.
+ * station-vs-model point values. Upstream files are cache-busted every 30 seconds.
  */
 import type {
   AlertWarning, AlertsResponse, AromeFrame, AromeParameter, AromeResponse, FireDetection, Freshness, FrpResponse,
@@ -18,7 +18,7 @@ const RADAR_API = "https://radar-api.protezionecivile.it";
 type Json = Record<string, unknown>;
 const lastGood = new Map<string, unknown>();
 
-async function getJson<T = Json>(path: string, bustSec = 60): Promise<{ data: T | null; retained: boolean }> {
+async function getJson<T = Json>(path: string, bustSec = 30): Promise<{ data: T | null; retained: boolean }> {
   const url = (path.startsWith("http") ? path : DATA_BASE + path);
   const sep = url.includes("?") ? "&" : "?";
   try {
