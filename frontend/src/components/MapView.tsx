@@ -482,7 +482,7 @@ export default function MapView(props: Props) {
     for (const s of props.stations) {
       if (s.wind_kmh == null || s.wind_dir == null || s.freshness === "unavailable") continue;
       const kmh = s.wind_kmh, calm = kmh < 1;
-      const color = liveWindColor(kmh / 3.6), to = (s.wind_dir + 180) % 360;
+      const color = liveWindColor(kmh), to = (s.wind_dir + 180) % 360;
       const muted = s.freshness === "historic" ? 0.45 : s.freshness === "stale" ? 0.75 : 1;
       const svg = calm
         ? `<svg width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="4.5" fill="none" stroke="${color}" stroke-width="2"/></svg>`
