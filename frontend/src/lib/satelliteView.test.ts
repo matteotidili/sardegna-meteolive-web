@@ -16,7 +16,7 @@ describe("Mediterranean satellite archive", () => {
   });
   it("clips full-disk products and preserves narrower native coverage", () => {
     expect(satelliteRegionBounds([[-80, -80], [80, 80]])).toEqual(MEDITERRANEAN_BOUNDS);
-    expect(satelliteRegionBounds([[35, 0], [50, 20]])).toEqual([[35, 0], [46.5, 20]]);
+    expect(satelliteRegionBounds([[35, 0], [50, 20]])).toEqual([[35, 0], [48.2, 20]]);
     expect(satelliteRegionBounds([[55, 0], [65, 20]])).toBeNull();
   });
 
