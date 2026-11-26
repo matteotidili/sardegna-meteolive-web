@@ -11,13 +11,13 @@ const gauges = [
 
 test.use({ launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } });
 
-test("renders CEDOC history and interpolates with every marker network hidden", async ({ page }, testInfo) => {
+test("renders CEDOC history and hides markers when the networks are disabled", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === "mobile", "Uses the desktop map controls");
   const now = Date.now();
   const observed = (age: number) => new Date(now - age * 60000).toISOString();
   const older = observed(26 * 60);
   const expectedDay = new Intl.DateTimeFormat("it-IT", { timeZone: "Europe/Rome" }).format(new Date(older));
-  let recentCount = 3;
+  const recentCount = 3;
   await page.route(`${origin}data/**`, async (route) => {
     const filename = new URL(route.request().url()).pathname.split("/").at(-1);
     if (filename === "cedoc_sites.json") return route.fulfill({ json: { stations: gauges } });
@@ -49,34 +49,4 @@ test("renders CEDOC history and interpolates with every marker network hidden", 
 
   await page.getByTestId("network-toggle-all").click();
   await expect(page.getByTestId("station-marker-cedoc-451800")).toHaveCount(0);
-  const toggle = page.getByTestId("layer-toggle-station-interpolation");
-  await toggle.click();
-  const variable = page.getByTestId("station-interpolation-variable");
-  await variable.click();
-  await page.getByRole("option", { name: "Precipitazione cumulata 48 h" }).click();
-  const canvas = page.getByTestId("station-interpolation-canvas");
-  const hasColoredPixels = () => canvas.evaluate((element: HTMLCanvasElement) => {
-    const pixels = element.getContext("2d")?.getImageData(0, 0, element.width, element.height).data;
-    return pixels?.some((channel, i) => i % 4 === 3 && channel > 0);
-  });
-  await expect.poll(hasColoredPixels).toBe(true);
-  await expect(canvas).toBeVisible();
-  expect(await canvas.evaluate((element) => {
-    const pane = element.parentElement!, map = pane.parentElement!;
-    const z = (child: Element | null) => Number(getComputedStyle(child!).zIndex);
-    return z(map.querySelector(".leaflet-tile-pane")) < z(pane) && z(pane) < z(map.querySelector(".leaflet-marker-pane"));
-  })).toBe(true);
-  await expect(page.getByTestId("station-interpolation-legend")).toContainText("3 stazioni");
-  await page.setViewportSize({ width: 1280, height: 840 });
-  await expect.poll(hasColoredPixels).toBe(true);
-
-  recentCount = 2;
-  await page.reload({ waitUntil: "domcontentloaded" });
-  if (await toggle.getAttribute("aria-pressed") !== "true") await toggle.click();
-  if (!(await variable.textContent())?.includes("48 h")) {
-    await variable.click();
-    await page.getByRole("option", { name: "Precipitazione cumulata 48 h" }).click();
-  }
-  await expect(page.getByTestId("station-interpolation-no-coverage")).toContainText("almeno 3 stazioni");
-  await expect.poll(hasColoredPixels).toBe(false);
 });

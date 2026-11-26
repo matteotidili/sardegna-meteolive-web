@@ -13,7 +13,7 @@ import LayerPanel, { SAT_OPTIONS, type AnimLayer } from "@/components/LayerPanel
 import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
-import { AromeLegend, DpcAccumulationLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationInterpolationLegend, StationLegend } from "@/components/Legends";
+import { AromeLegend, DpcAccumulationLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
 import { useAlerts, useArome, useAromePoint, useDpcAccumulation, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
 import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, stationParameterLabel, type ParamKey } from "@/lib/meteo";
@@ -35,7 +35,6 @@ import { useHydrometers } from "@/lib/hydro";
 import { useMarineCatalog, useMarineVectors } from "@/hooks/useMarine";
 import { marineImageUrl, type MarineForcing, type MarineModel, type MarineParameter } from "@/lib/marine";
 import { marineViewportBounds } from "@/lib/marineViewport";
-import { interpolationSamples, type InterpolationCoverage, type InterpolationKey } from "@/lib/stationInterpolation";
 
 const MapView3D = lazy(() => import("@/components/MapView3D"));
 
@@ -50,8 +49,6 @@ export default function Home() {
   const [networks, setNetworks] = usePersistentState<Record<string, boolean>>("networks", {});
   const [showIspraBuoys, setShowIspraBuoys] = usePersistentState<boolean>("showIspraBuoys", false);
   const [showRonBuoys, setShowRonBuoys] = usePersistentState<boolean>("showRonBuoys", false);
-  const [stationInterpolationOn, setStationInterpolationOn] = usePersistentState<boolean>("stationInterpolation", false);
-  const [stationInterpolationKey, setStationInterpolationKey] = usePersistentState<InterpolationKey>("stationInterpolationVariable", "temp");
   const [anim, setAnim] = usePersistentState<AnimLayer>("anim", "none");
   const [accumulation, setAccumulation] = usePersistentState<string | null>("dpc-accumulation", null);
   const [aromeParam, setAromeParam] = usePersistentState<string>("aromeParam", AROME_PRECIP_KEY);
@@ -167,15 +164,6 @@ export default function Home() {
       return !marineView && networks[networkGroup(s.network)] !== false && (param.rain || !s.rain_only);
     }),
     [all, networks, param.rain, marineView, showIspraBuoys, showRonBuoys],
-  );
-  const [interpolationUsed, setInterpolationUsed] = useState<InterpolationCoverage>({ variable: null, count: 0, latest: null, oldest: null });
-  const onInterpolationCoverage = useCallback((coverage: InterpolationCoverage) => setInterpolationUsed((last) =>
-    last.variable === coverage.variable && last.count === coverage.count && last.latest === coverage.latest && last.oldest === coverage.oldest && last.maskStatus === coverage.maskStatus
-      ? last : coverage), []);
-  // The network filters affect the marker/list display only.
-  const interpolationValid = useMemo(
-    () => interpolationSamples(all, stationInterpolationKey),
-    [all, stationInterpolationKey],
   );
   const selected = all.find((s) => s.id === selectedId) ?? null;
 
@@ -500,11 +488,6 @@ export default function Home() {
       liveWind={liveWindOn} setLiveWind={setLiveWindOn} liveWindSub={liveWindSub}
       stationArrows={stationArrowsOn} setStationArrows={setStationArrowsOn}
       arrowCount={visible.filter((s) => s.wind_kmh != null && s.wind_dir != null && s.freshness !== "unavailable").length}
-      interpolationEnabled={stationInterpolationOn} setInterpolationEnabled={setStationInterpolationOn}
-      interpolationKey={stationInterpolationKey} setInterpolationKey={setStationInterpolationKey}
-      interpolationMaskStatus={interpolationUsed.maskStatus}
-      interpolationCount={interpolationValid.length} interpolationUsed={interpolationUsed.variable === stationInterpolationKey ? interpolationUsed.count : 0}
-      interpolationLatest={interpolationUsed.variable === stationInterpolationKey && interpolationUsed.latest ? fmtTime(interpolationUsed.latest) : null}
       boundaries={boundariesOn} setBoundaries={setBoundariesOn} subregions={subregionsOn} setSubregions={setSubregionsOn}
       municipalities={municipalOn} setMunicipalities={setMunicipalOn} />
   );
@@ -535,14 +518,9 @@ export default function Home() {
     alerts: alertsOn && !alertsQ.isError ? alertsQ.data?.warnings ?? null : null,
     strokes: lightningOn ? lightning.strokes : null, initialView: view, onViewChange: setView, onBounds: setBbox, flyTo, boundaries: boundariesOn,
     subregions: subregionsOn, municipalities: municipalOn, marineVectors: visibleMarineVectors,
-    interpolationEnabled: stationInterpolationOn && !mode3d,
-    interpolationKey: stationInterpolationKey,
-    interpolationSamples: interpolationValid,
-    onInterpolationCoverage,
   };
   const legends = (
     <>
-      {stationInterpolationOn && !mode3d && <StationInterpolationLegend variable={stationInterpolationKey} coverage={interpolationUsed} count={interpolationValid.length} />}
       <StationLegend param={param} showHistoricDay={param.key === "rain_today" && visible.some((station) => stationParameterLabel(station, param) !== param.label)} />
       {hydrometersOn && <HydroLegend count={hydrometersQ.data?.length ?? 0} />}
       {accumulationLayer && <DpcAccumulationLegend product={accumulationLayer.product} time={accumulationLayer.time} />}

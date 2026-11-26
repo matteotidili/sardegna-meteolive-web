@@ -5,7 +5,7 @@ import { radarFrameKey } from "@/lib/radarFrame";
 import type { RadarPoint } from "@/lib/radarPoint";
 import L from "leaflet";
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
-import { colorFor, fmtTime, observationTimeFor, fmtValue, freshnessFor, PARAM_BY_KEY, slug, stationMarkerTitle, stationMarkerValue, valueOf, type ParamDef } from "@/lib/meteo";
+import { colorFor, fmtTime, freshnessFor, slug, stationMarkerTitle, stationMarkerValue, valueOf, type ParamDef } from "@/lib/meteo";
 import { createDpcLayer } from "@/lib/dpcRadar";
 import { mercatorImage } from "@/lib/mercator";
 import { preloadOverlayImage } from "@/lib/overlayImage";
@@ -24,9 +24,6 @@ import { fetchHydroHistory, hydroColor, hydroFmtLevel, hydroPopupHtml, type Hydr
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MEDITERRANEAN_BOUNDS, mapControls, mapFitPadding } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, bboxCenter, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
-import { insideSardinia, loadSardiniaMask, type SardiniaMask } from "@/lib/sardiniaMask";
-import { smoothSurface } from "@/lib/interpolationSurface";
-import { createStationInterpolator, interpolateAt, interpolationColor, interpolationCoverage, type InterpolationCoverage, type InterpolationKey, type InterpolationSample } from "@/lib/stationInterpolation";
 
 export type Basemap = "dark" | "satellite" | "light" | "streets" | "relief";
 export interface MapViewState { center: [number, number]; zoom: number }
@@ -92,39 +89,11 @@ interface Props {
   boundaries: boolean;
   subregions: boolean;
   municipalities: boolean;
-  interpolationEnabled?: boolean;
-  interpolationKey?: InterpolationKey;
-  interpolationSamples: InterpolationSample[];
-  onInterpolationCoverage: (coverage: InterpolationCoverage) => void;
 }
 
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 const ALERT_COLORS: Record<number, string> = { 2: "#EAB308", 3: "#F97316", 4: "#DC2626" };
-const convexHull = (points: L.Point[]) => {
-  const sorted = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
-  if (sorted.length < 3) return [];
-  const cross = (o: L.Point, a: L.Point, b: L.Point) => (a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);
-  const lower: L.Point[] = [], upper: L.Point[] = [];
-  for (const point of sorted) {
-    while (lower.length >= 2 && cross(lower[lower.length-2], lower[lower.length-1], point) <= 0) lower.pop();
-    lower.push(point);
-  }
-  for (const point of [...sorted].reverse()) {
-    while (upper.length >= 2 && cross(upper[upper.length-2], upper[upper.length-1], point) <= 0) upper.pop();
-    upper.push(point);
-  }
-  lower.pop(); upper.pop();
-  return lower.concat(upper);
-};
-const insidePolygon = (point: L.Point, polygon: L.Point[]) => {
-  let inside = false;
-  for (let i=0,j=polygon.length-1; i<polygon.length; j=i++) {
-    const a=polygon[i], b=polygon[j];
-    if ((a.y>point.y)!==(b.y>point.y) && point.x<(b.x-a.x)*(point.y-a.y)/(b.y-a.y)+a.x) inside=!inside;
-  }
-  return inside;
-};
 // Leaflet 1.9 supports an existing IMG; this overload is absent from the installed typings.
 const preloadedImageOverlay = L.imageOverlay as (
   image: string | HTMLImageElement, bounds: L.LatLngBoundsExpression, options?: L.ImageOverlayOptions,
@@ -135,8 +104,6 @@ export default function MapView(props: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const baseRef = useRef<L.TileLayer[]>([]);
   const markersRef = useRef<L.LayerGroup | null>(null);
-  const sardiniaMask = useRef<SardiniaMask | null>(null);
-  const interpolationCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const radarRef = useRef<L.GridLayer | null>(null);
   const radarPointRef = useRef<L.CircleMarker | null>(null);
   const radarPendingRef = useRef<L.GridLayer | null>(null);
@@ -174,16 +141,6 @@ export default function MapView(props: Props) {
       maxBounds: L.latLngBounds([26, -20], [54, 42]), preferCanvas: false,
     });
     m.createPane("weather").style.zIndex = "350";
-    const interpolationCanvas = document.createElement("canvas");
-    interpolationCanvas.dataset.testid = "station-interpolation-canvas";
-    interpolationCanvas.style.position = "absolute";
-    interpolationCanvas.style.inset = "0";
-    interpolationCanvas.style.pointerEvents = "none";
-    const interpolationPane = m.createPane("stationInterpolation");
-    interpolationPane.style.zIndex = "355";
-    interpolationPane.style.pointerEvents = "none";
-    interpolationPane.appendChild(interpolationCanvas);
-    interpolationCanvasRef.current = interpolationCanvas;
     m.createPane("bounds").style.zIndex = "370";
     m.getPane("bounds")!.style.pointerEvents = "none";
     m.createPane("municipal").style.zIndex = "360";
@@ -234,24 +191,13 @@ export default function MapView(props: Props) {
       } else if (cb.current.aromePointEnabled) {
         cb.current.onSelect(null);
         cb.current.onAromePoint({ lat: e.latlng.lat, lon: e.latlng.lng });
-      } else if (cb.current.interpolationEnabled && cb.current.interpolationKey) {
-        cb.current.onSelect(null);
-        const key = cb.current.interpolationKey;
-        const samples = cb.current.interpolationSamples;
-        const hull = convexHull(samples.map(({ station }) => m.latLngToContainerPoint([station.lat, station.lon])));
-        const estimate = sardiniaMask.current && insideSardinia(sardiniaMask.current, e.latlng.lat, e.latlng.lng)
-          && hull.length >= 3 && insidePolygon(e.containerPoint, hull)
-          ? interpolateAt(e.latlng.lat, e.latlng.lng, samples, key) : null;
-        const param = PARAM_BY_KEY[key];
-        const latest = (estimate?.stations ?? []).map((station) => observationTimeFor(station, param)).filter((x): x is string => !!x)
-          .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
-        const content = estimate
-          ? `<strong>${esc(param.label)} interpolata</strong><br><b>${fmtValue(estimate.value, param)} ${esc(param.unit)}</b><br><span style="opacity:.75">Stima IDW² · ${estimate.count} stazioni recenti · dato più recente ${fmtTime(latest)} · ${e.latlng.lat.toFixed(3)}°, ${e.latlng.lng.toFixed(3)}°</span>`
-          : `<strong>Nessuna stima disponibile</strong><br><span style="opacity:.75">Servono almeno 3 stazioni recenti entro il raggio di copertura. Questo punto non viene estrapolato.</span>`;
-        L.popup({ maxWidth: 280 }).setLatLng(e.latlng).setContent(content).openOn(m);
       } else cb.current.onSelect(null);
     });
     mapRef.current = m;
+    const resize = new ResizeObserver(() => {
+      if (mapRef.current === m) m.invalidateSize({ pan: false });
+    });
+    resize.observe(m.getContainer());
     mapControls.zoomIn = () => m.zoomIn();
     mapControls.zoomOut = () => m.zoomOut();
     mapControls.reset = () => m.flyTo(DEFAULT_CENTER, DEFAULT_ZOOM, { duration: 0.6 });
@@ -266,120 +212,12 @@ export default function MapView(props: Props) {
       windRef.current?.destroy(); windRef.current = null;
       liveWindRef.current?.destroy(); liveWindRef.current = null;
       radarPointRef.current?.remove(); radarPointRef.current = null;
+      resize.disconnect();
       mapRef.current = null;
       m.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Observation-only interpolation canvas. Masked to the station convex hull and
-  // to a variable-specific radius, so uncovered areas remain transparent.
-  useEffect(() => {
-    const m = mapRef.current, canvas = interpolationCanvasRef.current;
-    if (!m || !canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const { interpolationEnabled, interpolationKey: key, interpolationSamples: samples, onInterpolationCoverage } = props;
-    const estimateAt = key ? createStationInterpolator(samples, key) : null;
-    let frame = 0;
-    let alive = true;
-    let maskStatus: InterpolationCoverage["maskStatus"] = sardiniaMask.current ? "ready" : "loading";
-    const surface = document.createElement("canvas");
-    const raster = surface.getContext("2d");
-    const maskCanvas = document.createElement("canvas");
-    const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
-    if (!raster || !maskContext) return;
-    const redraw = () => {
-      frame = 0;
-      const size = m.getSize(), dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.style.width = `${size.x}px`;
-      canvas.style.height = `${size.y}px`;
-      canvas.width = Math.max(1, Math.round(size.x * dpr));
-      canvas.height = Math.max(1, Math.round(size.y * dpr));
-      L.DomUtil.setPosition(canvas, m.containerPointToLayerPoint([0, 0]));
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (!interpolationEnabled || !key || !estimateAt || !sardiniaMask.current || samples.length < 3) {
-        onInterpolationCoverage({ variable: key ?? null, count: 0, latest: null, oldest: null, maskStatus });
-        return;
-      }
-      const hull = convexHull(samples.map((x) => m.latLngToContainerPoint([x.station.lat, x.station.lon])));
-      if (hull.length < 3) {
-        onInterpolationCoverage({ variable: key ?? null, count: 0, latest: null, oldest: null, maskStatus });
-        return;
-      }
-      const xs = hull.map((p) => p.x), ys = hull.map((p) => p.y);
-      const minX = Math.max(0, Math.floor(Math.min(...xs))), maxX = Math.min(size.x, Math.ceil(Math.max(...xs)));
-      const minY = Math.max(0, Math.floor(Math.min(...ys))), maxY = Math.min(size.y, Math.ceil(Math.max(...ys)));
-      const width = maxX - minX, height = maxY - minY;
-      if (width <= 0 || height <= 0) {
-        onInterpolationCoverage({ variable: key, count: 0, latest: null, oldest: null, maskStatus });
-        return;
-      }
-      const coast = new Path2D();
-      const origin = m.getPixelOrigin().add(m.containerPointToLayerPoint([0, 0]));
-      for (const polygon of sardiniaMask.current) for (const ring of polygon) {
-        ring.forEach(([lon, lat], i) => {
-          // Project in floating point so small islands and coastal holes survive at overview zoom.
-          const pixel = m.project([lat, lon]).subtract(origin);
-          if (i === 0) coast.moveTo(pixel.x, pixel.y);
-          else coast.lineTo(pixel.x, pixel.y);
-        });
-        coast.closePath();
-      }
-      surface.width = width;
-      surface.height = height;
-      maskCanvas.width = width;
-      maskCanvas.height = height;
-      maskContext.translate(-minX, -minY);
-      maskContext.fill(coast, "evenodd");
-      const land = maskContext.getImageData(0, 0, width, height).data;
-      const usedStations = new Map<string, Station>();
-      smoothSurface(raster, width, height, (x, y) => {
-        const point = L.point(minX + x, minY + y);
-        if (!insidePolygon(point, hull)) return null;
-        const { lat, lng } = m.containerPointToLatLng(point);
-        const estimate = estimateAt(lat, lng);
-        if (!estimate) return null;
-        if (land[(Math.min(height - 1, Math.floor(y)) * width + Math.min(width - 1, Math.floor(x))) * 4 + 3]) {
-          estimate.stations.forEach((station) => usedStations.set(station.id, station));
-        }
-        return interpolationColor(estimate.value, key);
-      });
-      ctx.save();
-      ctx.clip(coast, "evenodd");
-      ctx.globalAlpha = 0.56;
-      ctx.drawImage(surface, minX, minY);
-      ctx.restore();
-      onInterpolationCoverage({ ...interpolationCoverage(usedStations.values(), key), maskStatus });
-    };
-    const scheduleRedraw = () => { if (!frame) frame = requestAnimationFrame(redraw); };
-    scheduleRedraw();
-    if (interpolationEnabled && !sardiniaMask.current) {
-      void loadSardiniaMask().then((mask) => {
-        if (!alive) return;
-        sardiniaMask.current = mask;
-        maskStatus = "ready";
-        scheduleRedraw();
-      }).catch(() => {
-        if (!alive) return;
-        maskStatus = "error";
-        scheduleRedraw();
-      });
-    }
-    m.on("moveend zoomend resize", scheduleRedraw);
-    const resize = new ResizeObserver(() => {
-      if (mapRef.current === m) m.invalidateSize({ pan: false });
-    });
-    resize.observe(m.getContainer());
-    return () => {
-      alive = false;
-      m.off("moveend zoomend resize", scheduleRedraw);
-      resize.disconnect();
-      cancelAnimationFrame(frame);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    };
-  }, [props.interpolationEnabled, props.interpolationKey, props.interpolationSamples, props.onInterpolationCoverage]);
 
   // Restrict the full viewport to the actual raster while satellite mode is active.
   const satelliteBoundsKey = JSON.stringify(props.satelliteBounds);
