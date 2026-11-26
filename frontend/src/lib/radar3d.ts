@@ -50,7 +50,6 @@ export class Radar3D {
 
     const next = { id: `radar-buffer-${++this.sequence}`, frame };
     this.pending = next;
-    let failed = false;
     const finish = (success: boolean) => {
       if (this.pending !== next || this.destroyed) return;
       this.unwatch?.();
@@ -66,19 +65,17 @@ export class Radar3D {
     // A render follows the source-cache update. Metadata alone is too early, and
     // global "idle" may never arrive while terrain/base tiles are still loading.
     const rendered = () => {
-      if (this.pending === next && this.map.isSourceLoaded(next.id)) finish(!failed);
-    };
-    const error = (event: { sourceId?: string }) => {
-      if (event.sourceId === next.id) failed = true;
+      // MapLibre emits tile errors for individual missing radar tiles. Those tiles
+      // are valid transparent gaps; rejecting the whole frame here made playback
+      // keep the previous scan indefinitely when even one tile failed.
+      if (this.pending === next && this.map.isSourceLoaded(next.id)) finish(true);
     };
     const timer = setTimeout(() => finish(false), this.timeoutMs);
     this.unwatch = () => {
       clearTimeout(timer);
       this.map.off("render", rendered);
-      this.map.off("error", error);
     };
     this.map.on("render", rendered);
-    this.map.on("error", error);
     try {
       this.map.addSource(next.id, this.sourceFor(frame));
       this.map.addLayer({ id: next.id, type: "raster", source: next.id,
