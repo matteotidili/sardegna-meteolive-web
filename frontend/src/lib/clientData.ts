@@ -11,6 +11,7 @@ import type {
   WindGrid, WindMeta,
 } from "@/lib/types";
 import { decodeWind, sampleWind } from "@/lib/windFlow";
+import { sandwichDay } from "@/lib/satelliteImages";
 import { observationFreshness, observationWindows, romeObservationDay } from "@/lib/meteo";
 
 export const DATA_BASE = "https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/";
@@ -745,6 +746,7 @@ const SAT: Record<string, [string, string, string, string, number, boolean]> = {
   rdt: ["msg_fes:rdt", "RDT · Celle temporalesche", "© EUMETSAT / NWC SAF · Rapidly Developing Thunderstorms", "image/png", 15, false],
   truecolour: ["mtg_fd:rgb_geocolour", "MTG GeoColour RGB", "© EUMETSAT · MTG GeoColour RGB", "image/png", 10, false],
   cloudtype: ["mtg_fd:rgb_cloudtype", "MTG Cloud Type RGB", "© EUMETSAT · MTG Cloud Type RGB", "image/png", 10, true],
+  vis06: ["mtg_fd:vis06_hrfi", "MTG FCI VIS0.6 µm HRFI", "© EUMETSAT · MTG FCI HRFI VIS0.6 µm", "image/png", 10, true],
   ir105: ["mtg_fd:ir105_hrfi", "MTG FCI IR10.5 µm HRFI", "© EUMETSAT · MTG FCI HRFI IR10.5 µm", "image/jpeg", 10, false],
   cloudphase: ["mtg_fd:rgb_cloudphase", "MTG Cloud Phase RGB", "© EUMETSAT · MTG FCI Cloud Phase RGB", "image/jpeg", 10, true],
   snowfog: ["mtg_fd:rgb_snow", "MTG Day Snow Fog RGB", "© EUMETSAT · MTG Day Snow Fog RGB", "image/jpeg", 10, true],
@@ -798,6 +800,19 @@ export function satelliteTimes(value: string, archiveMinutes: number, defaultSte
 }
 
 export async function getSatellite(product: string, cancellation?: AbortSignal): Promise<SatelliteFrames> {
+  if (product === "sandwich") {
+    const [ir, vis] = await Promise.all([getSatellite("ir105", cancellation), getSatellite("vis06", cancellation)]);
+    const visibleTimes = new Set(vis.frames.map(Date.parse));
+    const frames = ir.frames.filter((time) => !sandwichDay(time) || visibleTimes.has(Date.parse(time)));
+    if (!frames.length) throw new Error("Nessuna coppia VIS/IR disponibile");
+    const bounds: [number, number][] = [
+      [Math.max(ir.bounds[0][0], vis.bounds[0][0]), Math.max(ir.bounds[0][1], vis.bounds[0][1])],
+      [Math.min(ir.bounds[1][0], vis.bounds[1][0]), Math.min(ir.bounds[1][1], vis.bounds[1][1])],
+    ];
+    return { ...ir, product, label: "MTG Sandwich VIS/IR HD · qualitativo / IR di notte", attribution: "Contains modified EUMETSAT Meteosat data · Sardegna MeteoLive",
+      bounds, frames, latest: frames.at(-1) ?? null, daytime_only: false,
+      sandwich_visible: { wms_url: vis.wms_url, layer: vis.layer, format: vis.format } };
+  }
   const def = SAT[product];
   if (!def) throw new Error("Prodotto satellitare non supportato");
   const [qualified, label, attribution, format, step, day] = def;
@@ -811,6 +826,6 @@ export async function getSatellite(product: string, cancellation?: AbortSignal):
   const { bounds, dimension } = satelliteMetadata(xml, qualified);
   const times = satelliteTimes(dimension?.textContent ?? "", product === "li" ? 120 : 180, step);
   // Preserve the original request names used by the individual services.
-  const requestLayer = ["ir105", "cloudphase", "snowfog", "preciprate"].includes(product) ? qualified : layer;
+  const requestLayer = ["vis06", "ir105", "cloudphase", "snowfog", "preciprate"].includes(product) ? qualified : layer;
   return { product, label, layer: requestLayer, attribution, format, wms_url, bounds, daytime_only: day, ...times };
 }
