@@ -6,7 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { BASEMAPS, type Basemap, type MapViewState } from "@/components/MapView";
 import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, labelPoints, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
-import { colorFor, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
+import { colorFor, freshnessFor, slug, stationMarkerTitle, stationMarkerValue, valueOf, type ParamDef } from "@/lib/meteo";
 import { dpcTilePng } from "@/lib/dpcRadar";
 import type { RadarPoint } from "@/lib/radarPoint";
 import { Radar3D } from "@/lib/radar3d";
@@ -335,7 +335,7 @@ export default function MapView3D(props: Props) {
     const items = cb.current.stations
       .map((s) => ({ s, v: valueOf(s, p), f: freshnessFor(s, p) }))
       .filter((x) => (x.v !== null && x.f !== "unavailable")
-        || (x.s.network === "cedoc" && x.s.observation_type?.startsWith("CEDOC catalog only") && p.rain))
+        || (x.s.network === "cedoc" && p.rain))
       .sort((a, b) => (b.s.id === sel ? 1 : 0) - (a.s.id === sel ? 1 : 0) || FRESH_PRIORITY[a.f] - FRESH_PRIORITY[b.f] ||
         (NET_PRIORITY[a.s.network] ?? 9) - (NET_PRIORITY[b.s.network] ?? 9));
     markersRef.current = items.map(({ s, v, f }, rank) => {
@@ -344,8 +344,8 @@ export default function MapView3D(props: Props) {
       div.style.setProperty("--c", v === null ? "#64748B" : colorFor(p, v));
       div.style.zIndex = String(items.length - rank);
       div.dataset.testid = `station-marker-${slug(s.id)}`;
-      div.title = s.name;
-      div.textContent = v === null ? "n.d." : fmtValue(v, p);
+      div.title = stationMarkerTitle(s, p, v);
+      div.textContent = stationMarkerValue(s, p, v);
       div.addEventListener("click", (e) => { e.stopPropagation(); cb.current.onSelect(s.id); });
       const mk = new maplibregl.Marker({ element: div }).setLngLat([s.lon, s.lat]).addTo(m);
       mk.getElement().style.zIndex = String(items.length - rank);

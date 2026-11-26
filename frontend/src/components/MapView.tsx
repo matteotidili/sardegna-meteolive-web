@@ -5,7 +5,7 @@ import { radarFrameKey } from "@/lib/radarFrame";
 import type { RadarPoint } from "@/lib/radarPoint";
 import L from "leaflet";
 import type { AlertWarning, FireDetection, Station, Stroke } from "@/lib/types";
-import { colorFor, fmtTime, fmtValue, freshnessFor, PARAM_BY_KEY, slug, valueOf, type ParamDef } from "@/lib/meteo";
+import { colorFor, fmtTime, observationTimeFor, fmtValue, freshnessFor, PARAM_BY_KEY, slug, stationMarkerTitle, stationMarkerValue, valueOf, type ParamDef } from "@/lib/meteo";
 import { createDpcLayer } from "@/lib/dpcRadar";
 import { mercatorImage } from "@/lib/mercator";
 import { preloadOverlayImage } from "@/lib/overlayImage";
@@ -24,7 +24,7 @@ import { fetchHydroHistory, hydroColor, hydroFmtLevel, hydroPopupHtml, type Hydr
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MEDITERRANEAN_BOUNDS, mapControls, mapFitPadding } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, bboxCenter, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
-import { interpolateAt, interpolationColor, interpolationSamples, type InterpolationKey } from "@/lib/stationInterpolation";
+import { interpolateAt, interpolationColor, type InterpolationKey, type InterpolationSample } from "@/lib/stationInterpolation";
 
 export type Basemap = "dark" | "satellite" | "light" | "streets" | "relief";
 export interface MapViewState { center: [number, number]; zoom: number }
@@ -92,7 +92,8 @@ interface Props {
   municipalities: boolean;
   interpolationEnabled?: boolean;
   interpolationKey?: InterpolationKey;
-  interpolationStations?: Station[];
+  interpolationSamples: InterpolationSample[];
+  onInterpolationCoverage: (stations: number) => void;
 }
 
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -172,11 +173,11 @@ export default function MapView(props: Props) {
     interpolationCanvas.dataset.testid = "station-interpolation-canvas";
     interpolationCanvas.style.position = "absolute";
     interpolationCanvas.style.inset = "0";
-    interpolationCanvas.style.width = "100%";
-    interpolationCanvas.style.height = "100%";
     interpolationCanvas.style.pointerEvents = "none";
-    interpolationCanvas.style.zIndex = "370";
-    m.getContainer().appendChild(interpolationCanvas);
+    const interpolationPane = m.createPane("stationInterpolation");
+    interpolationPane.style.zIndex = "355";
+    interpolationPane.style.pointerEvents = "none";
+    interpolationPane.appendChild(interpolationCanvas);
     interpolationCanvasRef.current = interpolationCanvas;
     m.createPane("bounds").style.zIndex = "370";
     m.getPane("bounds")!.style.pointerEvents = "none";
@@ -230,10 +231,12 @@ export default function MapView(props: Props) {
       } else if (cb.current.interpolationEnabled && cb.current.interpolationKey) {
         cb.current.onSelect(null);
         const key = cb.current.interpolationKey;
-        const samples = interpolationSamples(cb.current.interpolationStations ?? cb.current.stations, key);
-        const estimate = interpolateAt(e.latlng.lat, e.latlng.lng, samples, key);
+        const samples = cb.current.interpolationSamples;
+        const hull = convexHull(samples.map(({ station }) => m.latLngToContainerPoint([station.lat, station.lon])));
+        const estimate = hull.length >= 3 && insidePolygon(e.containerPoint, hull)
+          ? interpolateAt(e.latlng.lat, e.latlng.lng, samples, key) : null;
         const param = PARAM_BY_KEY[key];
-        const latest = samples.map((x) => x.station.last).filter((x): x is string => !!x)
+        const latest = (estimate?.stations ?? []).map((station) => observationTimeFor(station, param)).filter((x): x is string => !!x)
           .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
         const content = estimate
           ? `<strong>${esc(param.label)} interpolata</strong><br><b>${fmtValue(estimate.value, param)} ${esc(param.unit)}</b><br><span style="opacity:.75">Stima IDW² · ${estimate.count} stazioni recenti · dato più recente ${fmtTime(latest)} · ${e.latlng.lat.toFixed(3)}°, ${e.latlng.lng.toFixed(3)}°</span>`
@@ -268,37 +271,65 @@ export default function MapView(props: Props) {
     if (!m || !canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const { interpolationEnabled, interpolationKey: key, interpolationSamples: samples, onInterpolationCoverage } = props;
+    let frame = 0;
     const redraw = () => {
+      frame = 0;
       const size = m.getSize(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.style.width = `${size.x}px`;
+      canvas.style.height = `${size.y}px`;
       canvas.width = Math.max(1, Math.round(size.x * dpr));
       canvas.height = Math.max(1, Math.round(size.y * dpr));
+      L.DomUtil.setPosition(canvas, m.containerPointToLayerPoint([0, 0]));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, size.x, size.y);
-      if (!props.interpolationEnabled || !props.interpolationKey) return;
-      const samples = interpolationSamples(props.interpolationStations ?? props.stations, props.interpolationKey);
-      if (samples.length < 3) return;
+      if (!interpolationEnabled || !key || samples.length < 3) {
+        onInterpolationCoverage(0);
+        return;
+      }
       const hull = convexHull(samples.map((x) => m.latLngToContainerPoint([x.station.lat, x.station.lon])));
-      if (hull.length < 3) return;
+      if (hull.length < 3) {
+        onInterpolationCoverage(0);
+        return;
+      }
       const xs = hull.map((p) => p.x), ys = hull.map((p) => p.y);
       const minX = Math.max(0, Math.floor(Math.min(...xs))), maxX = Math.min(size.x, Math.ceil(Math.max(...xs)));
       const minY = Math.max(0, Math.floor(Math.min(...ys))), maxY = Math.min(size.y, Math.ceil(Math.max(...ys)));
-      const step = 9;
+      // Preserve small supported areas at overview zoom. Larger areas use
+      // a coarser display grid to keep redraws responsive.
+      const step = Math.min(9, Math.max(2, Math.floor(Math.min(maxX - minX, maxY - minY) / 3)));
+      ctx.save();
+      ctx.beginPath();
+      hull.forEach(({ x, y }, i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+      ctx.closePath();
+      ctx.clip();
       ctx.globalAlpha = 0.56;
-      for (let y=minY; y<maxY; y+=step) for (let x=minX; x<maxX; x+=step) {
-        const center = L.point(x+step/2, y+step/2);
+      const usedStations = new Set<string>();
+      for (let y = minY; y < maxY; y += step) for (let x = minX; x < maxX; x += step) {
+        const center = L.point(x + Math.min(step, maxX - x) / 2, y + Math.min(step, maxY - y) / 2);
         if (!insidePolygon(center, hull)) continue;
         const ll = m.containerPointToLatLng(center);
-        const estimate = interpolateAt(ll.lat, ll.lng, samples, props.interpolationKey);
+        const estimate = interpolateAt(ll.lat, ll.lng, samples, key);
         if (!estimate) continue;
-        ctx.fillStyle = interpolationColor(estimate.value, props.interpolationKey);
-        ctx.fillRect(x, y, step+0.5, step+0.5);
+        ctx.fillStyle = interpolationColor(estimate.value, key);
+        ctx.fillRect(x, y, step + 0.5, step + 0.5);
+        estimate.stations.forEach((station) => usedStations.add(station.id));
       }
-      ctx.globalAlpha = 1;
+      ctx.restore();
+      onInterpolationCoverage(usedStations.size);
     };
-    redraw();
-    m.on("moveend zoomend resize", redraw);
-    return () => { m.off("moveend zoomend resize", redraw); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); };
-  }, [props.interpolationEnabled, props.interpolationKey, props.interpolationStations, props.stations]);
+    const scheduleRedraw = () => { if (!frame) frame = requestAnimationFrame(redraw); };
+    scheduleRedraw();
+    m.on("moveend zoomend resize", scheduleRedraw);
+    const resize = new ResizeObserver(() => m.invalidateSize({ pan: false }));
+    resize.observe(m.getContainer());
+    return () => {
+      m.off("moveend zoomend resize", scheduleRedraw);
+      resize.disconnect();
+      cancelAnimationFrame(frame);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
+  }, [props.interpolationEnabled, props.interpolationKey, props.interpolationSamples, props.onInterpolationCoverage]);
 
   // Restrict the full viewport to the actual raster while satellite mode is active.
   const satelliteBoundsKey = JSON.stringify(props.satelliteBounds);
@@ -428,7 +459,7 @@ export default function MapView(props: Props) {
     const items = props.stations
       .map((s) => ({ s, v: valueOf(s, p), f: freshnessFor(s, p) }))
       .filter((x) => (x.v !== null && x.f !== "unavailable")
-        || (x.s.network === "cedoc" && x.s.observation_type?.startsWith("CEDOC catalog only") && p.rain));
+        || (x.s.network === "cedoc" && p.rain));
     items.sort((a, b) =>
       (b.s.id === props.selectedId ? 1 : 0) - (a.s.id === props.selectedId ? 1 : 0) ||
       FRESH_PRIORITY[a.f] - FRESH_PRIORITY[b.f] ||
@@ -437,7 +468,7 @@ export default function MapView(props: Props) {
     // Overlaps are resolved only by stacking order: selected > fresh > stale > historic, then network priority.
     const total = items.length;
     items.forEach(({ s, v, f }, rank) => {
-      const text = v === null ? "n.d." : fmtValue(v, p);
+      const text = stationMarkerValue(s, p, v);
       const w = text.length * 7 + 12, h = 20;
       const color = v === null ? "#64748B" : colorFor(p, v);
       const sel = s.id === props.selectedId ? " stn-sel" : "";
@@ -449,9 +480,7 @@ export default function MapView(props: Props) {
       });
       // zIndexOffset must dominate Leaflet's latitude-based ordering (≈ pixel y), hence the large step
       const mk = L.marker([s.lat, s.lon], { icon, zIndexOffset: (total - rank) * 1000, keyboard: false });
-      mk.bindTooltip(v === null
-        ? `${s.name} · anagrafica CEDOC; nessun dato recente disponibile`
-        : `${s.name} · ${text} ${p.unit}`, { direction: "top", offset: [0, -10], className: "" });
+      mk.bindTooltip(esc(stationMarkerTitle(s, p, v)), { direction: "top", offset: [0, -10], className: "" });
       mk.on("click", (e) => { L.DomEvent.stopPropagation(e); cb.current.onSelect(s.id); });
       g.addLayer(mk);
     });

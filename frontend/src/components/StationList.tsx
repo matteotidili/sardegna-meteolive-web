@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Search, ArrowDownWideNarrow, ArrowUpNarrowWide } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import type { Station } from "@/lib/types";
-import { NETWORK_META, networkGroup, colorFor, fmtAge, fmtDay, fmtValue, freshnessFor, slug, valueOf, type ParamDef } from "@/lib/meteo";
+import type { NetworkStatus, Station } from "@/lib/types";
+import { FRESHNESS_LABEL, NETWORK_META, networkGroup, colorFor, fmtAge, fmtDay, fmtTime, fmtValue, freshnessFor, observationTimeFor, slug, stationParameterLabel, valueOf, type ParamDef } from "@/lib/meteo";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -15,9 +15,10 @@ interface Props {
   onSetAllNetworks: (enabled: boolean) => void;
   counts: Record<string, number>;
   loading: boolean;
+  cedocStatus?: NetworkStatus;
 }
 
-export default function StationList({ stations, param, selectedId, onPick, networks, onToggleNetwork, onSetAllNetworks, counts, loading }: Props) {
+export default function StationList({ stations, param, selectedId, onPick, networks, onToggleNetwork, onSetAllNetworks, counts, loading, cedocStatus }: Props) {
   const [q, setQ] = useState("");
   const [desc, setDesc] = useState(true);
   const networkKeys = Array.from(new Set([...Object.keys(NETWORK_META), ...Object.keys(counts)].map(networkGroup)));
@@ -35,7 +36,7 @@ export default function StationList({ stations, param, selectedId, onPick, netwo
         if (a.v === null) return 1;
         if (b.v === null) return -1;
         // current values first; daily values from past days always last
-        const rank = (x: typeof a) => (x.f === "historic" ? 1 : 0) + (param.dayBound && !x.s.is_today ? 2 : 0);
+        const rank = (x: typeof a) => (x.f === "historic" ? 1 : 0) + (param.dayBound && !x.s.cedoc && !x.s.is_today ? 2 : 0);
         const ah = rank(a), bh = rank(b);
         if (ah !== bh) return ah - bh;
         return desc ? b.v - a.v : a.v - b.v;
@@ -76,6 +77,14 @@ export default function StationList({ stations, param, selectedId, onPick, netwo
           </button>
         ))}
       </div>
+      {param.rain && networks.cedoc !== false && cedocStatus && (
+        <section data-testid="cedoc-feed-status" className="mx-3 mt-2 rounded-md border border-slate-700 px-2 py-1.5 text-[10px] text-slate-300">
+          <div className="font-medium">CEDOC · {{ ok: "Operativo", degraded: "Degradato", unavailable: "Non disponibile" }[cedocStatus.status]}</div>
+          <div>Ultimo aggiornamento {fmtTime(cedocStatus.generated_at)}</div>
+          <div>Stazioni · {cedocStatus.with_measure_count ?? 0} con dati · {cedocStatus.without_measure_count ?? 0} senza dati · {cedocStatus.unreachable_count == null ? "n.d." : cedocStatus.unreachable_count} non raggiungibili</div>
+          {cedocStatus.sensor_coverage && <div>Sensori · {cedocStatus.sensor_coverage.with_value} con dati · {cedocStatus.sensor_coverage.without_value} senza dati · {cedocStatus.sensor_coverage.unreachable} non raggiungibili</div>}
+        </section>
+      )}
       <div className="flex items-center gap-2 px-3 py-2.5">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" />
@@ -125,12 +134,16 @@ export default function StationList({ stations, param, selectedId, onPick, netwo
               <span className="min-w-0 flex-1">
                 <span className={cn("block truncate text-[13px]", f === "historic" ? "text-slate-400" : "text-slate-100")}>{s.name}</span>
                 <span className="block font-num text-[10px] text-slate-500">
-                  {NETWORK_META[s.network]?.short} · {param.dayBound && !s.is_today ? `del ${fmtDay(s.obs_day).slice(0, 5)}` : fmtAge(s.age_min)}{s.elev != null ? ` · ${Math.round(s.elev)} m` : ""}
+                  {NETWORK_META[s.network]?.short} · {s.cedoc
+                    ? v === null ? (s.last ? "Altre misure disponibili" : "Nessuna misura acquisita")
+                      : `${fmtTime(observationTimeFor(s, param))} · ${stationParameterLabel(s, param) === param.label ? FRESHNESS_LABEL[f] : stationParameterLabel(s, param)}`
+                    : param.dayBound && !s.is_today ? `del ${fmtDay(s.obs_day).slice(0, 5)}` : fmtAge(s.age_min)}{s.elev != null ? ` · ${Math.round(s.elev)} m` : ""}
                 </span>
               </span>
               {v !== null ? (
                 <span
                   className={cn("rounded-full px-2 py-0.5 font-num text-xs font-semibold text-white", f === "historic" && "text-slate-200")}
+                  title={stationParameterLabel(s, param)}
                   style={{ background: f === "fresh" ? colorFor(param, v) : `color-mix(in srgb, ${colorFor(param, v)} ${f === "stale" ? 85 : 62}%, #1F2937)` }}
                 >
                   {fmtValue(v, param)}

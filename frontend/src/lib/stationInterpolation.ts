@@ -1,5 +1,5 @@
 import type { Station } from "@/lib/types";
-import { colorFor, freshnessFor, PARAM_BY_KEY, RAIN_GRADIENT, RATE_GRADIENT, TEMP_GRADIENT, valueOf, type ParamDef, type ParamKey } from "@/lib/meteo";
+import { gradientColor, freshnessFor, observationTimeFor, PARAM_BY_KEY, RAIN_GRADIENT, RATE_GRADIENT, TEMP_GRADIENT, valueOf, type ParamDef, type ParamKey } from "@/lib/meteo";
 
 export type InterpolationKey = "temp" | "tmin" | "tmax" | "rain_rate" | "rain_today" | "rain_48h" | "wind_kmh" | "gust_kmh";
 
@@ -31,16 +31,24 @@ const plausible: Record<InterpolationKey, [number, number]> = {
  * Network visibility is a map presentation choice and must not disable analysis. */
 export function interpolationSamples(stations: Station[], key: InterpolationKey): InterpolationSample[] {
   const param = interpolationParam(key), [low, high] = plausible[key];
-  return stations.flatMap((station) => {
+  const byLocation = new Map<string, InterpolationSample>();
+  for (const station of stations) {
     if (!Number.isFinite(station.lat) || !Number.isFinite(station.lon)
       || station.lat < -90 || station.lat > 90 || station.lon < -180 || station.lon > 180
-      || station.network === "mareografico" || station.network === "ron") return [];
+      || station.network === "mareografico" || station.network === "ron") continue;
     const freshness = freshnessFor(station, param);
-    if (freshness !== "fresh" && freshness !== "stale") return [];
+    const observed = Date.parse(observationTimeFor(station, param) ?? "");
+    if (!Number.isFinite(observed) || observed > Date.now() + 360000
+      || freshness !== "fresh" && freshness !== "stale") continue;
     const value = valueOf(station, param);
-    if (value == null || value < low || value > high) return [];
-    return [{ station, value }];
-  });
+    if (value == null || value < low || value > high) continue;
+    const location = `${station.lat.toFixed(4)}:${station.lon.toFixed(4)}`;
+    const previous = byLocation.get(location);
+    if (!previous || observed > Date.parse(observationTimeFor(previous.station, param) ?? "")) {
+      byLocation.set(location, { station, value });
+    }
+  }
+  return [...byLocation.values()];
 }
 
 const MAX_DISTANCE_KM: Record<InterpolationKey, number> = {
@@ -68,7 +76,8 @@ export function interpolateAt(lat: number, lon: number, samples: InterpolationSa
     distance: distanceKm(lat, lon, sample.station.lat, sample.station.lon),
   })).filter((x) => x.distance <= radius).sort((a, b) => a.distance - b.distance).slice(0, 12);
   if (neighbors.length < 3) return null;
-  if (neighbors[0].distance < 0.15) return { value: neighbors[0].value, count: neighbors.length };
+  const stations = neighbors.map(({ station }) => station);
+  if (neighbors[0].distance < 0.15) return { value: neighbors[0].value, count: stations.length, stations };
 
   // Use elevations as a weak terrain-coherence term where the network provides them.
   // Without a gridded DEM, this avoids mixing stations from very different altitude
@@ -86,23 +95,26 @@ export function interpolateAt(lat: number, lon: number, samples: InterpolationSa
   });
   const total = weighted.reduce((sum, x) => sum + x.weight, 0);
   const value = weighted.reduce((sum, x) => sum + x.value * x.weight, 0) / total;
-  return Number.isFinite(value) ? { value, count: neighbors.length } : null;
+  return Number.isFinite(value) ? { value, count: stations.length, stations } : null;
 }
+
+const interpolationStops = (key: InterpolationKey) => {
+  if (key === "rain_rate") return RATE_GRADIENT;
+  if (key === "rain_today" || key === "rain_48h") return RAIN_GRADIENT;
+  if (key === "temp" || key === "tmin" || key === "tmax") return TEMP_GRADIENT;
+  const ramp = interpolationParam(key).ramp;
+  return ramp.map((stop, i) => ({ value: i === 0 ? 0 : ramp[i - 1].max, color: stop.color }));
+};
 
 export function interpolationColor(value: number, key: InterpolationKey) {
-  return colorFor(interpolationParam(key), value);
+  return gradientColor(value, interpolationStops(key), interpolationParam(key).rain);
 }
 
-export function interpolationGradient(key: InterpolationKey) {
-  const rainfall = key === "rain_rate" || key === "rain_today" || key === "rain_48h";
-  const stops = key === "rain_rate" ? RATE_GRADIENT
-    : key === "rain_today" || key === "rain_48h" ? RAIN_GRADIENT
-    : key === "temp" || key === "tmin" || key === "tmax" ? TEMP_GRADIENT
-    : interpolationParam(key).ramp.filter((stop) => Number.isFinite(stop.max))
-      .map((stop) => ({ value: stop.max, color: stop.color }));
+export function interpolationScale(key: InterpolationKey) {
+  const rainfall = interpolationParam(key).rain;
+  const stops = interpolationStops(key);
   const first = stops[0].value, last = stops[stops.length - 1].value;
-  const position = (value: number) => rainfall
-    ? Math.log1p(Math.max(0, value)) / Math.log1p(last) * 100
-    : (value - first) / (last - first) * 100;
-  return `linear-gradient(90deg, ${stops.map((stop) => `${stop.color} ${position(stop.value).toFixed(1)}%`).join(", ")})`;
+  return stops.map((stop) => ({ ...stop, position: rainfall
+    ? Math.log1p(stop.value) / Math.log1p(last) * 100
+    : (stop.value - first) / (last - first) * 100 }));
 }

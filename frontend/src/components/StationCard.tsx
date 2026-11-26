@@ -1,8 +1,8 @@
 import { X, ExternalLink, Mountain, Clock } from "lucide-react";
 import type { Station } from "@/lib/types";
 import {
-  NETWORK_META, PARAMS, fmtDay, fmtTime, fmtValue,
-  valueOf, windDirLabel, type ParamDef,
+  FRESHNESS_CLASS, FRESHNESS_LABEL, NETWORK_META, PARAMS, cedocMeasurementFor, fmtDay, fmtTime, fmtValue,
+  freshnessFor, observationTimeFor, stationParameterLabel, valueOf, windDirLabel, type ParamDef,
 } from "@/lib/meteo";
 import { cn } from "@/lib/utils";
 import ModelCompare from "@/components/ModelCompare";
@@ -21,6 +21,10 @@ interface Props { station: Station; param: ParamDef; onClose: () => void; classN
 export default function StationCard({ station: s, param, onClose, className }: Props) {
   const net = NETWORK_META[s.network];
   const v = valueOf(s, param);
+  const cedoc = s.network === "cedoc";
+  const selectedTime = observationTimeFor(s, param);
+  const selectedFreshness = freshnessFor(s, param);
+  const selectedMeasurement = cedocMeasurementFor(s, param);
   const rows = PARAMS.filter((p) => p.key !== param.key && valueOf(s, p) !== null);
   const dem = useDemElevation(s);
   const marineForecast = s.marine_forecast;
@@ -38,9 +42,9 @@ export default function StationCard({ station: s, param, onClose, className }: P
               Centralina condivisa nell’area webcam; posizione indicativa.
             </p>
           )}
-          {s.observation_type?.startsWith("CEDOC catalog only") && (
+          {(cedoc && !s.last) && (
             <p className="mt-0.5 text-[10px] leading-snug text-amber-200/80" data-testid="station-card-cedoc-unavailable">
-              Stazione presente nell’anagrafica CEDOC, ma senza una misura pluviometrica recente verificabile.
+              Nessuna misura pluviometrica acquisita per questa stazione.
             </p>
           )}
         </div>
@@ -50,9 +54,9 @@ export default function StationCard({ station: s, param, onClose, className }: P
       </div>
 
       <div className="mt-2 flex items-end gap-2">
-        <div className="text-[11px] text-slate-400">{param.label}</div>
+        <div className="text-[11px] text-slate-400">{stationParameterLabel(s, param)}</div>
         <div className="ml-auto font-num text-3xl font-semibold leading-none" data-testid="station-card-value">
-          {v !== null ? fmtValue(v, param) : "n.d."}
+          {v !== null ? fmtValue(v, param) : cedoc && s.last ? "—" : "n.d."}
           {v !== null && <span className="ml-1 text-sm font-normal text-slate-400">{param.unit}</span>}
         </div>
       </div>
@@ -60,9 +64,13 @@ export default function StationCard({ station: s, param, onClose, className }: P
         <div className="mt-1 text-[11px] text-slate-400">Fonte 48 h: {s.rain_48h_source === "cedoc_direct" ? "dato diretto CEDOC" : (s.rain_48h_source ?? "n.d.")}</div>
       )}
 
-      <div className="mt-3 flex items-center gap-1.5 font-num text-[11px] text-slate-300" data-testid="station-card-time">
-        <Clock className="size-3 shrink-0" /> {(s.network === "mareografico" || s.network === "ron") ? `Ultimo rilievo ${s.network === "ron" ? "RON" : "ISPRA"}: ${fmtTime(s.last)}` : `Osservazione: ${fmtTime(s.last)}`}
-      </div>
+      {(!cedoc || selectedTime) && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 font-num text-[11px] text-slate-300" data-testid="station-card-time">
+          <Clock className="size-3 shrink-0" /> {(s.network === "mareografico" || s.network === "ron") ? `Ultimo rilievo ${s.network === "ron" ? "RON" : "ISPRA"}: ${fmtTime(s.last)}` : `${selectedMeasurement?.observed_at_basis ? "Rilevamento CEDOC" : "Osservazione"} ${fmtTime(selectedTime)}`}
+          {cedoc && <span className={cn("rounded border px-1.5 py-0.5", FRESHNESS_CLASS[selectedFreshness])}>{FRESHNESS_LABEL[selectedFreshness]}</span>}
+          {selectedMeasurement?.retained && <span>Ultima misura conservata</span>}
+        </div>
+      )}
       {s.temperature_quality_note && <p className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-2 py-1.5 text-[10px] leading-snug text-amber-200/90" data-testid="station-card-temperature-quality-note">{s.temperature_quality_note}</p>}
       {s.network !== "mareografico" && s.network !== "ron" && <div className="mt-1.5 flex items-start gap-1 text-[11px] text-slate-400" data-testid="station-card-elev">
         <Mountain className="mt-0.5 size-3 shrink-0" />
@@ -87,12 +95,14 @@ export default function StationCard({ station: s, param, onClose, className }: P
         <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-slate-800 pt-2 text-[11px]">
           {rows.map((p) => {
             const pv = valueOf(s, p)!;
-            const old = p.dayBound && !s.is_today;
+            const old = p.dayBound && freshnessFor(s, p) === "historic";
+            const measurement = cedocMeasurementFor(s, p);
             return (
               <div key={p.key} className="flex justify-between gap-2">
-                <dt className="text-slate-400">{p.label}{old ? " *" : ""}</dt>
+                <dt className="text-slate-400">{stationParameterLabel(s, p)}{old && !cedoc ? " *" : ""}</dt>
                 <dd className={cn("font-num", old ? "text-slate-500" : "text-slate-100")}>
                   {fmtValue(pv, p)} {p.unit}
+                  {measurement && <span className={cn("ml-1 block text-[10px] leading-snug", FRESHNESS_CLASS[measurement.freshness])}>{fmtTime(measurement.observed_at)} · {measurement.retained ? "Conservata" : FRESHNESS_LABEL[measurement.freshness]}</span>}
                   {p.key === "wind_kmh" && s.wind_dir != null ? ` ${windDirLabel(s.wind_dir)}` : ""}
                   {(p.key === "tmin" && s.tmin_provisional) || (p.key === "tmax" && s.tmax_provisional) ? (s.extrema_source?.includes("network_sampled_10min") ? " (camp.)" : " (prov.)") : ""}
                 </dd>
@@ -101,7 +111,7 @@ export default function StationCard({ station: s, param, onClose, className }: P
           })}
         </dl>
       )}
-      {rows.some((p) => p.dayBound) && !s.is_today && <p className="mt-1 text-[10px] text-slate-500">* valori del {fmtDay(s.obs_day)}</p>}
+      {!cedoc && rows.some((p) => p.dayBound) && !s.is_today && <p className="mt-1 text-[10px] text-slate-500">* valori del {fmtDay(s.obs_day)}</p>}
       {s.extrema_source?.includes("network_sampled_10min") && <p className="mt-1 text-[10px] leading-snug text-slate-500">Estremi campionati dalle letture della rete (circa ogni 10 minuti); eventuali picchi tra due rilevazioni possono non essere intercettati.</p>}
       {(s.network === "mareografico" || s.network === "ron") && (
         <>
@@ -174,16 +184,16 @@ export default function StationCard({ station: s, param, onClose, className }: P
         </>
       )}
       {s.raw_message && <p className="mt-2 break-all rounded bg-slate-950/70 p-1.5 font-num text-[10px] text-slate-400" data-testid="station-card-raw">{s.raw_message}</p>}
-      {s.network !== "mareografico" && s.network !== "ron" && !s.observation_type?.startsWith("CEDOC catalog only") && <StationHistoryChart station={s} />}
-      {s.network !== "mareografico" && s.network !== "ron" && !s.observation_type?.startsWith("CEDOC catalog only") && <ModelCompare station={s} />}
+      {s.network !== "mareografico" && s.network !== "ron" && !(cedoc && !s.last) && <StationHistoryChart station={s} />}
+      {s.network !== "mareografico" && s.network !== "ron" && !(cedoc && !s.last) && <ModelCompare station={s} />}
       {s.network === "meteonetwork" && (
         <p data-testid="station-card-mnw-credit" className="mt-2 text-[11px] text-slate-400">
           Rete amatoriale · dati © <a href="https://www.meteonetwork.it" target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">MeteoNetwork</a>, licenza CC-BY 4.0
         </p>
       )}
-      {s.source_url && (
-        <a href={s.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-sky-300 hover:underline" data-testid="station-card-source-link">
-          {s.network === "mareografico" || s.network === "ron" ? "Dati completi e storico ISPRA" : "Scheda sensore"} <ExternalLink className="size-3" />
+      {(selectedMeasurement?.source_url ?? s.source_url) && (
+        <a href={selectedMeasurement?.source_url ?? s.source_url ?? undefined} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] text-sky-300 hover:underline" data-testid="station-card-source-link">
+          {s.network === "mareografico" || s.network === "ron" ? "Dati completi e storico ISPRA" : cedoc && (selectedMeasurement?.source_url ?? s.source_url)?.includes("/stazione/") ? "Scheda stazione CEDOC" : "Scheda sensore"} <ExternalLink className="size-3" />
         </a>
       )}
     </div>

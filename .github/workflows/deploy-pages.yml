@@ -30,7 +30,7 @@ jobs:
         working-directory: frontend
         run: |
           if [ -f yarn.lock ]; then yarn install --frozen-lockfile; else yarn install --network-timeout 600000; fi
-          yarn vitest run src/lib/radarPoint.test.ts src/lib/satelliteView.test.ts src/lib/satelliteImages.test.ts src/lib/overlayImage.test.ts src/hooks/useSatelliteStack.test.ts src/lib/clientData.test.ts
+          yarn vitest run src/lib/radarPoint.test.ts src/lib/satelliteView.test.ts src/lib/satelliteImages.test.ts src/lib/overlayImage.test.ts src/hooks/useSatelliteStack.test.ts src/lib/clientData.test.ts src/lib/stationInterpolation.test.ts
       - name: Build static site
         working-directory: frontend
         env:

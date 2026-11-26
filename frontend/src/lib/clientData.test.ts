@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", () => ({ default: {} }));
 
-import { getArome, getSatellite, getWindMeta } from "./clientData";
+import { getArome, getSatellite, getStations, getWindMeta } from "./clientData";
+import { PARAM_BY_KEY, stationParameterLabel } from "./meteo";
 
 const oldRun = "2026-11-10T18:00:00Z";
 const newRun = "2026-11-11T03:00:00Z";
@@ -80,5 +81,62 @@ describe("AROME model-run changes", () => {
       ...manifests(oldRun).wind, run_time: "invalid",
     }))));
     await expect(getWindMeta()).rejects.toThrow("Corsa dei vettori vento AROME non valida");
+  });
+});
+
+describe("CEDOC station measurements", () => {
+  const source = "https://www.sardegnacedoc.it/idrografico";
+  const at = new Date("2026-11-26T00:20:00Z");
+  const catalog = (station_id: string) => ({ station_id, name: `Sito ${station_id}`, lat: 39.30139, lon: 8.56361 });
+  const measurement = (value: number, observed_at: string, retained = false) =>
+    ({ value, observed_at, fetched_at: "2026-11-26T00:15:00Z", unit: "mm", status: "fresh", retained, source_url: `${source}/stazione/451800` });
+  const report = (stations: object[], extra: object = {}) => ({ stations, generated_at: "2026-11-26T00:16:00Z", ...extra });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("merges live, historical and catalog rows by code, with separate times for each variable", async () => {
+    vi.useFakeTimers({ now: at });
+    let live: object | null = report([
+      { ...catalog("451800"), name: "Iglesias RF", sensor_id: "35523", variables: {
+        rain_48h: measurement(53.8, "2026-11-25T22:50:00Z"),
+      } },
+    ], { status: "degraded", coverage: { censused: 3, unreachable: 1 } });
+    const archived = report([
+      { ...catalog("451800"), sensor_id: "35523", variables: {
+        rain_today: measurement(7, "2026-11-25T22:45:00Z"),
+        rain_48h: measurement(46.8, "2026-11-25T22:45:00Z"),
+      } },
+      { ...catalog("426400"), last: "2026-11-24T09:35:00Z", rain_48h: 0, source_url: `${source}/sensore/426400/33147/20207` },
+    ]);
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.includes("/cedoc.json?")) return live === null ? new Response("", { status: 503 }) : Response.json(live);
+      if (url.includes("/cedoc_last_valid.json?")) return Response.json(archived);
+      if (url.includes("/cedoc_sites.json?")) return Response.json(report([catalog("451800"), catalog("426400"), catalog("505900")]));
+      return Response.json({ stations: [] });
+    }));
+
+    const result = await getStations();
+    const iglesias = result.stations.find((s) => s.id === "cedoc:451800")!;
+    expect(iglesias).toMatchObject({
+      name: "Iglesias RF", rain_48h: 53.8, rain_today: 7,
+      cedoc: {
+        rain_48h: { value: 53.8, freshness: "fresh", retained: false },
+        rain_today: { value: 7, local_day: "2026-11-25", observed_at: "2026-11-25T22:45:00Z", freshness: "historic", retained: true },
+      },
+    });
+    expect(stationParameterLabel(iglesias, PARAM_BY_KEY.rain_today)).toBe("Pioggia del 25/11/2026");
+    expect(result.stations.find((s) => s.id === "cedoc:426400")).toMatchObject({ freshness: "historic", rain_48h: 0 });
+    expect(result.stations.find((s) => s.id === "cedoc:505900")).toMatchObject({ freshness: "unavailable", rain_48h: null });
+    expect(result.networks.find((n) => n.key === "cedoc")).toMatchObject({
+      status: "degraded", with_measure_count: 2, without_measure_count: 1, unreachable_count: 1,
+    });
+
+    live = null;
+    const outage = await getStations();
+    expect(outage.stations.find((s) => s.id === iglesias.id)?.cedoc?.rain_48h).toMatchObject({
+      value: 53.8, freshness: "stale", retained: true, observed_at: "2026-11-25T22:50:00Z",
+    });
+    live = { error: "Invalid JSON object for this feed" };
+    expect((await getStations()).stations.find((s) => s.id === iglesias.id)?.rain_48h).toBe(53.8);
   });
 });

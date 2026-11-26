@@ -2,6 +2,17 @@
 export type Freshness = "fresh" | "stale" | "historic" | "unavailable";
 export type SourceStatus = "ok" | "degraded" | "unavailable";
 
+export interface CedocMeasurement {
+  value: number;
+  observed_at: string;
+  fetched_at: string | null;
+  local_day: string;
+  source_url: string | null;
+  freshness: Freshness;
+  retained: boolean;
+  observed_at_basis?: "station_precipitation_report";
+}
+
 export interface Station {
   id: string;
   name: string;
@@ -35,6 +46,7 @@ export interface Station {
   age_min: number | null;
   freshness: Freshness;
   rain_only: boolean;
+  cedoc?: Partial<Record<"rain_today" | "rain_48h", CedocMeasurement>>;
   observation_type: string | null;
   raw_message: string | null;
   source_url: string | null;
@@ -65,6 +77,10 @@ export interface NetworkStatus {
   stale_count: number;
   historic_count: number;
   using_last_valid: boolean;
+  with_measure_count?: number;
+  without_measure_count?: number;
+  unreachable_count?: number | null;
+  sensor_coverage?: { with_value: number; without_value: number; unreachable: number };
   warning: string | null;
 }
 

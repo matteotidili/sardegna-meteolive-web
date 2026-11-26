@@ -121,19 +121,23 @@ export function colorFor(p: ParamDef, v: number): string {
   if (p.rain || p.key === "temp" || p.key === "tmin" || p.key === "tmax") {
     // Interpolazione lineare RGB: il colore non salta più fra soglie discrete.
     const stops = p.rain ? p.key === "rain_rate" ? RATE_GRADIENT : RAIN_GRADIENT : TEMP_GRADIENT;
-    if (v <= stops[0].value) return stops[0].color;
-    for (let i = 1; i < stops.length; i++) {
-      const a = stops[i - 1], b = stops[i];
-      if (v <= b.value) {
-        const t = p.rain ? (Math.log1p(v) - Math.log1p(a.value)) / (Math.log1p(b.value) - Math.log1p(a.value)) : (v - a.value) / (b.value - a.value);
-        const ca = [1, 3, 5].map((k) => parseInt(a.color.slice(k, k + 2), 16));
-        const cb = [1, 3, 5].map((k) => parseInt(b.color.slice(k, k + 2), 16));
-        return "#" + ca.map((x, j) => Math.round(x + (cb[j] - x) * t).toString(16).padStart(2, "0")).join("");
-      }
-    }
-    return stops[stops.length - 1].color;
+    return gradientColor(v, stops, p.rain);
   }
   return (p.ramp.find((stop) => v <= stop.max) ?? p.ramp[p.ramp.length - 1]).color;
+}
+
+export function gradientColor(v: number, stops: readonly { value: number; color: string }[], logarithmic = false): string {
+  if (v <= stops[0].value) return stops[0].color;
+  for (let i = 1; i < stops.length; i++) {
+    const a = stops[i - 1], b = stops[i];
+    if (v <= b.value) {
+      const t = logarithmic ? (Math.log1p(v) - Math.log1p(a.value)) / (Math.log1p(b.value) - Math.log1p(a.value)) : (v - a.value) / (b.value - a.value);
+      const ca = [1, 3, 5].map((k) => parseInt(a.color.slice(k, k + 2), 16));
+      const cb = [1, 3, 5].map((k) => parseInt(b.color.slice(k, k + 2), 16));
+      return "#" + ca.map((x, j) => Math.round(x + (cb[j] - x) * t).toString(16).padStart(2, "0")).join("");
+    }
+  }
+  return stops[stops.length - 1].color;
 }
 
 export function valueOf(s: Station, p: ParamDef): number | null {
@@ -158,9 +162,40 @@ export function valueOf(s: Station, p: ParamDef): number | null {
 
 /** Effective freshness for a parameter: a daily value from a past day is always historic. */
 export function freshnessFor(s: Station, p: ParamDef): Freshness {
+  if (s.cedoc && p.rain) return cedocMeasurementFor(s, p)?.freshness ?? "unavailable";
   if (p.dayBound && !s.is_today && s.freshness !== "unavailable") return "historic";
   return s.freshness;
 }
+
+export function cedocMeasurementFor(s: Station, p: ParamDef) {
+  return p.key === "rain_today" || p.key === "rain_48h" ? s.cedoc?.[p.key] : undefined;
+}
+
+export function observationTimeFor(s: Station, p: ParamDef): string | null {
+  return s.cedoc ? cedocMeasurementFor(s, p)?.observed_at ?? null : s.last;
+}
+
+export function stationParameterLabel(s: Station, p: ParamDef): string {
+  const daily = s.cedoc?.rain_today;
+  if (p.key === "rain_today" && daily && daily.local_day !== ROME_LOCAL_DAY.format(new Date())) {
+    return `Pioggia del ${fmtDay(daily.local_day)}`;
+  }
+  return p.label;
+}
+
+export function stationMarkerValue(s: Station, p: ParamDef, value: number | null): string {
+  if (value === null) return s.last && s.cedoc ? "•" : "n.d.";
+  const historicDay = p.key === "rain_today" && stationParameterLabel(s, p) !== p.label;
+  return fmtValue(value, p) + (historicDay ? "*" : "");
+}
+
+export function stationMarkerTitle(s: Station, p: ParamDef, v: number | null): string {
+  if (!s.cedoc) return v === null ? s.name : `${s.name} · ${fmtValue(v, p)} ${p.unit}`;
+  if (v === null) return `${s.name} · ${s.last ? "Disponibili altri dati pluviometrici" : "Nessuna misura acquisita"}`;
+  return `${s.name} · ${stationParameterLabel(s, p)} ${fmtValue(v, p)} ${p.unit} · ${fmtTime(observationTimeFor(s, p))} · ${FRESHNESS_LABEL[freshnessFor(s, p)]}`;
+}
+
+const ROME_LOCAL_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" });
 
 export function fmtValue(v: number, p: ParamDef): string {
   return v.toLocaleString("it-IT", { minimumFractionDigits: p.decimals, maximumFractionDigits: p.decimals });

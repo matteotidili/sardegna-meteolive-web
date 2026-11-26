@@ -6,7 +6,7 @@
  * station-vs-model point values. Upstream files are cache-busted every 30 seconds.
  */
 import type {
-  AlertWarning, AlertsResponse, AromeFrame, AromeParameter, AromeResponse, FireDetection, Freshness, FrpResponse,
+  AlertWarning, AlertsResponse, AromeFrame, AromeParameter, AromeResponse, CedocMeasurement, FireDetection, Freshness, FrpResponse,
   ModelPoint, NetworkStatus, PointValue, RadarFrames, Rain48Response, SatelliteFrames, Station, StationsResponse,
   WindGrid, WindMeta,
 } from "@/lib/types";
@@ -17,14 +17,16 @@ const RADAR_API = "https://radar-api.protezionecivile.it";
 
 type Json = Record<string, unknown>;
 const lastGood = new Map<string, unknown>();
+const cedocLatest = new Map<string, Partial<Record<CedocVariable, CedocMeasurement>>>();
 
-async function getJson<T = Json>(path: string, bustSec = 30): Promise<{ data: T | null; retained: boolean }> {
+async function getJson<T = Json>(path: string, bustSec = 30, valid?: (data: T) => boolean): Promise<{ data: T | null; retained: boolean }> {
   const url = (path.startsWith("http") ? path : DATA_BASE + path);
   const sep = url.includes("?") ? "&" : "?";
   try {
     const r = await fetch(`${url}${sep}t=${Math.floor(Date.now() / 1000 / bustSec)}`, { cache: "no-store" });
     if (!r.ok) throw new Error(String(r.status));
     const d = (await r.json()) as T;
+    if (valid && !valid(d)) throw new Error("Struttura del feed non valida");
     lastGood.set(url, d);
     return { data: d, retained: false };
   } catch {
@@ -130,6 +132,140 @@ function status(key: string, label: string, source: string, rows: Station[], p: 
   };
 }
 
+const CEDOC_VARIABLES = ["rain_today", "rain_48h"] as const;
+type CedocVariable = typeof CEDOC_VARIABLES[number];
+const cedocRows = (feed: Json) => (feed.stations as Json[] | undefined) ?? [];
+const validCedocFeed = (feed: Json) => !!feed && Array.isArray(feed.stations)
+  && feed.stations.every((row: unknown) => !!row && typeof row === "object");
+const cedocStationId = (row: Json) => /^\d+$/.test(String(row.station_id)) ? String(row.station_id) : null;
+function cedocSensorId(row: Json): string | null {
+  if (/^\d+$/.test(String(row.sensor_id))) return String(row.sensor_id);
+  if (Object.hasOwn(row, "sensor_id")) return null; // Explicit station-level record.
+  const path = String(row.source_url ?? "").match(/\/sensore\/(\d+)\/(\d+)\//);
+  return path && path[1] === cedocStationId(row) ? path[2] : null;
+}
+
+function cedocMeasurement(row: Json, key: CedocVariable, retained: boolean, now: Date, today: string): CedocMeasurement | null {
+  const variables = row.variables as Partial<Record<CedocVariable, Json>> | undefined;
+  const measurement = variables?.[key];
+  if (variables && (!measurement || measurement.unit !== "mm"
+    || measurement.status === "invalid" || measurement.status === "unavailable")) return null;
+  const rawValue = measurement ? measurement.value : row[key];
+  if (typeof rawValue !== "number" && (typeof rawValue !== "string" || !/^\d+(?:[.,]\d+)?$/.test(rawValue.trim()))) return null;
+  const value = Number(String(rawValue).replace(",", "."));
+  const observed = parse(measurement ? measurement.observed_at : row.last);
+  if (!Number.isFinite(value) || value < 0 || value > 1800 || !observed || observed.getTime() > now.getTime() + 360000) return null;
+  retained ||= measurement?.retained === true;
+  const day = romeDay(observed);
+  const age = (now.getTime() - observed.getTime()) / 60000;
+  const [fresh, stale] = THRESHOLDS.cedoc;
+  const freshness = age > stale || key === "rain_today" && day !== today
+    ? "historic" : age > fresh || retained ? "stale" : "fresh";
+  const source = measurement ? measurement.source_url : row.source_url;
+  return { value, observed_at: iso(observed)!, fetched_at: iso(parse(measurement?.fetched_at)),
+    local_day: day, source_url: typeof source === "string" && source.startsWith("https://www.sardegnacedoc.it/idrografico/") ? source : null,
+    freshness, retained,
+    observed_at_basis: measurement?.observed_at_basis === "station_precipitation_report" ? "station_precipitation_report" : undefined };
+}
+
+async function loadCedoc(now: Date, today: string, withDtm: (s: Station, r: Json) => Station) {
+  const [liveResult, snapshotResult, sitesResult] = await Promise.all([
+    getJson("data/cedoc.json", 30, validCedocFeed),
+    getJson("data/cedoc_last_valid.json", 30, validCedocFeed),
+    getJson("data/cedoc_sites.json", 600, validCedocFeed),
+  ]);
+  const live = liveResult.data ?? {}, snapshot = snapshotResult.data ?? {};
+  const groups = new Map<string, { live: Json[]; snapshot: Json[]; site?: Json }>();
+  for (const [kind, feed] of [["site", sitesResult.data ?? {}], ["snapshot", snapshot], ["live", live]] as const) {
+    for (const row of cedocRows(feed)) {
+      const code = cedocStationId(row);
+      if (!code) continue;
+      const group = groups.get(code) ?? { live: [], snapshot: [] };
+      if (kind === "site") group.site = row;
+      else group[kind].push(row);
+      groups.set(code, group);
+    }
+  }
+
+  const rows: Station[] = [];
+  const freshnessOrder = ["fresh", "stale", "historic", "unavailable"] as const;
+  const stationFreshness = new Map<string, Freshness>();
+  let fallback = false;
+  for (const [code, group] of groups) {
+    const feedRows = [...group.snapshot, ...group.live];
+    const explicit = new Set(feedRows.map(cedocSensorId).filter((id) => id !== null));
+    const identities = new Set(feedRows.map((row) => explicit.size === 1 ? [...explicit][0] : cedocSensorId(row)));
+    if (!identities.size) identities.add(null);
+    for (const sensor of identities) {
+      const id = identities.size === 1 || !sensor ? `cedoc:${code}` : `cedoc:${code}:${sensor}`;
+      const matches = (row: Json) => identities.size === 1 || cedocSensorId(row) === sensor;
+      const liveRows = group.live.filter(matches), snapshots = group.snapshot.filter(matches);
+      const measurements: NonNullable<Station["cedoc"]> = {};
+      const cacheKey = `${code}:${sensor ?? ""}`;
+      for (const variable of CEDOC_VARIABLES) {
+        const cached = cedocLatest.get(cacheKey)?.[variable];
+        const candidates = [
+          ...liveRows.map((row) => cedocMeasurement(row, variable, liveResult.retained, now, today)),
+          ...snapshots.map((row) => cedocMeasurement(row, variable, true, now, today)),
+          cached ? cedocMeasurement({ variables: { [variable]: { ...cached, unit: "mm" } } }, variable, true, now, today) : null,
+        ].filter((entry): entry is CedocMeasurement => entry !== null);
+        const best = candidates.sort((a, b) => Date.parse(b.observed_at) - Date.parse(a.observed_at))[0];
+        if (best) { measurements[variable] = best; fallback ||= best.retained; }
+      }
+      cedocLatest.set(cacheKey, measurements);
+      const validCoordinates = (r: Json) => {
+        const lat = num(r.lat), lon = num(r.lon);
+        return lat !== null && lon !== null && lat >= 38.6 && lat <= 41.5 && lon >= 7.5 && lon <= 10.4;
+      };
+      const measured = Object.values(measurements).filter(Boolean);
+      const freshness = freshnessOrder.find((f) => measured.some((m) => m.freshness === f)) ?? "unavailable";
+      const previousFreshness = stationFreshness.get(code);
+      if (!previousFreshness || freshnessOrder.indexOf(freshness) < freshnessOrder.indexOf(previousFreshness)) {
+        stationFreshness.set(code, freshness);
+      }
+      const latest = measured.sort((a, b) => Date.parse(b.observed_at) - Date.parse(a.observed_at))[0];
+      const geography = [...liveRows, ...snapshots, ...(group.site ? [group.site] : [])].find(validCoordinates);
+      if (!geography) continue;
+      const raw = { ...group.site, ...geography, station_id: code,
+        last: latest?.observed_at, rain_today: measurements.rain_today?.value, rain_48h: measurements.rain_48h?.value,
+        rain_48h_source: measurements.rain_48h ? "cedoc_direct" : null,
+        source_url: latest?.source_url ?? geography.source_url, available: {} };
+      const station = normalize(raw, "cedoc", now, today, true);
+      if (!station) continue;
+      station.id = id;
+      station.cedoc = measurements;
+      station.freshness = freshness;
+      rows.push(withDtm(station, raw));
+    }
+  }
+
+  const stationCoverage = live.station_coverage as Json | undefined;
+  const coverage = stationCoverage ?? live.coverage as Json | undefined;
+  const count = num(coverage?.censused ?? live.catalog_count) ?? stationFreshness.size;
+  const sensors = live.sensor_coverage as Json | undefined;
+  const sensorValues = num(sensors?.with_value), sensorMissing = num(sensors?.without_value), sensorUnreachable = num(sensors?.unreachable);
+  const sensorCoverage = sensorValues !== null && sensorMissing !== null && sensorUnreachable !== null
+    ? { with_value: sensorValues, without_value: sensorMissing, unreachable: sensorUnreachable } : undefined;
+  const freshnessCounts = { fresh: 0, stale: 0, historic: 0, unavailable: 0 };
+  stationFreshness.forEach((freshness) => { freshnessCounts[freshness]++; });
+  const stationValues = stationFreshness.size - freshnessCounts.unavailable;
+  const stationCount = Math.max(count, stationFreshness.size);
+  const failed = liveResult.retained || !liveResult.data || !live.stations || cedocRows(live).length === 0;
+  const warning = failed ? "Feed CEDOC non raggiungibile. Dove disponibile è mostrata l’ultima misura verificata."
+    : (live.warning as string | undefined) ?? null;
+  const network = status("cedoc", "CEDOC Pluviometri", (live.source as string) ?? "Sardegna CEDOC / ADIS", rows, live, {
+    status: stationValues === 0 ? "unavailable" : failed || !freshnessCounts.fresh || fallback || live.status !== "ok"
+      || stationValues < count ? "degraded" : "ok",
+    using_last_valid: fallback,
+    warning,
+  });
+  return { rows, network: { ...network, station_count: stationCount,
+    with_measure_count: stationValues, without_measure_count: stationCount - stationValues,
+    unreachable_count: num(coverage?.unreachable), sensor_coverage: sensorCoverage,
+    fresh_count: freshnessCounts.fresh, stale_count: freshnessCounts.stale, historic_count: freshnessCounts.historic,
+  } };
+}
+
 export async function getStations(): Promise<StationsResponse> {
   const now = new Date(), today = romeDay(now);
   const stations: Station[] = [], networks: NetworkStatus[] = [];
@@ -151,36 +287,9 @@ export async function getStations(): Promise<StationsResponse> {
       warning: !data ? "Sorgente non raggiungibile: nessun dato disponibile." : retained ? "Aggiornamento non riuscito: mostrato l'ultimo dataset valido scaricato." : null,
     }));
   });
-  // CEDOC: live file, otherwise last valid snapshot explicitly marked as such
-  const [liveResult, sitesResult] = await Promise.all([
-    getJson("data/cedoc.json"), getJson("data/cedoc_sites.json"),
-  ]);
-  const live = (liveResult.data ?? {}) as Json;
-  let rows = ((live.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
-  let opts: Partial<NetworkStatus> = { warning: (live.warning as string) ?? null };
-  let payload = live;
-  if (!rows.length) {
-    const lv = ((await getJson("data/cedoc_last_valid.json", 600)).data ?? {}) as Json;
-    rows = ((lv.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
-    if (rows.length) {
-      payload = { ...lv, checked_at: live.generated_at };
-      opts = { status: "degraded", using_last_valid: true,
-        warning: `${(live.warning as string) ?? "Portale CEDOC non disponibile."} Mostrato l'ultimo snapshot valido (${lv.local_day ?? "data ignota"}), NON aggiornato.` };
-    }
-  }
-  const measured = new Set(rows.map((s) => s.id));
-  const sites = (((sitesResult.data ?? {}) as Json).stations as Json[] | undefined) ?? [];
-  const catalogueOnly: Station[] = sites.flatMap((site) => {
-    const id = "cedoc:" + (site.station_id ?? site.name);
-    if (measured.has(id)) return [];
-    const station = normalize({ ...site, rain_today: null, rain_48h: null, last: null }, "cedoc", now, today, true);
-    if (!station) return [];
-    station.observation_type = "CEDOC catalog only · nessuna misura recente disponibile";
-    return [station];
-  });
-  const allCedoc = [...rows, ...catalogueOnly];
-  stations.push(...allCedoc);
-  networks.push(status("cedoc", "CEDOC Pluviometri", (live.source as string) ?? "Sardegna CEDOC / ADIS", allCedoc, payload, opts));
+  const cedoc = await loadCedoc(now, today, withDtm);
+  stations.push(...cedoc.rows);
+  networks.push(cedoc.network);
   return { server_time: iso(now)!, local_day: today, stations, networks };
 }
 

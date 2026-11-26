@@ -17,7 +17,7 @@ import HealthDialog from "@/components/HealthDialog";
 import { AromeLegend, DpcAccumulationLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationInterpolationLegend, StationLegend } from "@/components/Legends";
 import { useAlerts, useArome, useAromePoint, useDpcAccumulation, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
-import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, type ParamKey } from "@/lib/meteo";
+import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, observationTimeFor, stationParameterLabel, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
 import { useLightning } from "@/lib/lightning";
 import { useLiveWind } from "@/lib/liveWind";
@@ -36,7 +36,7 @@ import { useHydrometers } from "@/lib/hydro";
 import { useMarineCatalog, useMarineVectors } from "@/hooks/useMarine";
 import { marineImageUrl, type MarineForcing, type MarineModel, type MarineParameter } from "@/lib/marine";
 import { marineViewportBounds } from "@/lib/marineViewport";
-import { interpolationSamples, type InterpolationKey } from "@/lib/stationInterpolation";
+import { interpolationParam, interpolationSamples, type InterpolationKey } from "@/lib/stationInterpolation";
 
 const BASEMAP_LABEL: Record<Basemap, string> = { dark: "Operativa scura", satellite: "Satellite", light: "Chiara", streets: "Stradale", relief: "Rilievo" };
 const DEFAULT_VIEW: MapViewState = { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
@@ -150,7 +150,7 @@ export default function Home() {
   const marine = marineQ.data?.model === marineModel ? marineQ.data : undefined;
   const marineParam: MarineParameter = marineModel === "shyfem" ? "wl" : marineParameter === "t01" ? "t01" : "hs";
 
-  const all = useMemo(() => (stationsQ.isError ? [] : stationsQ.data?.stations ?? []), [stationsQ.data, stationsQ.isError]);
+  const all = useMemo(() => stationsQ.data?.stations ?? [], [stationsQ.data]);
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     all.forEach((s) => { const group = networkGroup(s.network); c[group] = (c[group] ?? 0) + 1; });
@@ -166,20 +166,17 @@ export default function Home() {
     }),
     [all, networks, param.rain, marineView, showIspraBuoys, showRonBuoys],
   );
-  const interpolationStations = useMemo(
-    // Analysis uses every available station source, regardless of which networks
-    // are currently hidden from the map/list.
-    () => all.filter((s) => s.network !== "mareografico" && s.network !== "ron"),
-    [all],
-  );
+  const [interpolationUsed, setInterpolationUsed] = useState(0);
+  // The network filters affect the marker/list display only.
   const interpolationValid = useMemo(
-    () => interpolationSamples(interpolationStations, stationInterpolationKey),
-    [interpolationStations, stationInterpolationKey],
+    () => interpolationSamples(all, stationInterpolationKey),
+    [all, stationInterpolationKey],
   );
   const interpolationLatest = useMemo(() => interpolationValid
-    .map((x) => x.station.last).filter((x): x is string => !!x)
+    .map((x) => observationTimeFor(x.station, interpolationParam(stationInterpolationKey)))
+    .filter((x): x is string => !!x)
     .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null,
-  [interpolationValid]);
+  [interpolationValid, stationInterpolationKey]);
   const selected = all.find((s) => s.id === selectedId) ?? null;
 
   // ---- timeline state ----
@@ -444,12 +441,12 @@ export default function Home() {
       arrowCount={visible.filter((s) => s.wind_kmh != null && s.wind_dir != null && s.freshness !== "unavailable").length}
       interpolationEnabled={stationInterpolationOn} setInterpolationEnabled={setStationInterpolationOn}
       interpolationKey={stationInterpolationKey} setInterpolationKey={setStationInterpolationKey}
-      interpolationCount={interpolationValid.length} interpolationLatest={interpolationLatest ? fmtTime(interpolationLatest) : null}
+      interpolationCount={interpolationValid.length} interpolationUsed={interpolationUsed} interpolationLatest={interpolationLatest ? fmtTime(interpolationLatest) : null}
       boundaries={boundariesOn} setBoundaries={setBoundariesOn} subregions={subregionsOn} setSubregions={setSubregionsOn}
       municipalities={municipalOn} setMunicipalities={setMunicipalOn} />
   );
   const stationList = (
-    <StationList stations={visible} param={param} selectedId={selectedId} onPick={pick} networks={networks}
+    <StationList cedocStatus={stationsQ.data?.networks.find((n) => n.key === "cedoc")} stations={visible} param={param} selectedId={selectedId} onPick={pick} networks={networks}
       onToggleNetwork={(k) => setNetworks((n) => ({ ...n, [k]: n[k] === false }))}
       onSetAllNetworks={(enabled) => {
         setNetworks((current) => {
@@ -477,12 +474,13 @@ export default function Home() {
     subregions: subregionsOn, municipalities: municipalOn, marineVectors: visibleMarineVectors,
     interpolationEnabled: stationInterpolationOn && !mode3d,
     interpolationKey: stationInterpolationKey,
-    interpolationStations,
+    interpolationSamples: interpolationValid,
+    onInterpolationCoverage: setInterpolationUsed,
   };
   const legends = (
     <>
-      {stationInterpolationOn && !mode3d && <StationInterpolationLegend variable={stationInterpolationKey} latest={interpolationLatest} count={interpolationValid.length} />}
-      <StationLegend param={param} />
+      {stationInterpolationOn && !mode3d && <StationInterpolationLegend variable={stationInterpolationKey} latest={interpolationLatest} count={interpolationValid.length} used={interpolationUsed} />}
+      <StationLegend param={param} showHistoricDay={param.key === "rain_today" && visible.some((station) => stationParameterLabel(station, param) !== param.label)} />
       {hydrometersOn && <HydroLegend count={hydrometersQ.data?.length ?? 0} />}
       {accumulationLayer && <DpcAccumulationLegend product={accumulationLayer.product} time={accumulationLayer.time} />}
       {liveWindOn && !mode3d && <LiveWindLegend time={liveWindQ.isError ? "non disponibile" : liveWindTime} />}

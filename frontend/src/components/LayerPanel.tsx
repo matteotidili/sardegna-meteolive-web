@@ -76,6 +76,7 @@ interface Props {
   interpolationKey: InterpolationKey;
   setInterpolationKey: (key: InterpolationKey) => void;
   interpolationCount: number;
+  interpolationUsed: number;
   interpolationLatest: string | null;
 }
 
@@ -150,9 +151,14 @@ export default function LayerPanel(p: Props) {
           </SelectContent>
         </Select>
         <p className="text-[10px] leading-snug text-slate-400">
-          {p.interpolationCount} stazioni utilizzate · ultimo dato {p.interpolationLatest ?? "non disponibile"}.
+          {p.interpolationEnabled ? `${p.interpolationUsed} stazioni utilizzate su ${p.interpolationCount} idonee` : `${p.interpolationCount} stazioni idonee`} · ultimo dato {p.interpolationLatest ?? "non disponibile"}.
           {" "}Include misure fresche e quelle ancora nella finestra di ritardo dichiarata dalla rete. IDW²; niente stime oltre la copertura, precipitazioni limitate a un raggio più ristretto. Le quote note aiutano a separare stazioni di fasce altimetriche diverse; manca un DEM per correggere ogni cella.
-          {p.interpolationEnabled && p.interpolationCount < 3 && <span className="mt-1 block text-amber-200">Servono almeno 3 stazioni recenti con questa misura per disegnare l’area.</span>}
+          {p.interpolationEnabled && !p.is3d && p.interpolationUsed === 0 && (
+            <span className="mt-1 block text-amber-200" data-testid="station-interpolation-no-coverage">
+              {p.interpolationCount < 3 ? "Servono almeno 3 stazioni recenti con questa misura."
+                : "Nessuna area nella vista è coperta da almeno 3 stazioni entro il raggio della variabile."}
+            </span>
+          )}
         </p>
       </div>
 
