@@ -120,8 +120,6 @@ export default function LayerPanel(p: Props) {
       <div className={SECTION}>Osservazioni radar</div>
       <Toggle testid="layer-toggle-radar-vmi" on={p.anim === "radar-VMI"} onClick={() => toggleAnim("radar-VMI")}
         icon={<Radar className="size-4" />} title="Radar DPC · VMI" sub="Massima riflettività verticale (dBZ)" />
-      <Toggle testid="layer-toggle-radar-sri" on={p.anim === "radar-SRI"} onClick={() => toggleAnim("radar-SRI")}
-        icon={<Radar className="size-4" />} title="Radar DPC · SRI" sub="Intensità di precipitazione al suolo (mm/h)" />
       <Toggle testid="layer-toggle-radar-opera" on={p.anim === "radar-OPERA"} onClick={() => toggleAnim("radar-OPERA")}
         icon={<Radar className="size-4" />} title="Radar Europa · OPERA" sub="EUMETNET NIMBUS rain rate (mm/h) · passo 15 min" />
       <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5" data-testid="dpc-accumulation-control">
@@ -152,8 +150,9 @@ export default function LayerPanel(p: Props) {
           </SelectContent>
         </Select>
         <p className="text-[10px] leading-snug text-slate-400">
-          {p.interpolationCount} stazioni con dato valido · ultimo dato {p.interpolationLatest ?? "non disponibile"}.
-          {" "}IDW²; niente stime oltre la copertura, precipitazioni limitate a un raggio più ristretto. Le quote note aiutano a separare stazioni di fasce altimetriche diverse; manca un DEM per correggere ogni cella.
+          {p.interpolationCount} stazioni utilizzate · ultimo dato {p.interpolationLatest ?? "non disponibile"}.
+          {" "}Include misure fresche e quelle ancora nella finestra di ritardo dichiarata dalla rete. IDW²; niente stime oltre la copertura, precipitazioni limitate a un raggio più ristretto. Le quote note aiutano a separare stazioni di fasce altimetriche diverse; manca un DEM per correggere ogni cella.
+          {p.interpolationEnabled && p.interpolationCount < 3 && <span className="mt-1 block text-amber-200">Servono almeno 3 stazioni recenti con questa misura per disegnare l’area.</span>}
         </p>
       </div>
 
@@ -216,8 +215,8 @@ export default function LayerPanel(p: Props) {
 
       {p.anim !== "none" && (
         <label className="block pt-1">
-          <span className="flex justify-between text-[11px] text-slate-400">Opacità layer <span className="font-num">{Math.round(op * 100)}%</span></span>
-          <input data-testid="layer-opacity-slider" type="range" min={0.3} max={1} step={0.05} value={op}
+          <span className="flex justify-between text-[11px] text-slate-400">{p.anim.startsWith("radar-") ? "Opacità radar · 2D e 3D" : "Opacità layer"} <span className="font-num">{Math.round(op * 100)}%</span></span>
+          <input data-testid="layer-opacity-slider" aria-label={p.anim.startsWith("radar-") ? "Opacità radar 2D e 3D" : "Opacità layer"} type="range" min={0} max={1} step={0.05} value={op}
             onPointerDown={() => { dragging.current = true; }}
             onChange={(e) => { setOp(Number(e.target.value)); if (!dragging.current) p.setOpacity(Number(e.target.value)); }}
             onPointerUp={() => { dragging.current = false; p.setOpacity(op); }}
