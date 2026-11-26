@@ -27,14 +27,16 @@ const plausible: Record<InterpolationKey, [number, number]> = {
   wind_kmh: [0, 250], gust_kmh: [0, 350],
 };
 
-/** Keep only recent, current observations; the source values are never changed. */
+/** Keep recent observations (fresh or still within their network's stale window).
+ * Network visibility is a map presentation choice and must not disable analysis. */
 export function interpolationSamples(stations: Station[], key: InterpolationKey): InterpolationSample[] {
   const param = interpolationParam(key), [low, high] = plausible[key];
   return stations.flatMap((station) => {
     if (!Number.isFinite(station.lat) || !Number.isFinite(station.lon)
       || station.lat < -90 || station.lat > 90 || station.lon < -180 || station.lon > 180
-      || station.network === "mareografico" || station.network === "ron"
-      || freshnessFor(station, param) !== "fresh") return [];
+      || station.network === "mareografico" || station.network === "ron") return [];
+    const freshness = freshnessFor(station, param);
+    if (freshness !== "fresh" && freshness !== "stale") return [];
     const value = valueOf(station, param);
     if (value == null || value < low || value > high) return [];
     return [{ station, value }];
