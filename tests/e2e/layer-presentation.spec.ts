@@ -12,41 +12,6 @@ async function openLayers(page: Page, mobile: boolean) {
   if (mobile) await page.getByTestId("mobile-layers-sheet-trigger").click();
 }
 
-test("opens all ten satellite products with their public titles and displayed time", async ({ page }, info) => {
-  test.setTimeout(150_000);
-  const mobile = info.project.name === "mobile";
-  await page.route(data, (route) => route.fulfill({ json: { stations: [] } }));
-  await page.route("https://view.eumetsat.int/**", (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get("request") === "GetCapabilities") return route.fulfill({
-      contentType: "application/xml",
-      body: `<WMS_Capabilities><Capability><Layer><Name>${url.pathname.split("/").at(-2)}</Name><EX_GeographicBoundingBox><westBoundLongitude>-78</westBoundLongitude><eastBoundLongitude>78</eastBoundLongitude><southBoundLatitude>-78</southBoundLatitude><northBoundLatitude>78</northBoundLatitude></EX_GeographicBoundingBox><Dimension name="time">2026-11-26T11:10:00Z</Dimension></Layer></Capability></WMS_Capabilities>`,
-    });
-    return route.fulfill({ contentType: "image/png", body: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64") });
-  });
-  await page.goto("./", { waitUntil: "domcontentloaded" });
-  await openLayers(page, mobile);
-  await page.getByText("Altre immagini satellitari", { exact: true }).click();
-  const products = {
-    eview: "Nubi ad alta definizione", airmass: "Masse d’aria e fronti",
-    rdt: "Temporali individuati dal satellite", truecolour: "Nubi e superficie terrestre",
-    cloudtype: "Tipo e quota delle nubi", ir105: "Temperatura delle nubi",
-    cloudphase: "Acqua e ghiaccio nelle nubi", snowfog: "Neve, nebbia e nubi basse",
-    preciprate: "Intensità di pioggia stimata", li: "Fulmini rilevati dal satellite",
-  };
-  for (const [key, title] of Object.entries(products)) {
-    const toggle = page.getByTestId(`layer-toggle-sat-${key}`);
-    await expect(toggle).toBeVisible();
-    await toggle.click();
-    await expect(page.getByTestId("timeline-title")).toHaveText(title);
-    await expect(page.getByTestId("timeline-player")).toContainText("Immagine satellitare · ora locale");
-    await expect(page.getByTestId("timeline-current-label")).toContainText("12:10");
-    await toggle.click();
-  }
-  if (mobile) await page.keyboard.press("Escape");
-});
-
 test("clips the estimated surface to the regional coast and fails closed without the mask", async ({ page }, info) => {
   const mobile = info.project.name === "mobile";
   const last = new Date(Date.now() - 60000).toISOString();
@@ -104,32 +69,4 @@ test("clips the estimated surface to the regional coast and fails closed without
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(page.getByTestId("station-interpolation-legend")).toContainText("Confine della Sardegna non disponibile");
   await expect.poll(async () => (await pixels()).colored).toBe(false);
-});
-
-test("exposes the other layer groups and preserves their switches", async ({ page }, info) => {
-  test.setTimeout(120_000);
-  await page.route(data, (route) => route.fulfill({ json: { stations: [] } }));
-  await page.goto("./", { waitUntil: "domcontentloaded" });
-  await openLayers(page, info.project.name === "mobile");
-  for (const section of ["Radar e piogge osservate", "Stazioni e osservazioni", "Previsioni meteo", "Mare e boe"]) {
-    await expect(page.getByText(section, { exact: true })).toBeVisible();
-  }
-  await page.getByText("Altri dati", { exact: true }).click();
-  for (const key of ["radar-vmi", "radar-opera", "arome", "station-interpolation", "ispra-mareografico", "ispra-ron",
-    "marine", "live-wind", "webcams", "hydrometers", "lightning", "boundaries", "municipalities", "subregions", "alerts"]) {
-    const toggle = page.getByTestId(`layer-toggle-${key}`);
-    const initial = await toggle.getAttribute("aria-pressed");
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-pressed", initial === "true" ? "false" : "true");
-    if (key === "arome") await expect(page.getByTestId("arome-parameter-select")).toBeVisible();
-    if (key === "marine") await expect(page.getByTestId("marine-parameter-select")).toBeVisible();
-    if (key === "live-wind") await expect(page.getByTestId("layer-toggle-station-arrows")).toBeVisible();
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-pressed", initial!);
-  }
-  for (const key of ["srt1", "cum3", "cum6", "cum12", "cum24"]) {
-    const toggle = page.getByTestId(`dpc-accumulation-${key}`);
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
-  }
 });

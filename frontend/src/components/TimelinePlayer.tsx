@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   title: string;
-  kind?: string;
   labels: string[];
   index: number;
   setIndex: (i: number, direction?: number) => void;
@@ -24,9 +23,8 @@ export default function TimelinePlayer(p: Props) {
   const step = (d: number) => { p.setPlaying(false); p.setIndex((p.index + d + n) % n, d); };
   return (
     <div data-testid="timeline-player" className="hud-in pointer-events-auto rounded-2xl border border-slate-800 bg-slate-900/95 p-3 text-slate-100 shadow-2xl shadow-black/60 backdrop-blur-xl">
-      {p.kind && <div className={cn("mb-1 text-[10px] font-medium", p.kind === "Previsione" ? "text-amber-200" : "text-sky-200")}>{p.kind} · ora locale</div>}
       <div className="flex items-start gap-2">
-        <span className="min-w-0 flex-1 text-xs font-medium leading-snug text-slate-100" data-testid="timeline-title">{p.title}</span>
+        <span className="min-w-0 flex-1 text-[10px] uppercase leading-relaxed tracking-[0.12em] text-sky-300" data-testid="timeline-title">{p.title}</span>
         {p.loading && <Loader2 className="size-3 animate-spin text-slate-400" data-testid="timeline-loading" />}
         <span className="ml-auto shrink-0 whitespace-nowrap font-num text-xs font-medium sm:text-sm" data-testid="timeline-current-label">{p.displayedLabel === undefined ? p.labels[p.index] : p.displayedLabel ?? "—"}</span>
       </div>
@@ -43,7 +41,7 @@ export default function TimelinePlayer(p: Props) {
         </button>
         <button data-testid="timeline-next-btn" onClick={() => step(1)} aria-label="Successivo" className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300 active:scale-95"><SkipForward className="size-4" /></button>
         <input data-testid="radar-timeline-slider" type="range" min={0} max={n - 1} step={1} value={p.index}
-          onChange={(e) => { p.setPlaying(false); p.setIndex(Number(e.target.value)); }} className="meteo-range mx-1 flex-1" aria-label="Scorri gli orari" aria-valuetext={p.labels[p.index]} />
+          onChange={(e) => { p.setPlaying(false); p.setIndex(Number(e.target.value)); }} className="meteo-range mx-1 flex-1" aria-label="Timeline" aria-valuetext={p.labels[p.index]} />
         <button data-testid="radar-speed-btn" aria-label={`Velocità animazione ${p.speed} per`} title="Cambia velocità: 1×, 2×, 3×, 5×" onClick={() => p.setSpeed(p.speed === 1 ? 2 : p.speed === 2 ? 3 : p.speed === 3 ? 5 : 1)}
           className={cn("rounded-md border border-slate-700 px-2 py-1 font-num text-xs transition-colors hover:bg-slate-800", p.speed > 1 && "text-sky-300")}>
           {p.speed}×
