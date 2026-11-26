@@ -6,6 +6,7 @@ import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
 import type { LightningStatus } from "@/lib/lightning";
 import { cn } from "@/lib/utils";
 import { SUBREGIONS_CREDIT } from "@/lib/boundaries";
+import { INTERPOLATION_OPTIONS, type InterpolationKey } from "@/lib/stationInterpolation";
 
 export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "marine" | `sat-${string}`;
 
@@ -70,6 +71,12 @@ interface Props {
   setShowIspraBuoys: (on: boolean) => void;
   showRonBuoys: boolean;
   setShowRonBuoys: (on: boolean) => void;
+  interpolationEnabled: boolean;
+  setInterpolationEnabled: (on: boolean) => void;
+  interpolationKey: InterpolationKey;
+  setInterpolationKey: (key: InterpolationKey) => void;
+  interpolationCount: number;
+  interpolationLatest: string | null;
 }
 
 function Toggle({ on, onClick, icon, title, sub, testid, disabled }: { on: boolean; onClick: () => void; icon: React.ReactNode; title: string; sub: string; testid: string; disabled?: boolean }) {
@@ -127,6 +134,27 @@ export default function LayerPanel(p: Props) {
           ))}
         </div>
         <p className="mt-1.5 text-[10px] leading-snug text-slate-400">{p.accumulationStatus || "Seleziona la fascia di accumulo osservata."}</p>
+      </div>
+
+      <div className={SECTION}>Analisi delle stazioni</div>
+      <Toggle testid="layer-toggle-station-interpolation" on={p.interpolationEnabled && !p.is3d}
+        disabled={p.is3d} onClick={() => p.setInterpolationEnabled(!p.interpolationEnabled)}
+        icon={<Grid2x2 className="size-4" />} title="Interpolazione osservazioni"
+        sub={p.is3d ? "Disponibile nella vista 2D" : "Aree stimate dai dati recenti delle stazioni"} />
+      <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/40 p-2.5">
+        <label className="block text-[10px] text-slate-400" htmlFor="station-interpolation-variable">Variabile da interpolare</label>
+        <Select value={p.interpolationKey} onValueChange={(v: string) => p.setInterpolationKey(v as InterpolationKey)}>
+          <SelectTrigger id="station-interpolation-variable" data-testid="station-interpolation-variable" className="h-8 w-full border-slate-700 bg-slate-950/60 text-xs">
+            <SelectValue>{(v) => INTERPOLATION_OPTIONS.find((x) => x.key === v)?.label ?? "Temperatura attuale"}</SelectValue>
+          </SelectTrigger>
+          <SelectContent className="max-h-80 border-slate-700 bg-slate-900">
+            {INTERPOLATION_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <p className="text-[10px] leading-snug text-slate-400">
+          {p.interpolationCount} stazioni con dato valido · ultimo dato {p.interpolationLatest ?? "non disponibile"}.
+          {" "}IDW²; niente stime oltre la copertura, precipitazioni limitate a un raggio più ristretto. Le quote note aiutano a separare stazioni di fasce altimetriche diverse; manca un DEM per correggere ogni cella.
+        </p>
       </div>
 
       <div className={SECTION}>Satelliti EUMETSAT</div>

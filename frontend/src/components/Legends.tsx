@@ -2,6 +2,8 @@ import type { AromeParameter } from "@/lib/types";
 import { AROME_PRECIP_STOPS, PHASE_LABELS, RAIN_GRADIENT, RATE_GRADIENT, TEMP_GRADIENT, type ParamDef } from "@/lib/meteo";
 import { DPC_LEGEND } from "@/lib/dpcRadar";
 import { LIVE_WIND_STOPS } from "@/lib/liveWind";
+import { interpolationGradient, interpolationParam, type InterpolationKey } from "@/lib/stationInterpolation";
+import { fmtTime } from "@/lib/meteo";
 
 export function StationLegend({ param }: { param: ParamDef }) {
   const temperature = param.key === "temp" || param.key === "tmin" || param.key === "tmax";
@@ -39,6 +41,32 @@ export function StationLegend({ param }: { param: ParamDef }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+export function StationInterpolationLegend({ variable, latest, count }: {
+  variable: InterpolationKey; latest: string | null; count: number;
+}) {
+  const param = interpolationParam(variable);
+  const ticks = variable === "temp" || variable === "tmin" || variable === "tmax" ? [-10, 0, 10, 20, 30, 40]
+    : variable === "rain_rate" ? [0, 0.5, 2, 10, 30, 60]
+    : variable === "rain_today" || variable === "rain_48h" ? [0, 1, 5, 20, 50, 100]
+    : [0, 15, 35, 60, 90];
+  return (
+    <div data-testid="station-interpolation-legend" className="mb-2 rounded-xl border border-slate-700 bg-slate-900/95 px-2.5 py-2 text-slate-100 shadow-xl backdrop-blur-xl">
+      <div className="mb-1 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.14em] text-slate-300">
+        <span>{param.label} · interpolata</span><span className="font-num normal-case">{param.unit}</span>
+      </div>
+      <div className="h-2.5 rounded-md border border-white/15" role="img" aria-label={`Scala cromatica continua ${param.label} in ${param.unit}`}
+        style={{ background: interpolationGradient(variable) }} />
+      <div className="mt-1 flex justify-between font-num text-[9px] tabular-nums text-slate-300">
+        {ticks.map((value) => <span key={value}>{String(value).replace(".", ",")}</span>)}
+      </div>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 text-[9px] text-slate-400">
+        <span>IDW² · {count} stazioni fresche · solo area coperta</span>
+        <span>Aggiornato {fmtTime(latest)}</span>
+      </div>
     </div>
   );
 }
