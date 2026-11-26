@@ -107,7 +107,7 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
     } : undefined,
     marine_forecast: (network === "mareografico" || network === "ron") ? (raw.marine_forecast as Station["marine_forecast"] ?? undefined) : undefined,
   };
-  const hasValue = [s.temp, s.rh, s.wind_kmh, s.rain_rate, s.rain_today, s.tmin, s.tmax, s.marine?.sea_level_m, s.marine?.water_temp_c, s.sea_state?.wave_height_significant_m].some((v) => v != null);
+  const hasValue = [s.temp, s.rh, s.wind_kmh, s.rain_rate, s.rain_today, s.rain_48h, s.tmin, s.tmax, s.marine?.sea_level_m, s.marine?.water_temp_c, s.sea_state?.wave_height_significant_m].some((v) => v != null);
   if (last && hasValue) {
     const age = Math.max(0, (now.getTime() - last.getTime()) / 60000);
     const [fresh, stale] = THRESHOLDS[network] ?? [60, 180];
@@ -152,7 +152,10 @@ export async function getStations(): Promise<StationsResponse> {
     }));
   });
   // CEDOC: live file, otherwise last valid snapshot explicitly marked as such
-  const live = ((await getJson("data/cedoc.json")).data ?? {}) as Json;
+  const [liveResult, sitesResult] = await Promise.all([
+    getJson("data/cedoc.json"), getJson("data/cedoc_sites.json"),
+  ]);
+  const live = (liveResult.data ?? {}) as Json;
   let rows = ((live.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
   let opts: Partial<NetworkStatus> = { warning: (live.warning as string) ?? null };
   let payload = live;
@@ -165,8 +168,19 @@ export async function getStations(): Promise<StationsResponse> {
         warning: `${(live.warning as string) ?? "Portale CEDOC non disponibile."} Mostrato l'ultimo snapshot valido (${lv.local_day ?? "data ignota"}), NON aggiornato.` };
     }
   }
-  stations.push(...rows);
-  networks.push(status("cedoc", "CEDOC Pluviometri", (live.source as string) ?? "Sardegna CEDOC / ADIS", rows, payload, opts));
+  const measured = new Set(rows.map((s) => s.id));
+  const sites = (((sitesResult.data ?? {}) as Json).stations as Json[] | undefined) ?? [];
+  const catalogueOnly: Station[] = sites.flatMap((site) => {
+    const id = "cedoc:" + (site.station_id ?? site.name);
+    if (measured.has(id)) return [];
+    const station = normalize({ ...site, rain_today: null, rain_48h: null, last: null }, "cedoc", now, today, true);
+    if (!station) return [];
+    station.observation_type = "CEDOC catalog only · nessuna misura recente disponibile";
+    return [station];
+  });
+  const allCedoc = [...rows, ...catalogueOnly];
+  stations.push(...allCedoc);
+  networks.push(status("cedoc", "CEDOC Pluviometri", (live.source as string) ?? "Sardegna CEDOC / ADIS", allCedoc, payload, opts));
   return { server_time: iso(now)!, local_day: today, stations, networks };
 }
 

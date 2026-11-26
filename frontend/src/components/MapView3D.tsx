@@ -334,17 +334,18 @@ export default function MapView3D(props: Props) {
     const p = cb.current.param, sel = cb.current.selectedId;
     const items = cb.current.stations
       .map((s) => ({ s, v: valueOf(s, p), f: freshnessFor(s, p) }))
-      .filter((x): x is { s: Station; v: number; f: Station["freshness"] } => x.v !== null && x.f !== "unavailable")
+      .filter((x) => (x.v !== null && x.f !== "unavailable")
+        || (x.s.network === "cedoc" && x.s.observation_type?.startsWith("CEDOC catalog only") && p.rain))
       .sort((a, b) => (b.s.id === sel ? 1 : 0) - (a.s.id === sel ? 1 : 0) || FRESH_PRIORITY[a.f] - FRESH_PRIORITY[b.f] ||
         (NET_PRIORITY[a.s.network] ?? 9) - (NET_PRIORITY[b.s.network] ?? 9));
     markersRef.current = items.map(({ s, v, f }, rank) => {
       const div = document.createElement("div");
       div.className = `stn stn-${f}${s.id === sel ? " stn-sel" : ""}`;
-      div.style.setProperty("--c", colorFor(p, v));
+      div.style.setProperty("--c", v === null ? "#64748B" : colorFor(p, v));
       div.style.zIndex = String(items.length - rank);
       div.dataset.testid = `station-marker-${slug(s.id)}`;
       div.title = s.name;
-      div.textContent = fmtValue(v, p);
+      div.textContent = v === null ? "n.d." : fmtValue(v, p);
       div.addEventListener("click", (e) => { e.stopPropagation(); cb.current.onSelect(s.id); });
       const mk = new maplibregl.Marker({ element: div }).setLngLat([s.lon, s.lat]).addTo(m);
       mk.getElement().style.zIndex = String(items.length - rank);

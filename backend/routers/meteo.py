@@ -114,7 +114,7 @@ def _normalize(raw: dict, network: str, now: datetime, today: str, rain_only=Fal
     )
     if st.elev is not None:
         st.elev_source = "rete"
-    has_value = any(v is not None for v in (st.temp, st.rh, st.wind_kmh, st.rain_rate, st.rain_today, st.tmin, st.tmax))
+    has_value = any(v is not None for v in (st.temp, st.rh, st.wind_kmh, st.rain_rate, st.rain_today, st.rain_48h, st.tmin, st.tmax))
     st.freshness, st.age_min = _freshness(network, last, now, has_value)
     return st
 
@@ -174,9 +174,20 @@ async def get_stations():
             status = "degraded"
             warning = (live_p.get("warning") or "Portale CEDOC non disponibile.") + \
                 f" Mostrato l'ultimo snapshot valido ({lv_p.get('local_day', 'data ignota')}), NON aggiornato."
-    stations += rows
+    sites_file = await fetch_data("data/cedoc_sites.json")
+    site_payload = sites_file.data if sites_file and isinstance(sites_file.data, dict) else {}
+    measured = {s.id for s in rows}
+    catalogue_only = []
+    for site in site_payload.get("stations", []):
+        raw = {**site, "rain_today": None, "rain_48h": None, "last": None}
+        station = _normalize(raw, "cedoc", now, today, rain_only=True)
+        if station and station.id not in measured:
+            station.observation_type = "CEDOC catalog only · nessuna misura recente disponibile"
+            catalogue_only.append(station)
+    all_cedoc = rows + catalogue_only
+    stations += all_cedoc
     networks.append(_status_for("cedoc", "CEDOC Pluviometri", live_p.get("source", "Sardegna CEDOC / ADIS"),
-                                rows, payload, now, status=status, using_last_valid=using_last_valid, warning=warning))
+                                all_cedoc, payload, now, status=status, using_last_valid=using_last_valid, warning=warning))
 
     return StationsResponse(server_time=_iso(now), local_day=today, stations=stations, networks=networks)
 

@@ -38,6 +38,11 @@ export default function StationCard({ station: s, param, onClose, className }: P
               Centralina condivisa nell’area webcam; posizione indicativa.
             </p>
           )}
+          {s.observation_type?.startsWith("CEDOC catalog only") && (
+            <p className="mt-0.5 text-[10px] leading-snug text-amber-200/80" data-testid="station-card-cedoc-unavailable">
+              Stazione presente nell’anagrafica CEDOC, ma senza una misura pluviometrica recente verificabile.
+            </p>
+          )}
         </div>
         <button data-testid="station-card-close" onClick={onClose} aria-label="Chiudi" className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100">
           <X className="size-4" />
@@ -169,8 +174,8 @@ export default function StationCard({ station: s, param, onClose, className }: P
         </>
       )}
       {s.raw_message && <p className="mt-2 break-all rounded bg-slate-950/70 p-1.5 font-num text-[10px] text-slate-400" data-testid="station-card-raw">{s.raw_message}</p>}
-      {s.network !== "mareografico" && s.network !== "ron" && <StationHistoryChart station={s} />}
-      {s.network !== "mareografico" && s.network !== "ron" && <ModelCompare station={s} />}
+      {s.network !== "mareografico" && s.network !== "ron" && !s.observation_type?.startsWith("CEDOC catalog only") && <StationHistoryChart station={s} />}
+      {s.network !== "mareografico" && s.network !== "ron" && !s.observation_type?.startsWith("CEDOC catalog only") && <ModelCompare station={s} />}
       {s.network === "meteonetwork" && (
         <p data-testid="station-card-mnw-credit" className="mt-2 text-[11px] text-slate-400">
           Rete amatoriale · dati © <a href="https://www.meteonetwork.it" target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">MeteoNetwork</a>, licenza CC-BY 4.0

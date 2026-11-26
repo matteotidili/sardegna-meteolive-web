@@ -427,7 +427,8 @@ export default function MapView(props: Props) {
     const p = props.param;
     const items = props.stations
       .map((s) => ({ s, v: valueOf(s, p), f: freshnessFor(s, p) }))
-      .filter((x): x is { s: Station; v: number; f: Station["freshness"] } => x.v !== null && x.f !== "unavailable");
+      .filter((x) => (x.v !== null && x.f !== "unavailable")
+        || (x.s.network === "cedoc" && x.s.observation_type?.startsWith("CEDOC catalog only") && p.rain));
     items.sort((a, b) =>
       (b.s.id === props.selectedId ? 1 : 0) - (a.s.id === props.selectedId ? 1 : 0) ||
       FRESH_PRIORITY[a.f] - FRESH_PRIORITY[b.f] ||
@@ -436,9 +437,9 @@ export default function MapView(props: Props) {
     // Overlaps are resolved only by stacking order: selected > fresh > stale > historic, then network priority.
     const total = items.length;
     items.forEach(({ s, v, f }, rank) => {
-      const text = fmtValue(v, p);
+      const text = v === null ? "n.d." : fmtValue(v, p);
       const w = text.length * 7 + 12, h = 20;
-      const color = colorFor(p, v);
+      const color = v === null ? "#64748B" : colorFor(p, v);
       const sel = s.id === props.selectedId ? " stn-sel" : "";
       const tid = `station-marker-${slug(s.id)}`;
       const icon = L.divIcon({
@@ -448,7 +449,9 @@ export default function MapView(props: Props) {
       });
       // zIndexOffset must dominate Leaflet's latitude-based ordering (≈ pixel y), hence the large step
       const mk = L.marker([s.lat, s.lon], { icon, zIndexOffset: (total - rank) * 1000, keyboard: false });
-      mk.bindTooltip(`${s.name} · ${text} ${p.unit}`, { direction: "top", offset: [0, -10], className: "" });
+      mk.bindTooltip(v === null
+        ? `${s.name} · anagrafica CEDOC; nessun dato recente disponibile`
+        : `${s.name} · ${text} ${p.unit}`, { direction: "top", offset: [0, -10], className: "" });
       mk.on("click", (e) => { L.DomEvent.stopPropagation(e); cb.current.onSelect(s.id); });
       g.addLayer(mk);
     });

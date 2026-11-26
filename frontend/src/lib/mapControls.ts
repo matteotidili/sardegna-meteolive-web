@@ -12,7 +12,9 @@ export const mapControls: MapControls = {
   fitMediterranean: () => {}, fitSardinia: () => {},
 };
 
-export const MEDITERRANEAN_BOUNDS: [[number, number], [number, number]] = [[29.5, -8], [46.5, 37.5]];
+// A slightly wider northward extent keeps the whole Italian peninsula and Alpine
+// low-pressure centres inside the fixed satellite raster.
+export const MEDITERRANEAN_BOUNDS: [[number, number], [number, number]] = [[29.5, -8], [48.2, 37.5]];
 
 /** Leave room for desktop side panels; mobile sheets do not reserve side space. */
 export function mapFitPadding(width: number, height: number) {
