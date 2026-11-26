@@ -195,7 +195,23 @@ export function stationMarkerTitle(s: Station, p: ParamDef, v: number | null): s
   return `${s.name} · ${stationParameterLabel(s, p)} ${fmtValue(v, p)} ${p.unit} · ${fmtTime(observationTimeFor(s, p))} · ${FRESHNESS_LABEL[freshnessFor(s, p)]}`;
 }
 
+const NETWORK_OBSERVATION_WINDOWS: Record<string, [number, number]> = {
+  "dpcn-sardegna": [30, 180], "aeronautica-militare": [90, 240],
+  ecowitt: [30, 180], local: [30, 180], meteonetwork: [30, 180],
+  mareografico: [30, 90], ron: [30, 90], cedoc: [90, 180],
+};
+
+export const observationWindows = (network: string) => NETWORK_OBSERVATION_WINDOWS[network] ?? [60, 180];
+
+export function observationFreshness(observed: number, network: string, now: number): Freshness {
+  if (!Number.isFinite(observed) || observed > now + 360000) return "unavailable";
+  const age = (now - observed) / 60000;
+  const [fresh, stale] = observationWindows(network);
+  return age <= fresh ? "fresh" : age <= stale ? "stale" : "historic";
+}
+
 const ROME_LOCAL_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" });
+export const romeObservationDay = (date: Date) => ROME_LOCAL_DAY.format(date);
 
 export function fmtValue(v: number, p: ParamDef): string {
   return v.toLocaleString("it-IT", { minimumFractionDigits: p.decimals, maximumFractionDigits: p.decimals });

@@ -1,5 +1,5 @@
 import type { Station } from "@/lib/types";
-import { gradientColor, freshnessFor, observationTimeFor, PARAM_BY_KEY, RAIN_GRADIENT, RATE_GRADIENT, TEMP_GRADIENT, valueOf, type ParamDef, type ParamKey } from "@/lib/meteo";
+import { gradientColor, freshnessFor, observationFreshness, observationTimeFor, romeObservationDay, PARAM_BY_KEY, RAIN_GRADIENT, RATE_GRADIENT, TEMP_GRADIENT, valueOf, type ParamDef, type ParamKey } from "@/lib/meteo";
 
 export type InterpolationKey = "temp" | "tmin" | "tmax" | "rain_rate" | "rain_today" | "rain_48h" | "wind_kmh" | "gust_kmh";
 
@@ -29,17 +29,19 @@ const plausible: Record<InterpolationKey, [number, number]> = {
 
 /** Keep recent observations (fresh or still within their network's stale window).
  * Network visibility is a map presentation choice and must not disable analysis. */
-export function interpolationSamples(stations: Station[], key: InterpolationKey): InterpolationSample[] {
+export function interpolationSamples(stations: Station[], key: InterpolationKey, now = Date.now()): InterpolationSample[] {
   const param = interpolationParam(key), [low, high] = plausible[key];
   const byLocation = new Map<string, InterpolationSample>();
+  const today = param.dayBound ? romeObservationDay(new Date(now)) : null;
   for (const station of stations) {
     if (!Number.isFinite(station.lat) || !Number.isFinite(station.lon)
       || station.lat < -90 || station.lat > 90 || station.lon < -180 || station.lon > 180
       || station.network === "mareografico" || station.network === "ron") continue;
     const freshness = freshnessFor(station, param);
     const observed = Date.parse(observationTimeFor(station, param) ?? "");
-    if (!Number.isFinite(observed) || observed > Date.now() + 360000
-      || freshness !== "fresh" && freshness !== "stale") continue;
+    const current = observationFreshness(observed, station.network, now);
+    if ((freshness !== "fresh" && freshness !== "stale") || (current !== "fresh" && current !== "stale")
+      || (today && romeObservationDay(new Date(observed)) !== today)) continue;
     const value = valueOf(station, param);
     if (value == null || value < low || value > high) continue;
     const location = `${station.lat.toFixed(4)}:${station.lon.toFixed(4)}`;
@@ -65,38 +67,93 @@ export function distanceKm(aLat: number, aLon: number, bLat: number, bLon: numbe
   const rad = Math.PI / 180;
   const dLat = (bLat - aLat) * rad, dLon = (bLon - aLon) * rad;
   const q = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * rad) * Math.cos(bLat * rad) * Math.sin(dLon / 2) ** 2;
-  return 6371.0088 * 2 * Math.atan2(Math.sqrt(q), Math.sqrt(1 - q));
+  return 6371.0088 * 2 * Math.asin(Math.sqrt(Math.min(1, q)));
 }
 
-/** IDW² estimate. Three or more stations must support every displayed point. */
-export function interpolateAt(lat: number, lon: number, samples: InterpolationSample[], key: InterpolationKey) {
+export interface InterpolationCoverage {
+  variable: InterpolationKey | null;
+  count: number;
+  latest: string | null;
+  oldest: string | null;
+}
+
+export function interpolationCoverage(stations: Iterable<Station>, key: InterpolationKey): InterpolationCoverage {
+  const param = interpolationParam(key);
+  let count = 0, latest: string | null = null, oldest: string | null = null;
+  for (const station of stations) {
+    const time = observationTimeFor(station, param);
+    if (!time) continue;
+    count++;
+    if (!latest || Date.parse(time) > Date.parse(latest)) latest = time;
+    if (!oldest || Date.parse(time) < Date.parse(oldest)) oldest = time;
+  }
+  return { variable: key, count, latest, oldest };
+}
+
+const RAD = Math.PI / 180;
+/** IDW². Every estimate is inside the local support, with at least three gauges. */
+export function createStationInterpolator(samples: InterpolationSample[], key: InterpolationKey) {
   const radius = interpolationRadiusKm(key);
-  const neighbors = samples.map((sample) => ({
-    ...sample,
-    distance: distanceKm(lat, lon, sample.station.lat, sample.station.lon),
-  })).filter((x) => x.distance <= radius).sort((a, b) => a.distance - b.distance).slice(0, 12);
-  if (neighbors.length < 3) return null;
-  const stations = neighbors.map(({ station }) => station);
-  if (neighbors[0].distance < 0.15) return { value: neighbors[0].value, count: stations.length, stations };
+  const rows = new Map<number, InterpolationSample[]>();
+  for (const sample of samples) {
+    const row = Math.floor(sample.station.lat * 2);
+    const existing = rows.get(row);
+    if (existing) existing.push(sample);
+    else rows.set(row, [sample]);
+  }
+  const latRange = radius / 110;
+  return (lat: number, lon: number) => {
+    const neighbors: (InterpolationSample & { distance: number })[] = [];
+    for (let r = Math.floor((lat - latRange) * 2); r <= Math.floor((lat + latRange) * 2); r++) {
+      for (const sample of rows.get(r) ?? []) {
+        const distance = distanceKm(lat, lon, sample.station.lat, sample.station.lon);
+        if (distance <= radius) neighbors.push({ ...sample, distance });
+      }
+    }
+    if (neighbors.length < 3) return null;
+    neighbors.sort((a, b) => a.distance - b.distance);
+    const local = neighbors.slice(0, 12);
+    const stations = local.map(({ station }) => station);
+    const nearest = local[0];
+    if (nearest.distance <= 0.001) return { value: nearest.value, count: stations.length, stations };
 
-  // Use elevations as a weak terrain-coherence term where the network provides them.
-  // Without a gridded DEM, this avoids mixing stations from very different altitude
-  // bands too aggressively but does not claim a cell-by-cell orographic correction.
-  const knownElevations = neighbors.filter((x) => Number.isFinite(x.station.elev));
-  const roughElevation = knownElevations.length >= 2
-    ? knownElevations.reduce((sum, x) => sum + x.station.elev! / x.distance ** 2, 0)
-      / knownElevations.reduce((sum, x) => sum + 1 / x.distance ** 2, 0)
-    : null;
-  const weighted = neighbors.map((x) => {
-    const terrainWeight = roughElevation != null && x.station.elev != null
-      ? Math.exp(-Math.abs(x.station.elev - roughElevation) / 1800)
-      : 1;
-    return { ...x, weight: terrainWeight / x.distance ** 2 };
-  });
-  const total = weighted.reduce((sum, x) => sum + x.weight, 0);
-  const value = weighted.reduce((sum, x) => sum + x.value * x.weight, 0) / total;
-  return Number.isFinite(value) ? { value, count: stations.length, stations } : null;
+    // A point cannot be inside the local hull if all bearings lie in the
+    // same open half-plane. Using local bearings also works across the antimeridian.
+    const sinLat = Math.sin(lat * RAD), cosLat = Math.cos(lat * RAD);
+    const angles = stations.map((station) => {
+      const dLon = (station.lon - lon) * RAD, dest = station.lat * RAD;
+      return Math.atan2(Math.sin(dLon) * Math.cos(dest),
+        cosLat * Math.sin(dest) - sinLat * Math.cos(dest) * Math.cos(dLon));
+    }).sort((a, b) => a - b);
+    const largestGap = Math.max(angles[0] + 2 * Math.PI - angles[angles.length - 1],
+      ...angles.slice(1).map((angle, i) => angle - angles[i]));
+    if (largestGap > Math.PI + 1e-6) return null;
+
+    // Use known elevations as a weak coherence term. No terrain correction is inferred.
+    let known = 0, weightedElevation = 0, elevationWeight = 0;
+    for (const { station, distance } of local) {
+      if (station.elev === null || !Number.isFinite(station.elev)) continue;
+      known++;
+      const weight = 1 / distance ** 2;
+      weightedElevation += station.elev * weight;
+      elevationWeight += weight;
+    }
+    const roughElevation = known >= 2 ? weightedElevation / elevationWeight : null;
+    let total = 0, weightedValue = 0;
+    for (const { station, value, distance } of local) {
+      const terrain = roughElevation !== null && station.elev !== null && Number.isFinite(station.elev)
+        ? Math.exp(-Math.abs(station.elev - roughElevation) / 1800) : 1;
+      const weight = terrain / distance ** 2;
+      total += weight;
+      weightedValue += value * weight;
+    }
+    const value = weightedValue / total;
+    return Number.isFinite(value) ? { value, count: stations.length, stations } : null;
+  };
 }
+
+export const interpolateAt = (lat: number, lon: number, samples: InterpolationSample[], key: InterpolationKey) =>
+  createStationInterpolator(samples, key)(lat, lon);
 
 const interpolationStops = (key: InterpolationKey) => {
   if (key === "rain_rate") return RATE_GRADIENT;

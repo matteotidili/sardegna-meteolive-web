@@ -5,12 +5,13 @@ interface Props {
   title: string;
   labels: string[];
   index: number;
-  setIndex: (i: number) => void;
+  setIndex: (i: number, direction?: number) => void;
   playing: boolean;
   setPlaying: (b: boolean) => void;
   speed: number;
   setSpeed: (n: number) => void;
   loading: boolean;
+  displayedLabel?: string | null;
   legend?: React.ReactNode;
   note?: string;
   children?: React.ReactNode;
@@ -19,14 +20,19 @@ interface Props {
 export default function TimelinePlayer(p: Props) {
   const n = p.labels.length;
   if (!n) return null;
-  const step = (d: number) => { p.setPlaying(false); p.setIndex((p.index + d + n) % n); };
+  const step = (d: number) => { p.setPlaying(false); p.setIndex((p.index + d + n) % n, d); };
   return (
     <div data-testid="timeline-player" className="hud-in pointer-events-auto rounded-2xl border border-slate-800 bg-slate-900/95 p-3 text-slate-100 shadow-2xl shadow-black/60 backdrop-blur-xl">
       <div className="flex items-start gap-2">
         <span className="min-w-0 flex-1 text-[10px] uppercase leading-relaxed tracking-[0.12em] text-sky-300" data-testid="timeline-title">{p.title}</span>
         {p.loading && <Loader2 className="size-3 animate-spin text-slate-400" data-testid="timeline-loading" />}
-        <span className="ml-auto shrink-0 whitespace-nowrap font-num text-xs font-medium sm:text-sm" data-testid="timeline-current-label">{p.labels[p.index]}</span>
+        <span className="ml-auto shrink-0 whitespace-nowrap font-num text-xs font-medium sm:text-sm" data-testid="timeline-current-label">{p.displayedLabel === undefined ? p.labels[p.index] : p.displayedLabel ?? "—"}</span>
       </div>
+      {p.displayedLabel !== undefined && p.displayedLabel !== p.labels[p.index] && (
+        <div className="mt-0.5 text-right text-[10px] text-slate-400" role="status" data-testid="timeline-requested-label">
+          {p.loading ? "Caricamento" : "Selezione"} {p.labels[p.index]}
+        </div>
+      )}
       <div className="mt-1 flex items-center gap-1.5">
         <button data-testid="timeline-prev-btn" onClick={() => step(-1)} aria-label="Precedente" className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300 active:scale-95"><SkipBack className="size-4" /></button>
         <button data-testid="radar-timeline-play-btn" onClick={() => p.setPlaying(!p.playing)} aria-label={p.playing ? "Pausa" : "Riproduci"}
@@ -35,7 +41,7 @@ export default function TimelinePlayer(p: Props) {
         </button>
         <button data-testid="timeline-next-btn" onClick={() => step(1)} aria-label="Successivo" className="rounded-md p-1.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-sky-300 active:scale-95"><SkipForward className="size-4" /></button>
         <input data-testid="radar-timeline-slider" type="range" min={0} max={n - 1} step={1} value={p.index}
-          onChange={(e) => { p.setPlaying(false); p.setIndex(Number(e.target.value)); }} className="meteo-range mx-1 flex-1" aria-label="Timeline" />
+          onChange={(e) => { p.setPlaying(false); p.setIndex(Number(e.target.value)); }} className="meteo-range mx-1 flex-1" aria-label="Timeline" aria-valuetext={p.labels[p.index]} />
         <button data-testid="radar-speed-btn" aria-label={`Velocità animazione ${p.speed} per`} title="Cambia velocità: 1×, 2×, 3×, 5×" onClick={() => p.setSpeed(p.speed === 1 ? 2 : p.speed === 2 ? 3 : p.speed === 3 ? 5 : 1)}
           className={cn("rounded-md border border-slate-700 px-2 py-1 font-num text-xs transition-colors hover:bg-slate-800", p.speed > 1 && "text-sky-300")}>
           {p.speed}×

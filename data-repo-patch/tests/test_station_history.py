@@ -52,6 +52,17 @@ class StationHistoryTest(unittest.TestCase):
         doc = self.run_once([{"name": "X", "temp": 11.0, "last": "2026-11-08T13:50:00Z"}], existing=existing)
         self.assertEqual(len(doc["series"]["dpcn-sardegna|X"]), 1)
 
+    def test_next_run_appends_valid_samples(self):
+        doc = self.run_once([{"name": "X", "temp": 12.0, "last": "2026-11-08T13:50:00Z"}])
+        updated = self.run_once([{"name": "X", "temp": 14.0, "rain_today": 0, "last": "2026-11-08T14:00:00Z"}],
+                                now=NOW + dt.timedelta(minutes=10), existing=doc)
+        self.assertEqual([p[1:] for p in updated["series"]["dpcn-sardegna|X"]], [[120, None], [140, 0]])
+
+    def test_invalid_feed_keeps_recent_history(self):
+        doc = self.run_once([{"name": "X", "temp": 12.0, "last": "2026-11-08T13:50:00Z"}])
+        self.assertEqual(self.run_once(None, existing=doc), doc)
+        self.assertEqual(self.run_once([{"name": "X", "temp": 99, "last": "2026-11-08T13:55:00"}], existing=doc), doc)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,7 +24,7 @@ import { fetchHydroHistory, hydroColor, hydroFmtLevel, hydroPopupHtml, type Hydr
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MEDITERRANEAN_BOUNDS, mapControls, mapFitPadding } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, bboxCenter, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
-import { interpolateAt, interpolationColor, type InterpolationKey, type InterpolationSample } from "@/lib/stationInterpolation";
+import { createStationInterpolator, interpolateAt, interpolationColor, interpolationCoverage, type InterpolationCoverage, type InterpolationKey, type InterpolationSample } from "@/lib/stationInterpolation";
 
 export type Basemap = "dark" | "satellite" | "light" | "streets" | "relief";
 export interface MapViewState { center: [number, number]; zoom: number }
@@ -93,7 +93,7 @@ interface Props {
   interpolationEnabled?: boolean;
   interpolationKey?: InterpolationKey;
   interpolationSamples: InterpolationSample[];
-  onInterpolationCoverage: (stations: number) => void;
+  onInterpolationCoverage: (coverage: InterpolationCoverage) => void;
 }
 
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -272,6 +272,7 @@ export default function MapView(props: Props) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const { interpolationEnabled, interpolationKey: key, interpolationSamples: samples, onInterpolationCoverage } = props;
+    const estimateAt = key ? createStationInterpolator(samples, key) : null;
     let frame = 0;
     const redraw = () => {
       frame = 0;
@@ -282,13 +283,13 @@ export default function MapView(props: Props) {
       canvas.height = Math.max(1, Math.round(size.y * dpr));
       L.DomUtil.setPosition(canvas, m.containerPointToLayerPoint([0, 0]));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (!interpolationEnabled || !key || samples.length < 3) {
-        onInterpolationCoverage(0);
+      if (!interpolationEnabled || !key || !estimateAt || samples.length < 3) {
+        onInterpolationCoverage({ variable: key ?? null, count: 0, latest: null, oldest: null });
         return;
       }
       const hull = convexHull(samples.map((x) => m.latLngToContainerPoint([x.station.lat, x.station.lon])));
       if (hull.length < 3) {
-        onInterpolationCoverage(0);
+        onInterpolationCoverage({ variable: key ?? null, count: 0, latest: null, oldest: null });
         return;
       }
       const xs = hull.map((p) => p.x), ys = hull.map((p) => p.y);
@@ -303,19 +304,19 @@ export default function MapView(props: Props) {
       ctx.closePath();
       ctx.clip();
       ctx.globalAlpha = 0.56;
-      const usedStations = new Set<string>();
+      const usedStations = new Map<string, Station>();
       for (let y = minY; y < maxY; y += step) for (let x = minX; x < maxX; x += step) {
         const center = L.point(x + Math.min(step, maxX - x) / 2, y + Math.min(step, maxY - y) / 2);
         if (!insidePolygon(center, hull)) continue;
         const ll = m.containerPointToLatLng(center);
-        const estimate = interpolateAt(ll.lat, ll.lng, samples, key);
+        const estimate = estimateAt(ll.lat, ll.lng);
         if (!estimate) continue;
         ctx.fillStyle = interpolationColor(estimate.value, key);
         ctx.fillRect(x, y, step + 0.5, step + 0.5);
-        estimate.stations.forEach((station) => usedStations.add(station.id));
+        estimate.stations.forEach((station) => usedStations.set(station.id, station));
       }
       ctx.restore();
-      onInterpolationCoverage(usedStations.size);
+      onInterpolationCoverage(interpolationCoverage(usedStations.values(), key));
     };
     const scheduleRedraw = () => { if (!frame) frame = requestAnimationFrame(redraw); };
     scheduleRedraw();
@@ -537,7 +538,7 @@ export default function MapView(props: Props) {
     }
     overlayGroupRef.current = nextGroup;
     const controller = new AbortController();
-    const current = () => !controller.signal.aborted && token === aromeTokenRef.current && mapRef.current === m;
+    const current = () => !controller.signal.aborted && token === aromeTokenRef.current && mapRef.current === m && cb.current.overlay?.url === src;
     void preloadOverlayImage(warp ? mercatorImage(src, s, n) : src, controller.signal).then((image) => {
       if (!current()) return;
       // Use the already loaded image: one displayed overlay and one cancellable preload.

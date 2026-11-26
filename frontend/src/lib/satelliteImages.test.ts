@@ -1,102 +1,105 @@
-import { expect, it, vi } from "vitest";
-import { satelliteImage, waitForSatelliteImage } from "./satelliteImages";
+import { afterEach, expect, it, vi } from "vitest";
+import { createSatelliteCache, satelliteNeighbors, satelliteStackUrl } from "./satelliteImages";
 
-function mockDownloads() {
-  const fetcher = vi.fn(async () => new Response(new Blob(["original encoded image"], { type: "image/png" })));
-  vi.stubGlobal("fetch", fetcher);
-  class FakeReader {
-    result = "data:image/png;base64,b3JpZ2luYWw=";
-    onload?: () => void;
-    readAsDataURL() { queueMicrotask(() => this.onload?.()); }
+const imageUrl = (frame: number) => `https://view.eumetsat.int/test?time=${frame}&width=2048&height=1050`;
+const response = () => new Response(new Blob(["original"], { type: "image/png" }));
+function mockImages(width = 1400, height = 1000) {
+  class FakeImage {
+    src = "";
+    naturalWidth = width;
+    naturalHeight = height;
+    decode = vi.fn().mockResolvedValue(undefined);
   }
-  vi.stubGlobal("FileReader", FakeReader);
-  return fetcher;
+  vi.stubGlobal("Image", FakeImage);
 }
 
-it("shares one full-resolution decoded image across prefetch and display; cancelling a consumer preserves it", async () => {
-  const created: FakeImage[] = [];
-  class FakeImage {
-    src = ""; crossOrigin = "";
-    naturalWidth = 1400; naturalHeight = 1000;
-    onload?: () => Promise<void>;
-    decode = vi.fn().mockResolvedValue(undefined);
-    constructor() { created.push(this); }
-  }
-  vi.stubGlobal("Image", FakeImage);
-  const fetcher = mockDownloads();
-  try {
-    const url = "https://view.eumetsat.int/test-full-quality";
-    const prefetched = satelliteImage(url);
-    const cancelled = new AbortController();
-    const waiter = waitForSatelliteImage(url, cancelled.signal);
-    const rejection = expect(waiter).rejects.toMatchObject({ name: "AbortError" });
-    cancelled.abort();
-    await rejection;
-    expect(created).toHaveLength(1);
-    await vi.waitFor(() => expect(created[0].src).toMatch(/^data:image\/png;base64,/));
-    await created[0].onload!();
-    const image = await prefetched;
-    expect(await satelliteImage(url)).toBe(image);
-    expect(image.naturalWidth).toBe(1400);
-    expect(created[0].decode).toHaveBeenCalledOnce();
-    expect(created).toHaveLength(1);
-    expect(fetcher).toHaveBeenCalledOnce();
-  } finally { vi.unstubAllGlobals(); }
+afterEach(() => vi.unstubAllGlobals());
+
+it("shares an in-flight WMS image with display and returns independent cache-hit elements", async () => {
+  mockImages();
+  let complete!: (response: Response) => void;
+  const fetcher = vi.fn(() => new Promise<Response>((resolve) => { complete = resolve; }));
+  vi.stubGlobal("fetch", fetcher);
+  const cache = createSatelliteCache(), source = imageUrl(1);
+  const worker = new AbortController(), viewer = new AbortController();
+  const preload = cache.prefetch(source, worker.signal);
+  const cancelled = expect(preload).rejects.toMatchObject({ name: "AbortError" });
+  const display = cache.display(source, viewer.signal);
+  worker.abort();
+  await cancelled;
+  complete(response());
+  const first = await display;
+  const second = await cache.display(source, viewer.signal);
+  expect(first.src).toBe(second.src);
+  expect(first).not.toBe(second);
+  expect(first.naturalWidth).toBe(1400);
+  expect(fetcher).toHaveBeenCalledOnce();
+  expect(cache.snapshot()).toMatchObject({ cacheHits: 1, joined: 1, requests: 1, cancelled: 0 });
 });
 
-
-it("gives concurrent display layers independent DOM elements from the shared cache", async () => {
-  const created: FakeImage[] = [];
-  class FakeImage {
-    src = ""; crossOrigin = ""; naturalWidth = 1400; naturalHeight = 1000;
-    onload?: () => Promise<void>;
-    decode = vi.fn().mockResolvedValue(undefined);
-    constructor() { created.push(this); }
-  }
-  vi.stubGlobal("Image", FakeImage);
-  const fetcher = mockDownloads();
-  try {
-    const url = "https://view.eumetsat.int/test-zoom-isolation";
-    const original = satelliteImage(url);
-    await vi.waitFor(() => expect(created[0].src).toMatch(/^data:image\/png;base64,/));
-    await created[0].onload!();
-    const cached = await original;
-    const a = await waitForSatelliteImage(url, new AbortController().signal);
-    const b = await waitForSatelliteImage(url, new AbortController().signal);
-    expect(a).not.toBe(cached);
-    expect(b).not.toBe(a);
-    expect(a.src).toBe(cached.src);
-    expect(b.src).toBe(cached.src);
-    expect(await satelliteImage(url)).toBe(cached);
-    expect(fetcher).toHaveBeenCalledOnce();
-  } finally { vi.unstubAllGlobals(); }
+it("limits raw downloads across prefetch and stack, and aborts obsolete requests", async () => {
+  mockImages();
+  const starts: { url: string; signal: AbortSignal; finish: () => void }[] = [];
+  vi.stubGlobal("fetch", vi.fn((url: string, { signal }: { signal: AbortSignal }) =>
+    new Promise<Response>((resolve, reject) => {
+      starts.push({ url, signal, finish: () => resolve(response()) });
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    })));
+  const cache = createSatelliteCache({ concurrency: 3 });
+  const worker = new AbortController();
+  const jobs = [1, 2, 3, 4].map((i) => cache.prefetch(imageUrl(i), worker.signal));
+  const settled = Promise.allSettled(jobs);
+  expect(starts.map((entry) => entry.url)).toEqual([imageUrl(1), imageUrl(2)]);
+  const viewer = new AbortController();
+  const display = cache.display(imageUrl(5), viewer.signal);
+  expect(starts.map((entry) => entry.url)).toEqual([imageUrl(1), imageUrl(2), imageUrl(5)]);
+  worker.abort();
+  await settled;
+  starts[2].finish();
+  await display;
+  expect(starts.slice(0, 2).every(({ signal }) => signal.aborted)).toBe(true);
+  expect(starts).toHaveLength(3);
+  expect(cache.snapshot()).toMatchObject({ peakRequests: 3, cancelled: 4 });
 });
 
-it("composes selected layers in order with independent opacity and native dimensions", async () => {
-  class FakeImage {
-    crossOrigin = ""; naturalWidth = 1400; naturalHeight = 1000;
-    onload?: () => void; onerror?: () => void;
-    private value = "";
-    get src() { return this.value; }
-    set src(value: string) { this.value = value; queueMicrotask(() => this.onload?.()); }
-    decode = vi.fn().mockResolvedValue(undefined);
-  }
-  const draws: unknown[] = [];
-  const context = { globalAlpha: 1, drawImage: (...args: unknown[]) => draws.push([args, context.globalAlpha]) };
-  const canvas = { width: 0, height: 0, getContext: () => context, toDataURL: vi.fn(() => "data:image/png;base64,test") };
-  vi.stubGlobal("Image", FakeImage);
+it("retries failed frames, evicts by decoded size and treats request dimensions independently", async () => {
+  mockImages(10, 10);
+  const fetcher = vi.fn().mockResolvedValueOnce(new Response("<ServiceException/>", { headers: { "Content-Type": "text/xml" } }))
+    .mockImplementation(async () => response());
+  vi.stubGlobal("fetch", fetcher);
+  const cache = createSatelliteCache({ maxBytes: 850 });
+  const signal = new AbortController().signal;
+  await expect(cache.display(imageUrl(1), signal)).rejects.toThrow("priva di immagine");
+  const original = await cache.display(imageUrl(1), signal);
+  const resized = await cache.display(imageUrl(1).replace("2048", "1280"), signal);
+  expect(resized.src).not.toBe(original.src);
+  await cache.display(imageUrl(2), signal);
+  expect(cache.snapshot()).toMatchObject({ errors: 1, evictions: 1 });
+  expect(cache.snapshot().bytes).toBeLessThanOrEqual(850);
+  await cache.display(imageUrl(1), signal);
+  expect(fetcher).toHaveBeenCalledTimes(5);
+});
+
+it("composes at original dimensions, reuses raw layers between opacities and prefetches nearby frames only", async () => {
+  mockImages();
+  const draws: number[] = [];
+  const context = { globalAlpha: 1, drawImage: () => draws.push(context.globalAlpha) };
+  const canvas = { width: 0, height: 0, getContext: () => context,
+    toBlob: (done: (value: Blob) => void) => {
+      expect([canvas.width, canvas.height]).toEqual([1400, 1000]);
+      done(new Blob(["composed"], { type: "image/png" }));
+    } };
   vi.stubGlobal("document", { createElement: () => canvas });
-  const fetcher = mockDownloads();
-  try {
-    const layers = [{ url: "https://view.eumetsat.int/base-test", opacity: 1 }, { url: "https://view.eumetsat.int/top-test", opacity: 0.5 }];
-    const image = await satelliteImage("satellite-stack:" + JSON.stringify(layers));
-    expect(canvas.width).toBe(1400);
-    expect(canvas.height).toBe(1000);
-    expect(draws).toHaveLength(2);
-    expect((draws[0] as unknown[])[1]).toBe(1);
-    expect((draws[1] as unknown[])[1]).toBe(0.5);
-    expect(canvas.toDataURL).toHaveBeenCalledWith("image/png");
-    expect(image.src).toBe("data:image/png;base64,test");
-    expect(fetcher).toHaveBeenCalledTimes(2);
-  } finally { vi.unstubAllGlobals(); }
+  const fetcher = vi.fn(async () => response());
+  vi.stubGlobal("fetch", fetcher);
+  const cache = createSatelliteCache();
+  const signal = new AbortController().signal;
+  for (const opacity of [0.5, 0.25]) {
+    await cache.display(satelliteStackUrl([{ url: imageUrl(1), opacity: 1 }, { url: imageUrl(2), opacity }]), signal);
+  }
+  expect(draws).toEqual([1, 0.5, 1, 0.25]);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(satelliteNeighbors(8, 19, -1, false)).toEqual([7, 9]);
+  expect(satelliteNeighbors(18, 19, 1, true)).toEqual([0, 1, 17]);
+  expect(satelliteNeighbors(8, 19, -1, false, true)).toEqual([]);
 });

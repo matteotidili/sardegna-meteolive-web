@@ -1,18 +1,20 @@
 name: Smoke browser radar puntuale desktop e mobile
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'tools/smoke-radar-ui.mjs'
-      - '.github/workflows/smoke-radar-ui.yml'
+  workflow_run:
+    workflows: ['Deploy Sardegna MeteoLive (GitHub Pages)']
+    types: [completed]
 permissions:
   contents: read
 jobs:
   smoke:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 16
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24

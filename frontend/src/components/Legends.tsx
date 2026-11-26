@@ -2,8 +2,8 @@ import type { AromeParameter } from "@/lib/types";
 import { AROME_PRECIP_STOPS, PHASE_LABELS, RAIN_GRADIENT, RATE_GRADIENT, TEMP_GRADIENT, type ParamDef } from "@/lib/meteo";
 import { DPC_LEGEND } from "@/lib/dpcRadar";
 import { LIVE_WIND_STOPS } from "@/lib/liveWind";
-import { interpolationScale, interpolationParam, type InterpolationKey } from "@/lib/stationInterpolation";
-import { fmtTime } from "@/lib/meteo";
+import { interpolationScale, interpolationParam, type InterpolationCoverage, type InterpolationKey } from "@/lib/stationInterpolation";
+import { fmtAge, fmtTime } from "@/lib/meteo";
 
 export function StationLegend({ param, showHistoricDay }: { param: ParamDef; showHistoricDay?: boolean }) {
   const temperature = param.key === "temp" || param.key === "tmin" || param.key === "tmax";
@@ -46,14 +46,16 @@ export function StationLegend({ param, showHistoricDay }: { param: ParamDef; sho
   );
 }
 
-export function StationInterpolationLegend({ variable, latest, count, used }: {
-  variable: InterpolationKey; latest: string | null; count: number; used: number;
+export function StationInterpolationLegend({ variable, coverage, count }: {
+  variable: InterpolationKey; coverage: InterpolationCoverage; count: number;
 }) {
+  const pending = coverage.variable !== variable;
+  const { count: used, latest, oldest } = pending ? { count: 0, latest: null, oldest: null } : coverage;
   const param = interpolationParam(variable);
   const scale = interpolationScale(variable);
   const gradient = `linear-gradient(90deg, ${scale.map(({ color, position }) => `${color} ${position}%`).join(", ")})`;
   return (
-    <div data-testid="station-interpolation-legend" className="mb-2 rounded-xl border border-slate-700 bg-slate-900/95 px-2.5 py-2 text-slate-100 shadow-xl backdrop-blur-xl">
+    <div data-testid="station-interpolation-legend" aria-busy={pending} className="mb-2 rounded-xl border border-slate-700 bg-slate-900/95 px-2.5 py-2 text-slate-100 shadow-xl backdrop-blur-xl">
       <div className="mb-1 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.14em] text-slate-300">
         <span>{param.label} · interpolata</span><span className="font-num normal-case">{param.unit}</span>
       </div>
@@ -67,12 +69,13 @@ export function StationInterpolationLegend({ variable, latest, count, used }: {
         </>
       ) : (
         <p className="text-[10px] text-amber-200">
-          {count < 3 ? "Servono almeno 3 stazioni recenti con questa misura." : "Nessuna area con copertura sufficiente nella vista."}
+          {pending ? "Calcolo della copertura…" : count < 3 ? "Servono almeno 3 stazioni recenti con questa misura." : "Nessuna area con copertura sufficiente nella vista."}
         </p>
       )}
       <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 text-[9px] text-slate-400">
         <span>IDW² · {used} stazioni utilizzate{used !== count && ` su ${count} idonee`}</span>
-        <span>Aggiornato {fmtTime(latest)}</span>
+        {latest && <span>Ultimo dato {fmtTime(latest)} · {fmtAge(Math.max(0, (Date.now() - Date.parse(latest)) / 60000))}</span>}
+        {oldest && oldest !== latest && <span>Età massima {fmtAge(Math.max(0, (Date.now() - Date.parse(oldest)) / 60000))}</span>}
       </div>
     </div>
   );

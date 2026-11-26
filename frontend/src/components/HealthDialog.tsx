@@ -40,10 +40,10 @@ export default function HealthDialog(p: Props) {
           <DialogTitle className="font-heading">Stato delle fonti dati</DialogTitle>
           <DialogDescription className="text-slate-400">
             Freschezza calcolata dall'orario reale di ciascuna osservazione (non dall'orario del file o del controllo).
-            Ora server: <span className="font-num">{fmtTime(p.serverTime)}</span> · ultimo aggiornamento client: <span className="font-num">{p.updatedAt ? fmtTime(new Date(p.updatedAt).toISOString()) : "n.d."}</span>
+            Ora del controllo: <span className="font-num">{fmtTime(p.serverTime)}</span> · ultimo aggiornamento client: <span className="font-num">{p.updatedAt ? fmtTime(new Date(p.updatedAt).toISOString()) : "n.d."}</span>
           </DialogDescription>
         </DialogHeader>
-        {p.stationsError && <div className="rounded-md border border-red-800 bg-red-950/50 p-2 text-xs text-red-200">Backend non raggiungibile: dati stazioni non aggiornati.</div>}
+        {p.stationsError && <div className="rounded-md border border-red-800 bg-red-950/50 p-2 text-xs text-red-200">Aggiornamento delle stazioni non riuscito.</div>}
         <ul className="space-y-2">
           {(p.networks ?? []).map((n) => (
             <li key={n.key} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3" data-testid={`health-network-${n.key}`}>
@@ -60,6 +60,7 @@ export default function HealthDialog(p: Props) {
               </div>
               <div className="mt-1 text-[11px] text-slate-400">
                 Ultima osservazione: <span className="font-num text-slate-200">{fmtTime(n.latest_obs)}</span>
+                {n.generated_at && <> · dataset <span className="font-num">{fmtTime(n.generated_at)}</span></>}
                 {n.checked_at && <> · controllo: <span className="font-num">{fmtTime(n.checked_at)}</span></>}
               </div>
               {n.warning && <p className="mt-1 text-[11px] text-amber-200/90">{n.warning}</p>}
@@ -69,7 +70,7 @@ export default function HealthDialog(p: Props) {
             <div className="mb-1 font-medium text-slate-200">Prodotti</div>
             <div>Radar DPC: ultimo frame <span className="font-num text-slate-200">{p.radar ? fmtTime(p.radar.latest_time) : "attivare il layer radar"}</span></div>
             <div>AROME-France HD: corsa <span className="font-num text-slate-200">{p.arome ? fmtTime(p.arome.run_time) : "n.d."}</span>{p.arome && <> · età {p.arome.run_age_hours} h · {p.arome.complete ? "completa" : "INCOMPLETA"}</>}</div>
-            <div>MeteoAlarm: feed <span className="font-num text-slate-200">{fmtTime(p.alerts?.feed_updated)}</span></div>
+            <div>MeteoAlarm: feed <span className="font-num text-slate-200">{fmtTime(p.alerts?.feed_updated)}</span>{p.alerts?.degraded && " · in ritardo"}</div>
             <div data-testid="health-rain48">Pioggia 48 h: {p.rain48 ? (p.rain48.operational ? `${p.rain48.station_count} stazioni` : "NON operativa – dataset senza stazioni") : "n.d."}</div>
             <div className="mt-1 text-slate-500">Weather Underground e WeatherLink sospese per decisione operativa.</div>
           </li>

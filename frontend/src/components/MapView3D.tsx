@@ -84,7 +84,7 @@ export default function MapView3D(props: Props) {
   const overlayLoadRef = useRef<AbortController | null>(null);
   const overlayWatchRef = useRef<(() => void) | null>(null);
   const overlayGroupRef = useRef<string | null>(null);
-  const overlayVisibleRef = useRef(false);
+  const overlayFrontRef = useRef<"overlay" | "overlay-next" | null>(null);
   const marineRafRef = useRef(0);
   const cb = useRef(props);
   cb.current = props;
@@ -125,8 +125,11 @@ export default function MapView3D(props: Props) {
       readyRef.current = true;
       // terrain only after load: an easing frame before the DEM exists crashes MapLibre's elevation lookup
       m.setTerrain({ source: "terrain", exaggeration: 1.4 });
-      m.addSource("overlay", { type: "image", url: EMPTY_OVERLAY, coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
-      m.addLayer({ id: "overlay", type: "raster", source: "overlay", paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, b.labels ? "labels" : undefined);
+      for (const id of ["overlay", "overlay-next"]) {
+        m.addSource(id, { type: "image", url: EMPTY_OVERLAY, coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
+        m.addLayer({ id, type: "raster", source: id, paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, b.labels ? "labels" : undefined);
+        m.setPaintProperty(id, "raster-opacity-transition", { duration: 0 });
+      }
       m.addSource("marine-vectors", { type: "geojson", data: EMPTY });
       m.addLayer({ id: "marine-vector-casing", type: "line", source: "marine-vectors",
         layout: { "line-cap": "round", "line-join": "round" },
@@ -134,10 +137,15 @@ export default function MapView3D(props: Props) {
       m.addLayer({ id: "marine-vector-lines", type: "line", source: "marine-vectors",
         layout: { "line-cap": "round", "line-join": "round" },
         paint: { "line-color": "#F8FAFC", "line-width": 1.5, "line-opacity": 0.95 } }, b.labels ? "labels" : undefined);
-      radarRef.current = new Radar3D(m, (r) => r.product === "OPERA"
-        ? { type: "raster", tiles: [`${OPERA_TILE_BASE}${operaStamp(r.time)}/{z}/{x}/{y}.png`], tileSize: 256, maxzoom: 7, bounds: [-15, 30, 28, 55], attribution: "EUMETNET OPERA NIMBUS · CC BY 4.0" }
-        : { type: "raster", tiles: [`dpc://${r.product}/${encodeURIComponent(r.time)}/{z}/{x}/{y}`], tileSize: 256, maxzoom: 7, bounds: [5, 35, 20, 48] },
-      (key) => cb.current.onLayerReady(key));
+      radarRef.current = new Radar3D(m, (r) => {
+        const opera = r.product === "OPERA";
+        const tile = opera ? `${OPERA_TILE_BASE}${operaStamp(r.time)}/{z}/{x}/{y}.png`
+          : `dpc://${r.product}/${encodeURIComponent(r.time)}/{z}/{x}/{y}`;
+        // Inline TileJSON avoids MapLibre deferring metadata to a separate animation frame.
+        const url = `data:application/json,${encodeURIComponent(JSON.stringify({ tilejson: "3.0.0", tiles: [tile] }))}`;
+        return { type: "raster", url, tileSize: 256, maxzoom: 7, bounds: opera ? [-15, 30, 28, 55] : [5, 35, 20, 48],
+          attribution: opera ? "EUMETNET OPERA NIMBUS · CC BY 4.0" : "Radar © Dipartimento della Protezione Civile" };
+      }, (key) => cb.current.onLayerReady(key));
       m.addSource("municipal", { type: "geojson", data: EMPTY });
       m.addLayer({ id: "municipal-line", type: "line", source: "municipal", minzoom: MUNICIPAL_MIN_ZOOM - 1, paint: { "line-color": MUNICIPAL_LINE.color, "line-width": MUNICIPAL_LINE.weight, "line-opacity": MUNICIPAL_LINE.opacity } });
       m.addSource("subregions", { type: "geojson", data: EMPTY });
@@ -359,11 +367,9 @@ export default function MapView3D(props: Props) {
     const token = ++tokenRef.current;
     overlayLoadRef.current?.abort(); overlayLoadRef.current = null;
     overlayWatchRef.current?.(); overlayWatchRef.current = null;
-    const source = m.getSource("overlay") as maplibregl.ImageSource;
     const clear = () => {
-      overlayVisibleRef.current = false;
-      m.setPaintProperty("overlay", "raster-opacity", 0);
-      source.updateImage({ url: EMPTY_OVERLAY });
+      overlayFrontRef.current = null;
+      for (const id of ["overlay", "overlay-next"]) m.setPaintProperty(id, "raster-opacity", 0);
     };
     if (!ov) {
       if (overlayGroupRef.current !== null) clear();
@@ -373,32 +379,36 @@ export default function MapView3D(props: Props) {
     const nextGroup = ov.group ?? "default";
     if (overlayGroupRef.current !== nextGroup) clear();
     overlayGroupRef.current = nextGroup;
+    const back = overlayFrontRef.current === "overlay" ? "overlay-next" : "overlay";
+    const source = m.getSource(back) as maplibregl.ImageSource;
     const [[s, w], [n, e]] = ov.bounds;
     const controller = new AbortController();
     overlayLoadRef.current = controller;
-    const current = () => !controller.signal.aborted && token === tokenRef.current && mapRef.current === m;
+    const current = () => !controller.signal.aborted && token === tokenRef.current && mapRef.current === m && cb.current.overlay?.url === ov.url;
     void preloadOverlayImage(ov.warp ? mercatorImage(ov.url, s, n) : ov.url, controller.signal).then((image) => {
       if (!current()) return;
-      let finished = false, imageLoaded = false;
+      let finished = false;
       const finish = (success: boolean) => {
         if (finished || !current()) return;
         finished = true;
         unwatch();
         if (overlayWatchRef.current === unwatch) overlayWatchRef.current = null;
         if (overlayLoadRef.current === controller) overlayLoadRef.current = null;
-        if (success) overlayVisibleRef.current = true;
-        m.setPaintProperty("overlay", "raster-opacity", overlayVisibleRef.current ? cb.current.opacity : 0);
         cb.current.onLayerReady(`${success ? "overlay" : "overlay-error"}:${ov.url}`);
       };
-      const rendered = () => {
-        if (current() && imageLoaded && m.isSourceLoaded("overlay")) finish(true);
-      };
+      const rendered = () => finish(true);
       const data = (event: { sourceId?: string; sourceDataType?: string }) => {
-        // Ignore an old aborted request toggling the fixed source's loaded flag.
-        if (event.sourceId === "overlay" && event.sourceDataType === "metadata") imageLoaded = true;
+        // Metadata follows the image decode and precedes the next WebGL paint.
+        if (event.sourceId !== back || event.sourceDataType !== "metadata" || !current()) return;
+        m.off("sourcedata", data);
+        if (overlayFrontRef.current) m.setPaintProperty(overlayFrontRef.current, "raster-opacity", 0);
+        m.setPaintProperty(back, "raster-opacity", cb.current.opacity);
+        overlayFrontRef.current = back;
+        m.on("render", rendered);
+        m.triggerRepaint();
       };
       const error = (event: { sourceId?: string; error?: Error }) => {
-        if (event.sourceId === "overlay" && event.error?.name !== "AbortError") finish(false);
+        if (event.sourceId === back && event.error?.name !== "AbortError") finish(false);
       };
       const timer = setTimeout(() => finish(false), 20_000);
       const unwatch = () => {
@@ -408,7 +418,6 @@ export default function MapView3D(props: Props) {
         m.off("error", error);
       };
       overlayWatchRef.current = unwatch;
-      m.on("render", rendered);
       m.on("sourcedata", data);
       m.on("error", error);
       try {
@@ -501,7 +510,7 @@ export default function MapView3D(props: Props) {
   useEffect(() => {
     const m = mapRef.current;
     if (!m || !readyRef.current) return;
-    if (props.overlay) m.setPaintProperty("overlay", "raster-opacity", overlayVisibleRef.current ? props.opacity : 0);
+    if (overlayFrontRef.current) m.setPaintProperty(overlayFrontRef.current, "raster-opacity", props.opacity);
     radarRef.current?.setOpacity(props.opacity);
   }, [props.opacity]); // eslint-disable-line react-hooks/exhaustive-deps
   const flySeqRef = useRef(props.flyTo?.seq ?? 0); // ignore a fly request that predates this mount

@@ -19,6 +19,11 @@ export default function AlertBanner({ data }: { data: AlertsResponse | undefined
       </div>
     );
   }
+  if (data.degraded && data.warnings.length === 0) {
+    return <div data-testid="meteo-alert-banner" role="status" className="inline-flex items-center gap-2 rounded-lg border border-amber-700 bg-slate-900/85 px-3 py-1.5 text-xs text-amber-200">
+      <ShieldAlert className="size-3.5" /> MeteoAlarm in ritardo · ultimo controllo {fmtTime(data.generated_at)}
+    </div>;
+  }
   if (data.warnings.length === 0) {
     return (
       <div data-testid="meteo-alert-banner" className="pointer-events-auto inline-flex items-center gap-2 rounded-lg border border-emerald-800/60 bg-slate-900/85 px-3 py-1.5 text-xs text-emerald-200 backdrop-blur-xl">
@@ -35,7 +40,7 @@ export default function AlertBanner({ data }: { data: AlertsResponse | undefined
       >
         <span className={cn("size-2 rounded-full live-dot", lv.dot)} />
         <ShieldAlert className="size-3.5" />
-        Allerta {lv.name} MeteoAlarm · Sardegna
+        {data.degraded ? "Ultimi avvisi" : `Allerta ${lv.name}`} MeteoAlarm · Sardegna
         <span className="font-num opacity-80">{data.active_count} in corso · {data.upcoming_count} prevista/e</span>
       </PopoverTrigger>
       <PopoverContent className="w-80 border-slate-700 bg-slate-900 p-3 text-slate-100" data-testid="meteo-alert-details">
@@ -59,7 +64,7 @@ export default function AlertBanner({ data }: { data: AlertsResponse | undefined
           ))}
         </ul>
         <p className="mt-2 text-[10px] leading-snug text-slate-500">
-          Livelli riportati senza reinterpretazione; non sostituiscono i bollettini della Protezione Civile regionale. Feed: {fmtTime(data.feed_updated)}
+          Livelli riportati senza reinterpretazione; non sostituiscono i bollettini della Protezione Civile regionale. Feed {fmtTime(data.feed_updated)} · ultimo controllo {fmtTime(data.generated_at)}{data.degraded && " · aggiornamento in ritardo"}
         </p>
       </PopoverContent>
     </Popover>

@@ -48,14 +48,17 @@ export const useArome = (enabled = true) =>
   useQuery({ queryKey: ["arome"], queryFn: getArome, refetchInterval: 15 * 60_000, enabled, retry: 1 });
 
 export const useDpcAccumulation = (product: string | null) =>
-  useQuery({ queryKey: ["dpc-accumulation", product], queryFn: () => getDpcAccumulationTime(product!), enabled: !!product,
+  useQuery({ queryKey: ["dpc-accumulation", product], queryFn: ({ signal }) => getDpcAccumulationTime(product!, signal), enabled: !!product,
     refetchInterval: 5 * 60_000, refetchOnWindowFocus: "always", retry: 1 });
 
 export const useRadar = (product: string | null) =>
   useQuery({
     queryKey: ["radar", product],
     // OPERA: RadarEU tiles probed in the browser. DPC: direct API (allowed for GitHub Pages), /api as fallback.
-    queryFn: () => (product === "OPERA" ? getOpera() : getRadar(product!).catch(() => apiGet<RadarFrames>(`/radar/${product}`))),
+    queryFn: ({ signal }) => (product === "OPERA" ? getOpera(signal) : getRadar(product!, signal).catch(() => {
+      signal.throwIfAborted();
+      return apiGet<RadarFrames>(`/radar/${product}`);
+    })),
     enabled: !!product,
     refetchInterval: 2 * 60_000,
     refetchOnWindowFocus: "always",
@@ -106,7 +109,7 @@ export const useModelPoint = (s: { lat: number; lon: number; last: string | null
 export const useSatellite = (product: string | null) =>
   useQuery({
     queryKey: ["satellite", product],
-    queryFn: () => getSatellite(product!),
+    queryFn: ({ signal }) => getSatellite(product!, signal),
     enabled: !!product,
     refetchInterval: 5 * 60_000,
     staleTime: 3 * 60_000,

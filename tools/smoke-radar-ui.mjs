@@ -9,8 +9,8 @@ import assert from "node:assert/strict";
 const modulePath = process.env.PLAYWRIGHT_MODULE;
 if (!modulePath) throw new Error("PLAYWRIGHT_MODULE non impostato");
 const { chromium } = await import(pathToFileURL(modulePath).href);
-const browser = await chromium.launch({ headless: true, args: [
-  "--no-sandbox", "--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader",
+const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE, args: [
+  "--no-sandbox", "--enable-webgl", "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader",
 ] });
 const url = process.env.RADAR_SITE || "https://matteotidili.github.io/sardegna-meteolive-web/";
 
@@ -53,7 +53,7 @@ async function clickFreeMapPoint(page, selector) {
 async function scenario(name, viewport, mobile) {
   const context = await browser.newContext({
     viewport, isMobile: mobile, hasTouch: mobile,
-    serviceWorkers: "block",
+    serviceWorkers: "block", ignoreHTTPSErrors: process.env.RADAR_SMOKE_IGNORE_HTTPS_ERRORS === "1",
   });
   const page = await context.newPage();
   const errors = [];
@@ -87,9 +87,9 @@ async function scenario(name, viewport, mobile) {
   console.log("NUMERIC CORS+CANVAS OK", JSON.stringify(source));
 
   if (mobile) await page.getByTestId("mobile-layers-sheet-trigger").click();
-  await page.getByTestId("layer-toggle-radar-sri").click();
+  await page.getByTestId("layer-toggle-radar-vmi").click();
   if (mobile) await page.keyboard.press("Escape");
-  await page.getByText("Radar DPC SRI · osservato").first().waitFor({ timeout: 45000 });
+  await page.getByText("Radar DPC VMI · osservato").first().waitFor({ timeout: 45000 });
 
   const canvas = page.getByTestId("map-canvas");
   await canvas.waitFor({ timeout: 30000 });
@@ -101,17 +101,19 @@ async function scenario(name, viewport, mobile) {
       window.__radarClickDebug.push({ target: e.target?.tagName, x: e.clientX, y: e.clientY });
     });
   });
+  const waitForFrame = (timeout) => page.waitForFunction(() => /\d\d:\d\d/.test(document.querySelector('[data-testid="timeline-current-label"]')?.textContent ?? ""), undefined, { timeout });
+  await waitForFrame(30000);
   await clickFreeMapPoint(page, '[data-testid="map-canvas"]');
   try {
     await page.getByTestId("radar-point-panel").waitFor({ timeout: 9000 });
-    await page.getByText("Intensità pluviometrica stimata al suolo").waitFor({ timeout: 9000 });
+    await page.getByText("Intensità pluviometrica").waitFor({ timeout: 9000 });
     assert.equal(await page.getByTestId("radar-point-panel").getByText("Riflettività massima verticale").count(), 0);
     assert.equal(await page.getByTestId("radar-point-panel").getByText("Equivalente teorico Marshall–Palmer").count(), 0);
   } catch (error) {
     console.log("RADAR DEBUG", name, JSON.stringify(await page.evaluate(() => ({
       clicks: window.__radarClickDebug, title: document.title,
       panelCount: document.querySelectorAll('[data-testid="radar-point-panel"]').length,
-      sriToggle: document.querySelector('[data-testid="layer-toggle-radar-sri"]')?.getAttribute("aria-pressed"),
+      vmiToggle: document.querySelector('[data-testid="layer-toggle-radar-vmi"]')?.getAttribute("aria-pressed"),
       mapClass: document.querySelector('[data-testid="map-canvas"]')?.className,
       mapCenter: document.elementFromPoint(window.innerWidth/2,window.innerHeight*0.54)?.outerHTML.slice(0,350),
     }))));
@@ -125,11 +127,18 @@ async function scenario(name, viewport, mobile) {
 
   // Richiudiamo il pannello affinché non intercetti i controlli della mappa.
   await page.getByTestId("radar-point-close").click();
+  if (!mobile) await page.setViewportSize({ width: 1100, height: 675 });
   await page.getByTestId("map-mode-toggle").click();
   const canvas3D = page.getByTestId("map-canvas-3d");
   await canvas3D.waitFor({ timeout: 25000 });
   const b3 = await canvas3D.boundingBox();
   assert(b3 && b3.width > 150 && b3.height > 100);
+  try {
+    await waitForFrame(65000);
+  } catch (error) {
+    console.log("RADAR 3D STATUS", name, await page.getByTestId("timeline-player").innerText(), JSON.stringify(errors.slice(0, 8)));
+    throw error;
+  }
   await clickFreeMapPoint(page, '[data-testid="map-canvas-3d"]');
   await page.getByTestId("radar-point-panel").waitFor({ timeout: 20000 });
   console.log("RADAR 3D PANEL OK",name);

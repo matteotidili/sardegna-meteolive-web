@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Conserva 24-26 h di osservazioni di stazione GIA' raccolte dai collector.
 
-Nessuna chiamata API: legge solo data/stations.json, data/am.json, data/ecowitt.json
+Nessuna chiamata API: legge i file di MeteoHub, AM, Ecowitt e MeteoNetwork
 gia' pubblicati e accoda per ogni stazione il campione con l'orario REALE di osservazione
 (campo `last`). Output: data/station_history_24h.json (formato station_history_v1):
 
@@ -33,7 +33,7 @@ def from_iso(v):
         d = dt.datetime.fromisoformat(str(v).replace("Z", "+00:00"))
     except ValueError:
         return None
-    return d if d.tzinfo else d.replace(tzinfo=UTC)
+    return d if d.tzinfo else None
 
 
 def tenths(v, lo, hi):
@@ -44,7 +44,8 @@ def tenths(v, lo, hi):
 
 def load(path):
     try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+        return doc if isinstance(doc, dict) else {}
     except (OSError, ValueError):
         return {}
 
@@ -57,32 +58,38 @@ def station_key(net, s):
 def collect(root, now):
     out = []
     for net, fname in INPUTS:
-        for s in load(root / fname).get("stations", []):
+        stations = load(root / fname).get("stations")
+        if not isinstance(stations, list):
+            continue
+        for s in stations:
             if not isinstance(s, dict):
                 continue
             k, t = station_key(net, s), from_iso(s.get("last"))
             if not k or t is None or t > now + dt.timedelta(minutes=5) or now - t > MAX_SOURCE_AGE:
                 continue
-            avail = s.get("available") or {}
+            avail = s.get("available")
+            if not isinstance(avail, dict):
+                avail = {}
             temp = None if avail.get("temp") is False else tenths(s.get("temp"), -40, 55)
             rain = None if avail.get("rain") is False else tenths(s.get("rain_today"), 0, 1000)
             if temp is None and rain is None:
                 continue
-            out.append((k, int(t.timestamp() // 60), temp, rain))
-    return out
+            out.append((k, t, temp, rain))
+    return sorted(out, key=lambda sample: sample[1])
 
 
 def merge(series, samples, now):
     limit = int((now - RETENTION).timestamp() // 60)
-    for k, minute, temp, rain in samples:
-        pts = {p[0]: p for p in series.get(k, []) if isinstance(p, list) and len(p) == 3}
-        pts[minute] = [minute, temp, rain]
-        series[k] = [pts[m] for m in sorted(pts)]
-    for k in list(series):
-        series[k] = [p for p in series[k] if p[0] >= limit][-MAX_POINTS:]
-        if not series[k]:
-            del series[k]
-    return series
+    indexed = {
+        key: {p[0]: p for p in points if isinstance(p, list) and len(p) == 3 and type(p[0]) is int and p[0] >= limit}
+        for key, points in series.items() if isinstance(points, list)
+    }
+    for key, time, temp, rain in samples:
+        minute = int(time.timestamp() // 60)
+        points = indexed.setdefault(key, {})
+        _, previous_temp, previous_rain = points.get(minute, [minute, None, None])
+        points[minute] = [minute, temp if temp is not None else previous_temp, rain if rain is not None else previous_rain]
+    return {key: [points[m] for m in sorted(points)[-MAX_POINTS:]] for key, points in indexed.items() if points}
 
 
 def main(root=ROOT, out=OUT, now=None):

@@ -11,32 +11,46 @@ import type {
   WindGrid, WindMeta,
 } from "@/lib/types";
 import { decodeWind, sampleWind } from "@/lib/windFlow";
+import { observationFreshness, observationWindows, romeObservationDay } from "@/lib/meteo";
 
 export const DATA_BASE = "https://raw.githubusercontent.com/matteotidili/sardegna-meteolive-data/main/";
 const RADAR_API = "https://radar-api.protezionecivile.it";
 
 type Json = Record<string, unknown>;
-const lastGood = new Map<string, unknown>();
+type JsonResponse = { data: unknown; sequence: number };
+const lastGood = new Map<string, JsonResponse>();
+const jsonRequests = new Map<string, Promise<JsonResponse>>();
+let jsonSequence = 0;
 const cedocLatest = new Map<string, Partial<Record<CedocVariable, CedocMeasurement>>>();
 
 async function getJson<T = Json>(path: string, bustSec = 30, valid?: (data: T) => boolean): Promise<{ data: T | null; retained: boolean }> {
   const url = (path.startsWith("http") ? path : DATA_BASE + path);
-  const sep = url.includes("?") ? "&" : "?";
+  const requestUrl = `${url}${url.includes("?") ? "&" : "?"}t=${Math.floor(Date.now() / 1000 / bustSec)}`;
+  let request = jsonRequests.get(requestUrl);
+  if (!request) {
+    const sequence = ++jsonSequence;
+    request = fetch(requestUrl, { signal: AbortSignal.timeout(10_000) }).then(async (response) => {
+      if (!response.ok) throw new Error(String(response.status));
+      return { data: await response.json(), sequence };
+    }).finally(() => jsonRequests.delete(requestUrl));
+    jsonRequests.set(requestUrl, request);
+  }
   try {
-    const r = await fetch(`${url}${sep}t=${Math.floor(Date.now() / 1000 / bustSec)}`, { cache: "no-store" });
-    if (!r.ok) throw new Error(String(r.status));
-    const d = (await r.json()) as T;
-    if (valid && !valid(d)) throw new Error("Struttura del feed non valida");
-    lastGood.set(url, d);
-    return { data: d, retained: false };
+    const result = await request;
+    const prior = lastGood.get(url);
+    if (prior && prior.sequence > result.sequence) return { data: prior.data as T, retained: false };
+    const data = result.data as T;
+    if (valid && !valid(data)) throw new Error("Struttura del feed non valida");
+    lastGood.set(url, result);
+    return { data, retained: false };
   } catch {
-    const prev = lastGood.get(url) as T | undefined; // keep last valid copy, flagged as retained
+    const prev = lastGood.get(url)?.data as T | undefined; // keep last valid copy, flagged as retained
     return { data: prev ?? null, retained: prev !== undefined };
   }
 }
 
 const num = (v: unknown): number | null => {
-  if (v === null || v === undefined || typeof v === "boolean" || v === "") return null;
+  if (typeof v !== "number" && (typeof v !== "string" || !v.trim())) return null;
   const f = Number(v);
   return Number.isFinite(f) ? f : null;
 };
@@ -47,12 +61,9 @@ const parse = (ts: unknown): Date | null => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 const iso = (d: Date | null) => (d ? d.toISOString().replace(/\.\d{3}Z$/, "Z") : null);
-const romeDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Rome" }).format(d);
+const romeDay = romeObservationDay;
 
 // ---------------------------------------------------------------- stations
-const THRESHOLDS: Record<string, [number, number]> = {
-  "dpcn-sardegna": [30, 180], "aeronautica-militare": [90, 240], ecowitt: [30, 180], local: [30, 180], meteonetwork: [30, 180], mareografico: [30, 90], ron: [30, 90], cedoc: [90, 180],
-};
 const NETWORKS: [string, string, string][] = [
   ["dpcn-sardegna", "MeteoHub / DPCN", "data/stations.json"],
   ["aeronautica-militare", "Aeronautica Militare", "data/am.json"],
@@ -68,8 +79,9 @@ const OPTIONAL_NETWORKS = new Set(["meteonetwork", "local", "mareografico", "ron
 
 function normalize(raw: Json, network: string, now: Date, today: string, rainOnly = false): Station | null {
   const lat = num(raw.lat), lon = num(raw.lon);
-  if (lat === null || lon === null) return null;
-  const last = parse(raw.last);
+  if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  const timestamp = parse(raw.last);
+  const last = timestamp && timestamp.getTime() <= now.getTime() + 360000 ? timestamp : null;
   const obsDay = last ? romeDay(last) : null;
   const avail = (raw.available ?? {}) as Record<string, boolean>;
   const g = (field: string, key: string) => (rainOnly && !field.startsWith("rain") ? null : avail[key] === false ? null : num(raw[field]));
@@ -109,12 +121,11 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
     } : undefined,
     marine_forecast: (network === "mareografico" || network === "ron") ? (raw.marine_forecast as Station["marine_forecast"] ?? undefined) : undefined,
   };
-  const hasValue = [s.temp, s.rh, s.wind_kmh, s.rain_rate, s.rain_today, s.rain_48h, s.tmin, s.tmax, s.marine?.sea_level_m, s.marine?.water_temp_c, s.sea_state?.wave_height_significant_m].some((v) => v != null);
+  const hasValue = [s.temp, s.rh, s.wind_kmh, s.gust_kmh, s.pressure_hpa, s.rain_rate, s.rain_today, s.rain_48h, s.tmin, s.tmax, s.marine?.sea_level_m, s.marine?.water_temp_c, s.sea_state?.wave_height_significant_m].some((v) => v != null);
   if (last && hasValue) {
     const age = Math.max(0, (now.getTime() - last.getTime()) / 60000);
-    const [fresh, stale] = THRESHOLDS[network] ?? [60, 180];
     s.age_min = Math.round(age * 10) / 10;
-    s.freshness = (age <= fresh ? "fresh" : age <= stale ? "stale" : "historic") as Freshness;
+    s.freshness = observationFreshness(last.getTime(), network, now.getTime());
   }
   return s;
 }
@@ -158,7 +169,7 @@ function cedocMeasurement(row: Json, key: CedocVariable, retained: boolean, now:
   retained ||= measurement?.retained === true;
   const day = romeDay(observed);
   const age = (now.getTime() - observed.getTime()) / 60000;
-  const [fresh, stale] = THRESHOLDS.cedoc;
+  const [fresh, stale] = observationWindows("cedoc");
   const freshness = age > stale || key === "rain_today" && day !== today
     ? "historic" : age > fresh || retained ? "stale" : "fresh";
   const source = measurement ? measurement.source_url : row.source_url;
@@ -168,11 +179,11 @@ function cedocMeasurement(row: Json, key: CedocVariable, retained: boolean, now:
     observed_at_basis: measurement?.observed_at_basis === "station_precipitation_report" ? "station_precipitation_report" : undefined };
 }
 
-async function loadCedoc(now: Date, today: string, withDtm: (s: Station, r: Json) => Station) {
-  const [liveResult, snapshotResult, sitesResult] = await Promise.all([
+async function loadCedoc(now: Date, today: string, elevation: ReturnType<typeof getElevations>) {
+  const [liveResult, snapshotResult, sitesResult, elev] = await Promise.all([
     getJson("data/cedoc.json", 30, validCedocFeed),
     getJson("data/cedoc_last_valid.json", 30, validCedocFeed),
-    getJson("data/cedoc_sites.json", 600, validCedocFeed),
+    getJson("data/cedoc_sites.json", 600, validCedocFeed), elevation,
   ]);
   const live = liveResult.data ?? {}, snapshot = snapshotResult.data ?? {};
   const groups = new Map<string, { live: Json[]; snapshot: Json[]; site?: Json }>();
@@ -235,7 +246,7 @@ async function loadCedoc(now: Date, today: string, withDtm: (s: Station, r: Json
       station.id = id;
       station.cedoc = measurements;
       station.freshness = freshness;
-      rows.push(withDtm(station, raw));
+      rows.push(withDtm(station, raw, elev));
     }
   }
 
@@ -266,28 +277,50 @@ async function loadCedoc(now: Date, today: string, withDtm: (s: Station, r: Json
   } };
 }
 
+function withDtm(s: Station, raw: Json, elev: Awaited<ReturnType<typeof getElevations>>) {
+  if (s.elev !== null) return s;
+  const e = elev.get(`${s.network}|${raw.station_id ?? ""}`) ?? elev.get(`${s.network}|${raw.name ?? ""}`);
+  if (e) { s.elev = e.elev; s.elev_source = e.source; }
+  return s;
+}
+
+const validStationFeed = (feed: Json) => validCedocFeed(feed) &&
+  (!(feed.stations as Json[]).length || (feed.stations as Json[]).some((row) => {
+    const lat = num(row.lat), lon = num(row.lon);
+    return lat !== null && lon !== null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+  }));
+
 export async function getStations(): Promise<StationsResponse> {
   const now = new Date(), today = romeDay(now);
   const stations: Station[] = [], networks: NetworkStatus[] = [];
-  const [results, elev] = await Promise.all([Promise.all(NETWORKS.map(([, , path]) => getJson(path))), getElevations()]);
-  const withDtm = (s: Station, raw: Json) => {
-    if (s.elev !== null) return s; // network-declared elevation always wins
-    const e = elev.get(`${s.network}|${raw.station_id ?? ""}`) ?? elev.get(`${s.network}|${raw.name ?? ""}`);
-    if (e) { s.elev = e.elev; s.elev_source = e.source; }
-    return s;
-  };
+  const elevation = getElevations();
+  const [results, elev, cedoc] = await Promise.all([
+    Promise.all(NETWORKS.map(([, , path]) => getJson(path, 30, (feed) => {
+      if (!validStationFeed(feed)) return false;
+      const previous = lastGood.get(DATA_BASE + path)?.data as Json | undefined;
+      return (feed.stations as Json[]).length > 0 || !(previous?.stations as Json[] | undefined)?.length;
+    }))), elevation, loadCedoc(now, today, elevation),
+  ]);
   NETWORKS.forEach(([key, label], i) => {
     if (OPTIONAL_NETWORKS.has(key) && !results[i].data) return;
     const { data, retained } = results[i];
     const p = (data ?? {}) as Json;
-    const rows = ((p.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, key, now, today); return s ? [withDtm(s, r)] : []; });
+    const byId = new Map<string, Station>();
+    for (const raw of (p.stations as Json[] | undefined) ?? []) {
+      const station = normalize(raw, key, now, today);
+      if (!station) continue;
+      const prior = byId.get(station.id);
+      if (prior && (prior.last ?? "") >= (station.last ?? "")) continue;
+      if (retained && station.freshness === "fresh") station.freshness = "stale";
+      byId.set(station.id, withDtm(station, raw, elev));
+    }
+    const rows = [...byId.values()];
     stations.push(...rows);
     networks.push(status(key, label, (p.source as string) ?? label, rows, p, {
-      using_last_valid: retained,
+      using_last_valid: retained, status: retained ? "degraded" : undefined,
       warning: !data ? "Sorgente non raggiungibile: nessun dato disponibile." : retained ? "Aggiornamento non riuscito: mostrato l'ultimo dataset valido scaricato." : null,
     }));
   });
-  const cedoc = await loadCedoc(now, today, withDtm);
   stations.push(...cedoc.rows);
   networks.push(cedoc.network);
   return { server_time: iso(now)!, local_day: today, stations, networks };
@@ -295,9 +328,13 @@ export async function getStations(): Promise<StationsResponse> {
 
 // ---------------------------------------------------------------- alerts
 export async function getAlerts(): Promise<AlertsResponse> {
-  const { data } = await getJson<Json>("data/meteoalarm.json", 300);
+  const { data, retained } = await getJson<Json>("data/meteoalarm.json", 300, (feed) => !!feed &&
+    Array.isArray(feed.warnings) && feed.warnings.every((warning: unknown) => !!warning && typeof warning === "object"));
   if (!data) return { source: "MeteoAlarm", feed_updated: null, generated_at: null, active_count: 0, upcoming_count: 0, max_level: 0, warnings: [], available: false };
   const now = Date.now(), regions = (data.regions ?? {}) as Record<string, { geometry?: GeoJSON.Geometry }>;
+  const generated = parse(data.generated_at);
+  const degraded = retained || !generated || generated.getTime() > now + 360000
+    || now - generated.getTime() > 30 * 60000;
   const out: AlertWarning[] = [];
   for (const w of (data.warnings as Json[]) ?? []) {
     const code = String(w.emma_id ?? "").toUpperCase(), area = String(w.area_desc ?? "");
@@ -316,7 +353,7 @@ export async function getAlerts(): Promise<AlertsResponse> {
   return {
     source: "MeteoAlarm / EUMETNET", feed_updated: (data.feed_updated as string) ?? null, generated_at: (data.generated_at as string) ?? null,
     active_count: out.filter((a) => a.status === "active").length, upcoming_count: out.filter((a) => a.status === "upcoming").length,
-    max_level: Math.max(0, ...out.map((a) => a.level)), warnings: out, available: true,
+    max_level: Math.max(0, ...out.map((a) => a.level)), warnings: out, available: true, degraded,
   };
 }
 
@@ -525,19 +562,24 @@ export async function getModelPoint(lat: number, lon: number, at: string): Promi
 }
 
 // ---------------------------------------------------------------- radar / FRP / rain48
-export async function getDpcAccumulationTime(product: string): Promise<string> {
-  const r = await fetch(`${RADAR_API}/findLastProductByType?type=${encodeURIComponent(product)}&lang=it`, { cache: "no-store" });
-  if (!r.ok) throw new Error("Accumulo Radar-DPC non disponibile");
-  const ms = Number(((await r.json()) as { lastProducts?: { time: number }[] }).lastProducts?.[0]?.time);
-  if (!Number.isFinite(ms)) throw new Error("Timestamp dell'accumulo non disponibile");
-  return new Date(ms).toISOString();
+async function getDpcProductTime(product: string, cancellation?: AbortSignal): Promise<number> {
+  const timeout = AbortSignal.timeout(10_000);
+  const signal = cancellation ? AbortSignal.any([cancellation, timeout]) : timeout;
+  const r = await fetch(`${RADAR_API}/findLastProductByType?type=${encodeURIComponent(product)}&lang=it`, { cache: "no-store", signal });
+  if (!r.ok) throw new Error(`Radar DPC HTTP ${r.status}`);
+  const row = ((await r.json()) as { lastProducts?: { time?: unknown; productType?: string }[] }).lastProducts?.[0];
+  const ms = num(row?.time);
+  if (ms === null || ms < Date.UTC(2000, 0, 1) || ms > Date.now() + 360000
+    || (row?.productType && row.productType !== product)) throw new Error("Timestamp del prodotto DPC non valido");
+  return ms;
 }
 
-export async function getRadar(product: string): Promise<RadarFrames> {
-  const r = await fetch(`${RADAR_API}/findLastProductByType?type=${product}&lang=it`, { cache: "no-store" });
-  if (!r.ok) throw new Error("Radar-DPC non disponibile");
-  const ms = Number(((await r.json()) as { lastProducts?: { time: number }[] }).lastProducts?.[0]?.time);
-  if (!Number.isFinite(ms)) throw new Error("Radar-DPC: ultimo prodotto non disponibile");
+export async function getDpcAccumulationTime(product: string, signal?: AbortSignal): Promise<string> {
+  return new Date(await getDpcProductTime(product, signal)).toISOString();
+}
+
+export async function getRadar(product: string, signal?: AbortSignal): Promise<RadarFrames> {
+  const ms = await getDpcProductTime(product, signal);
   const frames = Array.from({ length: 37 }, (_, i) => iso(new Date(ms - (36 - i) * 5 * 60000))!);
   return { product, latest_time: iso(new Date(ms))!, step_minutes: 5, frames };
 }
@@ -565,7 +607,8 @@ export async function getRain48(): Promise<Rain48Response> {
 let elevPromise: Promise<Map<string, { elev: number; source: string }>> | null = null;
 function getElevations() {
   if (!elevPromise) {
-    elevPromise = getJson<Json>("data/station_elevations.json", 86400).then(({ data }) => {
+    elevPromise = getJson<Json>("data/station_elevations.json", 86400, validCedocFeed).then(({ data }) => {
+      if (!data) elevPromise = null;
       const m = new Map<string, { elev: number; source: string }>();
       for (const s of ((data?.stations as Json[]) ?? [])) {
         const e = num(s.elev);
@@ -605,35 +648,47 @@ export interface HistoryPoint { t: number; temp: number | null; rain: number | n
 export interface StationHistory {
   points: HistoryPoint[]; // epoch ms, °C, daily rain counter mm
   tempSource: string | null; rainSource: string | null; generatedAt: string | null; tempPublished: boolean;
+  retained: boolean;
 }
 
-export async function getStationHistory(s: Station): Promise<StationHistory> {
+export async function getStationHistory(s: Pick<Station, "id" | "network" | "name">): Promise<StationHistory> {
   const key = s.id.replace(/^([^:]+):/, "$1|");
-  const [hist, rain] = await Promise.all([getJson<Json>("data/station_history_24h.json", 300), getJson<Json>("data/rain_history.json", 300)]);
-  const cut = Date.now() - 24 * 3600_000;
+  const historyPath = "station_history_24h.json", rainPath = "rain_history.json";
+  const hasSeries = (format: string) => (data: Json) => data?.format === format && !!data.series && typeof data.series === "object" && !Array.isArray(data.series);
+  const [hist, rain] = await Promise.all([
+    getJson<Json>(`data/${historyPath}`, 300, hasSeries("station_history_v1")),
+    getJson<Json>(`data/${rainPath}`, 300, hasSeries("daily_counter_timeseries_v1")),
+  ]);
+  const now = Date.now(), cut = now - 24 * 3600_000;
   const points = new Map<number, HistoryPoint>();
   const at = (t: number) => points.get(t) ?? points.set(t, { t, temp: null, rain: null }).get(t)!;
-  // station_history_v1: [epoch_min, temp_tenths|null, rain_today_tenths|null] — real observation times
-  const hs = (hist.data?.series as Record<string, (number | null)[][]> | undefined)?.[key] ?? [];
-  for (const [m, t10, r10] of hs) {
-    const t = Number(m) * 60000;
-    if (t < cut) continue;
-    if (t10 != null) at(t).temp = t10 / 10;
-    if (r10 != null) at(t).rain = r10 / 10;
+  const rows = (series: unknown): unknown[][] => Array.isArray(series) ? series.filter(Array.isArray) : [];
+  const bounded = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi;
+  const fallbackRain = new Set<number>();
+  const rainSeries = rain.data?.series as Record<string, unknown> | undefined;
+  for (const [minute, r10] of rows(rainSeries?.[key] ?? rainSeries?.[`${s.network}|${s.name}`])) {
+    if (!bounded(minute, cut / 60000, now / 60000) || !bounded(r10, 0, 10000)) continue;
+    const t = minute * 60000;
+    at(t).rain = r10 / 10;
+    fallbackRain.add(t);
   }
-  let rainSource: string | null = hs.some((p) => p[2] != null) ? "station_history_24h.json" : null;
-  if (!rainSource) {
-    // daily_counter_timeseries_v1 (rain 48 h chain): [epoch_min, rain_today_tenths]
-    const rs = ((rain.data?.series ?? {}) as Record<string, number[][]>);
-    const series = rs[key] ?? rs[`${s.network}|${s.name}`] ?? [];
-    for (const [m, r10] of series) { const t = m * 60000; if (t >= cut) at(t).rain = r10 / 10; }
-    if (series.length) rainSource = "rain_history.json";
+  let hasTemperature = false, hasHistoryRain = false;
+  for (const [minute, t10, r10] of rows((hist.data?.series as Record<string, unknown> | undefined)?.[key])) {
+    if (!bounded(minute, cut / 60000, now / 60000)) continue;
+    const t = minute * 60000;
+    if (bounded(t10, -400, 550)) { at(t).temp = t10 / 10; hasTemperature = true; }
+    if (bounded(r10, 0, 10000)) {
+      at(t).rain = r10 / 10;
+      hasHistoryRain = true;
+      fallbackRain.delete(t);
+    }
   }
+  const rainSources = [hasHistoryRain ? historyPath : null, fallbackRain.size ? rainPath : null].filter(Boolean);
   return {
     points: [...points.values()].sort((a, b) => a.t - b.t),
-    tempSource: hs.some((p) => p[1] != null) ? "station_history_24h.json" : null, rainSource,
+    tempSource: hasTemperature ? historyPath : null, rainSource: rainSources.join(", ") || null,
     generatedAt: (hist.data?.generated_at as string) ?? (rain.data?.generated_at as string) ?? null,
-    tempPublished: !!hist.data,
+    tempPublished: !!hist.data, retained: hist.retained || rain.retained,
   };
 }
 
@@ -643,28 +698,53 @@ export const operaStamp = (iso: string) => {
   const x = new Date(iso), p = (n: number) => String(n).padStart(2, "0");
   return `${x.getUTCFullYear()}${p(x.getUTCMonth() + 1)}${p(x.getUTCDate())}T${p(x.getUTCHours())}${p(x.getUTCMinutes())}`;
 };
-const operaProbe = (d: Date) => new Promise<boolean>((res) => {
-  const im = new Image();
-  const t = window.setTimeout(() => res(false), 4000);
-  im.onload = () => { clearTimeout(t); res(im.naturalWidth > 0); };
-  im.onerror = () => { clearTimeout(t); res(false); };
-  im.src = `${OPERA_TILE_BASE}${operaStamp(d.toISOString())}/0/0/0.png?probe=${Math.floor(Date.now() / 60000)}`;
+const operaProbe = (time: number, signal?: AbortSignal) => new Promise<boolean>((resolve) => {
+  if (signal?.aborted) { resolve(false); return; }
+  const image = new Image();
+  const finish = (ok: boolean) => {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", cancel);
+    image.onload = image.onerror = null;
+    if (!ok) image.src = "";
+    resolve(ok);
+  };
+  const cancel = () => finish(false);
+  const timer = setTimeout(cancel, 4000);
+  image.onload = () => finish(image.naturalWidth > 0);
+  image.onerror = cancel;
+  signal?.addEventListener("abort", cancel, { once: true });
+  image.src = `${OPERA_TILE_BASE}${operaStamp(new Date(time).toISOString())}/0/0/0.png?probe=${Math.floor(Date.now() / 60000)}`;
 });
 
-export async function getOpera(): Promise<RadarFrames> {
+export async function getOpera(signal?: AbortSignal): Promise<RadarFrames> {
   const step = 15 * 60000, start = Math.floor(Date.now() / step) * step;
-  let latest: Date | null = null;
-  for (let i = 0; i < 16 && !latest; i++) { const d = new Date(start - i * step); if (await operaProbe(d)) latest = d; }
-  if (!latest) throw new Error("OPERA: nessun frame disponibile");
-  const cands = Array.from({ length: 12 }, (_, i) => new Date(latest!.getTime() - (11 - i) * step));
-  const ok = await Promise.all(cands.map((d, i) => (i === 11 ? true : operaProbe(d))));
-  const frames = cands.filter((_, i) => ok[i]).map((d) => iso(d)!); // only frames that really exist
-  return { product: "OPERA", latest_time: iso(latest)!, step_minutes: 15, frames };
+  const probes = new Map<number, boolean>();
+  const check = async (times: number[]) => {
+    await Promise.all(times.filter((time) => !probes.has(time)).map(async (time) => {
+      probes.set(time, await operaProbe(time, signal));
+    }));
+    signal?.throwIfAborted();
+  };
+  let latest: number | undefined;
+  for (let i = 0; i < 16 && latest === undefined; i += 3) {
+    const times = Array.from({ length: Math.min(3, 16 - i) }, (_, j) => start - (i + j) * step);
+    await check(times);
+    latest = times.find((time) => probes.get(time));
+  }
+  if (latest === undefined) throw new Error("OPERA: nessun frame disponibile");
+  const frames = Array.from({ length: 12 }, (_, i) => latest! - (11 - i) * step);
+  for (let i = 0; i < frames.length; i += 3) await check(frames.slice(i, i + 3));
+  return { product: "OPERA", latest_time: iso(new Date(latest))!, step_minutes: 15,
+    frames: frames.filter((time) => probes.get(time)).map((time) => iso(new Date(time))!) };
 }
 
-// ---------------------------------------------------------------- EUMETSAT MTG
+// ---------------------------------------------------------------- EUMETSAT WMS
 const SAT: Record<string, [string, string, string, string, number, boolean]> = {
-  truecolour: ["mtg_fd:rgb_truecolour", "MTG FCI True Colour RGB", "© EUMETSAT · MTG FCI True Colour RGB", "image/jpeg", 10, true],
+  eview: ["msg_fes:rgb_eview", "MSG European HRV RGB", "© EUMETSAT · MSG European HRV RGB", "image/png", 15, false],
+  airmass: ["msg_fes:rgb_airmass", "MSG Airmass RGB", "© EUMETSAT · MSG Airmass RGB", "image/png", 15, false],
+  rdt: ["msg_fes:rdt", "RDT · Celle temporalesche", "© EUMETSAT / NWC SAF · Rapidly Developing Thunderstorms", "image/png", 15, false],
+  truecolour: ["mtg_fd:rgb_geocolour", "MTG GeoColour RGB", "© EUMETSAT · MTG GeoColour RGB", "image/png", 10, false],
+  cloudtype: ["mtg_fd:rgb_cloudtype", "MTG Cloud Type RGB", "© EUMETSAT · MTG Cloud Type RGB", "image/png", 10, true],
   ir105: ["mtg_fd:ir105_hrfi", "MTG FCI IR10.5 µm HRFI", "© EUMETSAT · MTG FCI HRFI IR10.5 µm", "image/jpeg", 10, false],
   cloudphase: ["mtg_fd:rgb_cloudphase", "MTG Cloud Phase RGB", "© EUMETSAT · MTG FCI Cloud Phase RGB", "image/jpeg", 10, true],
   snowfog: ["mtg_fd:rgb_snow", "MTG Day Snow Fog RGB", "© EUMETSAT · MTG Day Snow Fog RGB", "image/jpeg", 10, true],
@@ -672,120 +752,65 @@ const SAT: Record<string, [string, string, string, string, number, boolean]> = {
   li: ["mtg_fd:li_afa", "MTG LI · Area dei lampi (AFA)", "© EUMETSAT · MTG LI Accumulated Flash Area", "image/png", 5, false],
 };
 
-function satelliteDomain(xml: Document, layer: string): [number, number][] {
-  const layers = Array.from(xml.getElementsByTagNameNS("*", "Layer"));
-  const node = layers.find((l) => Array.from(l.children).some((c) => c.localName === "Name" && c.textContent?.split(":").at(-1) === layer.split(":").at(-1)));
-  let current: Element | null = node ?? null;
+function satelliteMetadata(xml: Document, layer: string) {
+  const nodes = Array.from(xml.getElementsByTagNameNS("*", "Layer"));
+  let current: Element | null = nodes.find((node) => Array.from(node.children).some((child) =>
+    child.localName === "Name" && child.textContent?.trim().split(":").at(-1) === layer.split(":").at(-1))) ?? null;
+  if (!current) throw new Error("Layer WMS assente dal catalogo");
+  let dimension: Element | undefined, bounds: [number, number][] | undefined;
   while (current) {
+    dimension ??= Array.from(current.children).find((node) => node.localName === "Dimension" && node.getAttribute("name") === "time");
     const box = Array.from(current.children).find((c) => c.localName === "EX_GeographicBoundingBox");
-    if (box) {
+    if (!bounds && box) {
       const value = (name: string) => Number(Array.from(box.children).find((c) => c.localName === name)?.textContent);
       const w = value("westBoundLongitude"), e = value("eastBoundLongitude"), south = value("southBoundLatitude"), north = value("northBoundLatitude");
-      if ([w,e,south,north].every(Number.isFinite) && w < e && south < north) return [[Math.max(-85, south),w],[Math.min(85,north),e]];
+      if ([w, e, south, north].every(Number.isFinite) && w < e && south < north) bounds = [[Math.max(-85, south), w], [Math.min(85, north), e]];
     }
     current = current.parentElement;
   }
-  throw new Error("Estensione geografica satellitare non disponibile");
+  if (!bounds) throw new Error("Estensione geografica satellitare non disponibile");
+  return { bounds, dimension };
 }
 
-const LI_AFA_WMS = "https://view.eumetsat.int/geoserver/mtg_fd/li_afa/ows";
-
-async function getLightningAfa(): Promise<SatelliteFrames> {
-  // Empty transparent maps are valid observations, not missing frames.
-  const response = await fetch(`${LI_AFA_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`EUMETSAT LI AFA HTTP ${response.status}`);
-  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
-  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension"))
-    .find((node) => node.getAttribute("name") === "time");
-  const interval = dimension?.textContent?.trim().split("/") ?? [];
-  const latest = dimension?.getAttribute("default") ?? interval[1];
-  const end = Date.parse(latest ?? ""), start = Date.parse(interval[0] ?? "");
-  if (!Number.isFinite(end) || interval[2] !== "PT5M") throw new Error("Catalogo temporale LI AFA non valido");
-  const step = 5 * 60_000;
-  const frames = Array.from({ length: 25 }, (_, i) => end - (24 - i) * step)
-    .filter((time) => !Number.isFinite(start) || time >= start)
-    .map((time) => new Date(time).toISOString());
-  return { product: "li", label: "MTG LI · Area dei lampi (AFA)", layer: "li_afa",
-    attribution: "© EUMETSAT · MTG LI Accumulated Flash Area", format: "image/png",
-    step_minutes: 5, wms_url: LI_AFA_WMS, bounds: satelliteDomain(xml, "li_afa"),
-    frames, latest: new Date(end).toISOString(), daytime_only: false };
+export function satelliteTimes(value: string, archiveMinutes: number, defaultStep: number) {
+  const published = value.split(",").map((token) => token.trim().split("/")).flatMap(([a, b, resolution]) => {
+    const start = Date.parse(a);
+    if (!Number.isFinite(start)) return [];
+    if (!b) return [{ start, end: start, step: 0 }];
+    const end = Date.parse(b), step = Number(resolution?.match(/^PT(\d+)M$/)?.[1]) * 60000;
+    return Number.isFinite(end) && end >= start && step > 0
+      ? [{ start, end: start + Math.floor((end - start) / step) * step, step }] : [];
+  });
+  const end = Math.max(...published.map((segment) => segment.end));
+  if (!Number.isFinite(end)) throw new Error("Catalogo temporale satellitare non valido");
+  const cutoff = end - archiveMinutes * 60000;
+  const times = new Set<number>();
+  for (const segment of published) {
+    if (segment.end < cutoff) continue;
+    if (!segment.step) { times.add(segment.start); continue; }
+    const first = segment.start + Math.max(0, Math.ceil((cutoff - segment.start) / segment.step)) * segment.step;
+    for (let t = first; t <= segment.end; t += segment.step) times.add(t);
+  }
+  const ordered = [...times].sort((a, b) => a - b);
+  const step = published.find((segment) => segment.end === end && segment.step)?.step
+    ?? (ordered.length > 1 ? ordered[ordered.length - 1] - ordered[ordered.length - 2] : defaultStep * 60000);
+  return { frames: ordered.map((time) => new Date(time).toISOString()), latest: new Date(end).toISOString(), step_minutes: step / 60000 };
 }
 
-async function getRgbSatellite(product: string): Promise<SatelliteFrames> {
-  const cloud = product === "cloudtype";
-  const layer = cloud ? "rgb_cloudtype" : "rgb_geocolour";
-  const wms_url = `https://view.eumetsat.int/geoserver/mtg_fd/${layer}/ows`;
-  const r = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
-  if (!r.ok) throw new Error(`EUMETSAT HTTP ${r.status}`);
-  const xml = new DOMParser().parseFromString(await r.text(), "application/xml");
-  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
-  const parts = dimension?.textContent?.trim().split("/") ?? [];
-  const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
-  const minutes = Number(parts[2]?.match(/^PT(\d+)M$/)?.[1]);
-  if (!Number.isFinite(end) || !minutes) throw new Error("Catalogo temporale RGB non valido");
-  const label = cloud ? "MTG Cloud Type RGB" : "MTG GeoColour RGB";
-  const frames = Array.from({ length: 19 }, (_, i) => new Date(end - (18-i)*minutes*60000).toISOString());
-  return { product, label, layer, attribution: `© EUMETSAT · ${label}`, format: "image/png", step_minutes: minutes,
-    wms_url, bounds: satelliteDomain(xml, layer), frames, latest: new Date(end).toISOString(), daytime_only: cloud };
-}
-
-async function getRdtSatellite(): Promise<SatelliteFrames> {
-  const wms_url = "https://view.eumetsat.int/geoserver/msg_fes/rdt/ows";
-  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`EUMETSAT RDT HTTP ${response.status}`);
-  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
-  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
-  const parts = dimension?.textContent?.trim().split("/") ?? [];
-  const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
-  const start = Date.parse(parts[0] ?? "");
-  if (!Number.isFinite(end) || parts[2] !== "PT15M") throw new Error("Catalogo temporale RDT non valido");
-  const frames = Array.from({ length: 13 }, (_, i) => end - (12 - i) * 15 * 60000)
-    .filter((t) => !Number.isFinite(start) || t >= start).map((t) => new Date(t).toISOString());
-  return { product: "rdt", label: "RDT · Celle temporalesche", layer: "rdt", attribution: "© EUMETSAT / NWC SAF · Rapidly Developing Thunderstorms",
-    format: "image/png", step_minutes: 15, wms_url, bounds: satelliteDomain(xml, "rdt"), frames,
-    latest: new Date(end).toISOString(), daytime_only: false };
-}
-
-async function getMsgRgbSatellite(product: "eview" | "airmass"): Promise<SatelliteFrames> {
-  const layer = product === "eview" ? "rgb_eview" : "rgb_airmass";
-  const label = product === "eview" ? "MSG European HRV RGB" : "MSG Airmass RGB";
-  const wms_url = `https://view.eumetsat.int/geoserver/msg_fes/${layer}/ows`;
-  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`EUMETSAT MSG RGB HTTP ${response.status}`);
-  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
-  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
-  const parts = dimension?.textContent?.trim().split("/") ?? [];
-  const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
-  const start = Date.parse(parts[0] ?? "");
-  if (!Number.isFinite(end) || parts[2] !== "PT15M") throw new Error("Catalogo temporale MSG RGB non valido");
-  const frames = Array.from({ length: 13 }, (_, i) => end - (12 - i) * 15 * 60000)
-    .filter((t) => !Number.isFinite(start) || t >= start).map((t) => new Date(t).toISOString());
-  return { product, label, layer, attribution: `© EUMETSAT · ${label}`,
-    format: "image/png", step_minutes: 15, wms_url, bounds: satelliteDomain(xml, layer), frames,
-    latest: new Date(end).toISOString(), daytime_only: false };
-}
-
-export async function getSatellite(product: string): Promise<SatelliteFrames> {
-  if (product === "eview" || product === "airmass") return getMsgRgbSatellite(product);
-  if (product === "rdt") return getRdtSatellite();
-  if (product === "truecolour" || product === "cloudtype") return getRgbSatellite(product);
-  if (product === "li") return getLightningAfa();
+export async function getSatellite(product: string, cancellation?: AbortSignal): Promise<SatelliteFrames> {
   const def = SAT[product];
   if (!def) throw new Error("Prodotto satellitare non supportato");
-  const [layer, label, attribution, format, step, day] = def;
-  const wms_url = `https://view.eumetsat.int/geoserver/mtg_fd/${layer.split(":").at(-1)}/ows`;
-  const capabilities = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-cache" });
-  if (!capabilities.ok) throw new Error("Catalogo satellitare non disponibile");
-  const xml = new DOMParser().parseFromString(await capabilities.text(), "application/xml");
-  const domain = satelliteDomain(xml, layer);
-  // Read published times directly: probing 25 images delayed the first useful frame.
-  const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
-  const parts = dimension?.textContent?.trim().split("/") ?? [];
-  const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
-  const start = Date.parse(parts[0] ?? "");
-  const minutes = Number(parts[2]?.match(/^PT(\d+)M$/)?.[1]) || step;
-  if (!Number.isFinite(end)) throw new Error("Catalogo temporale satellitare non valido");
-  const frames = Array.from({ length: Math.floor(180 / minutes) + 1 }, (_, i) => end - (Math.floor(180 / minutes) - i) * minutes * 60000)
-    .filter((time) => !Number.isFinite(start) || time >= start).map((time) => new Date(time).toISOString());
-  return { product, label, layer, attribution, format, step_minutes: minutes, wms_url, bounds: domain, frames, latest: new Date(end).toISOString(), daytime_only: day };
+  const [qualified, label, attribution, format, step, day] = def;
+  const [workspace, layer] = qualified.split(":");
+  const wms_url = `https://view.eumetsat.int/geoserver/${workspace}/${layer}/ows`;
+  const timeout = AbortSignal.timeout(12_000);
+  const signal = cancellation ? AbortSignal.any([cancellation, timeout]) : timeout;
+  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-cache", signal });
+  if (!response.ok) throw new Error(`Catalogo EUMETSAT HTTP ${response.status}`);
+  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+  const { bounds, dimension } = satelliteMetadata(xml, qualified);
+  const times = satelliteTimes(dimension?.textContent ?? "", product === "li" ? 120 : 180, step);
+  // Preserve the original request names used by the individual services.
+  const requestLayer = ["ir105", "cloudphase", "snowfog", "preciprate"].includes(product) ? qualified : layer;
+  return { product, label, layer: requestLayer, attribution, format, wms_url, bounds, daytime_only: day, ...times };
 }

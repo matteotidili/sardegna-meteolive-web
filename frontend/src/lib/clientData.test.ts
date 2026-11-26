@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("leaflet", () => ({ default: {} }));
 
-import { getArome, getSatellite, getStations, getWindMeta } from "./clientData";
+import { getAlerts, getArome, getRadar, getSatellite, getStationHistory, getStations, getWindMeta, satelliteTimes } from "./clientData";
 import { PARAM_BY_KEY, stationParameterLabel } from "./meteo";
 
 const oldRun = "2026-11-10T18:00:00Z";
@@ -27,6 +27,26 @@ function manifests(run: string) {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("combines new station history with earlier rain and retains good series through a malformed response", async () => {
+  const minute = Math.floor(Date.now() / 60000);
+  const key = "dpcn-sardegna|Example";
+  const station = { id: "dpcn-sardegna:Example", network: "dpcn-sardegna", name: "Example" };
+  let malformed = false;
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => Response.json(url.includes("station_history_24h.json")
+    ? malformed ? { format: "station_history_v1", series: [] } : {
+      format: "station_history_v1", series: { [key]: [[minute - 5, 103, 0], [minute + 20, 210, 2]] },
+    }
+    : { format: "daily_counter_timeseries_v1", series: { [key]: [[minute - 50, 21], [minute - 5, 14]] } })));
+  const history = await getStationHistory(station);
+  expect(history.points).toEqual([
+    { t: (minute - 50) * 60000, temp: null, rain: 2.1 },
+    { t: (minute - 5) * 60000, temp: 10.3, rain: 0 },
+  ]);
+  expect(history.rainSource).toBe("station_history_24h.json, rain_history.json");
+  malformed = true;
+  await expect(getStationHistory(station)).resolves.toMatchObject({ points: history.points, retained: true });
+});
+
 it("opens the IR archive from published catalogue times with no image probes", async () => {
   const latest = "2026-11-18T12:00:00Z";
   const dimension = {
@@ -34,7 +54,7 @@ it("opens the IR archive from published catalogue times with no image probes", a
     getAttribute: (key: string) => key === "name" ? "time" : key === "default" ? latest : null,
   };
   const value = (localName: string, textContent: string) => ({ localName, textContent });
-  const layer = { parentElement: null, children: [value("Name", "ir105_hrfi"), {
+  const layer = { parentElement: null, children: [value("Name", "ir105_hrfi"), { ...dimension, localName: "Dimension" }, {
     localName: "EX_GeographicBoundingBox", children: [value("westBoundLongitude", "-80"), value("eastBoundLongitude", "80"), value("southBoundLatitude", "-80"), value("northBoundLatitude", "80")],
   }] };
   vi.stubGlobal("DOMParser", class {
@@ -139,4 +159,61 @@ describe("CEDOC station measurements", () => {
     live = { error: "Invalid JSON object for this feed" };
     expect((await getStations()).stations.find((s) => s.id === iglesias.id)?.rain_48h).toBe(53.8);
   });
+});
+
+
+it("uses advertised satellite instants without filling gaps or moving the interval grid", () => {
+  const frames = satelliteTimes("2026-11-26T10:00:00Z/2026-11-26T10:25:00Z/PT10M, 2026-11-26T10:47:00Z", 180, 10);
+  expect(frames.frames).toEqual([
+    "2026-11-26T10:00:00.000Z", "2026-11-26T10:10:00.000Z", "2026-11-26T10:20:00.000Z", "2026-11-26T10:47:00.000Z",
+  ]);
+});
+
+it("preserves the verified station timestamp on malformed HTTP 200 and rejects fake zeros", async () => {
+  vi.useFakeTimers({ now: new Date("2026-11-26T11:00:00Z") });
+  const good = {
+    station_id: "audit-zero", name: "Zero valido", lat: 40, lon: 9,
+    last: "2026-11-26T10:58:00Z", rain_today: 0, rain_rate: " ",
+  };
+  let payload: object = { stations: [
+    { ...good, last: "2026-11-26T10:30:00Z", rain_today: 3 }, good,
+    { ...good, station_id: "future", last: "2026-11-26T13:00:00Z", rain_today: [], gust_kmh: 22 },
+  ] };
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+    if (url.includes("/am.json?")) return Response.json(payload);
+    return Response.json({ stations: [] });
+  }));
+  try {
+    let result = await getStations();
+    expect(result.stations.find((s) => s.id.endsWith(":audit-zero"))).toMatchObject({
+      last: good.last, rain_today: 0, rain_rate: null, freshness: "fresh",
+    });
+    expect(result.stations.find((s) => s.id.endsWith(":future"))).toMatchObject({ last: null, rain_today: null });
+    payload = { stations: "unknown schema" };
+    result = await getStations();
+    expect(result.stations.find((s) => s.id.endsWith(":audit-zero"))).toMatchObject({
+      freshness: "stale", last: good.last, rain_today: 0,
+    });
+    expect(result.networks.find((row) => row.key === "aeronautica-militare")).toMatchObject({
+      status: "degraded", using_last_valid: true,
+    });
+  } finally { vi.useRealTimers(); }
+});
+
+
+it("flags old MeteoAlarm data and retains its original dates through a schema failure", async () => {
+  vi.useFakeTimers({ now: new Date("2026-11-26T11:00:00Z") });
+  const generated = "2026-11-26T08:00:00Z";
+  let payload: object = { generated_at: generated, feed_updated: generated, warnings: [] };
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json(payload)));
+  try {
+    expect(await getAlerts()).toMatchObject({ available: true, degraded: true, generated_at: generated });
+    payload = { warnings: "malformed" };
+    expect(await getAlerts()).toMatchObject({ available: true, degraded: true, generated_at: generated, warnings: [] });
+  } finally { vi.useRealTimers(); }
+});
+
+it("rejects an absent DPC timestamp rather than generating a 1970 radar archive", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ lastProducts: [{ productType: "VMI", time: null }] })));
+  await expect(getRadar("VMI")).rejects.toThrow("Timestamp del prodotto DPC");
 });

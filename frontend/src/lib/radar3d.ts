@@ -20,7 +20,7 @@ export class Radar3D {
     map: Map,
     sourceFor: (frame: RadarFrame) => RasterSourceSpecification,
     onReady: (key: string) => void,
-    timeoutMs = 20000,
+    timeoutMs = 45_000,
   ) {
     this.map = map;
     this.sourceFor = sourceFor;

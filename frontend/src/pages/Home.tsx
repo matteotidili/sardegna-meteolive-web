@@ -1,13 +1,12 @@
 import { WEBCAMS } from "@/lib/webcams";
 import { useSatelliteStack } from "@/hooks/useSatelliteStack";
-import { retainSatelliteRequests, satelliteImage, satelliteStackUrl } from "@/lib/satelliteImages";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { satelliteCache, satelliteNeighbors, satelliteStackUrl } from "@/lib/satelliteImages";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box, MonitorPlay, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import OpsClock from "@/components/OpsClock";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import MapView, { type Basemap, type MapViewState } from "@/components/MapView";
-import MapView3D from "@/components/MapView3D";
 import StationList from "@/components/StationList";
 import StationCard from "@/components/StationCard";
 import LayerPanel, { SAT_OPTIONS, type AnimLayer } from "@/components/LayerPanel";
@@ -17,7 +16,7 @@ import HealthDialog from "@/components/HealthDialog";
 import { AromeLegend, DpcAccumulationLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationInterpolationLegend, StationLegend } from "@/components/Legends";
 import { useAlerts, useArome, useAromePoint, useDpcAccumulation, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
-import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, observationTimeFor, stationParameterLabel, type ParamKey } from "@/lib/meteo";
+import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, stationParameterLabel, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
 import { useLightning } from "@/lib/lightning";
 import { useLiveWind } from "@/lib/liveWind";
@@ -36,7 +35,9 @@ import { useHydrometers } from "@/lib/hydro";
 import { useMarineCatalog, useMarineVectors } from "@/hooks/useMarine";
 import { marineImageUrl, type MarineForcing, type MarineModel, type MarineParameter } from "@/lib/marine";
 import { marineViewportBounds } from "@/lib/marineViewport";
-import { interpolationParam, interpolationSamples, type InterpolationKey } from "@/lib/stationInterpolation";
+import { interpolationSamples, type InterpolationCoverage, type InterpolationKey } from "@/lib/stationInterpolation";
+
+const MapView3D = lazy(() => import("@/components/MapView3D"));
 
 const BASEMAP_LABEL: Record<Basemap, string> = { dark: "Operativa scura", satellite: "Satellite", light: "Chiara", streets: "Stradale", relief: "Rilievo" };
 const DEFAULT_VIEW: MapViewState = { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM };
@@ -104,7 +105,8 @@ export default function Home() {
     else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   };
   const [bbox, setBbox] = useState<[number, number, number, number] | null>(null);
-  const [satIdx, setSatIdx] = useState<number | null>(null);
+  const [satSelection, setSatSelection] = useState<{ time: string; direction: number } | null>(null);
+  const prefetching = useRef(new Map<string, AbortController>());
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; seq: number } | null>(null);
@@ -118,7 +120,7 @@ export default function Home() {
   const renderer = useMemo(() => ({}), [mode3d, mode3d ? basemap : null]);
   const [readyFrame, setReadyFrame] = useState<{ renderer: object; key: string } | null>(null);
   const readyKey = readyFrame?.renderer === renderer ? readyFrame.key : "";
-  const onLayerReady = useCallback((key: string) => setReadyFrame({ renderer, key }), [renderer]);
+
   const [sheet, setSheet] = useState<"none" | "stations" | "layers">("none");
 
   const param = PARAM_BY_KEY[paramKey] ?? PARAMS[0];
@@ -166,17 +168,15 @@ export default function Home() {
     }),
     [all, networks, param.rain, marineView, showIspraBuoys, showRonBuoys],
   );
-  const [interpolationUsed, setInterpolationUsed] = useState(0);
+  const [interpolationUsed, setInterpolationUsed] = useState<InterpolationCoverage>({ variable: null, count: 0, latest: null, oldest: null });
+  const onInterpolationCoverage = useCallback((coverage: InterpolationCoverage) => setInterpolationUsed((last) =>
+    last.variable === coverage.variable && last.count === coverage.count && last.latest === coverage.latest && last.oldest === coverage.oldest
+      ? last : coverage), []);
   // The network filters affect the marker/list display only.
   const interpolationValid = useMemo(
     () => interpolationSamples(all, stationInterpolationKey),
     [all, stationInterpolationKey],
   );
-  const interpolationLatest = useMemo(() => interpolationValid
-    .map((x) => observationTimeFor(x.station, interpolationParam(stationInterpolationKey)))
-    .filter((x): x is string => !!x)
-    .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null,
-  [interpolationValid, stationInterpolationKey]);
   const selected = all.find((s) => s.id === selectedId) ?? null;
 
   // ---- timeline state ----
@@ -204,18 +204,32 @@ export default function Home() {
   const accumulationLayer = accumulationProduct && accumulationQ.data ? { product: accumulationProduct, time: accumulationQ.data } : null;
   const mapRadarLayer = radarLayer ?? accumulationLayer;
   const aromeUrl = anim === "arome" ? aromeUrlAt(lIdx) : null;
-  const sat = satQ.data && satProduct && !satQ.isError ? satQ.data : null;
+  const sat = satProduct ? satQ.data : undefined;
   const satFrames = sat?.frames ?? [];
-  const sIdx = satFrames.length ? Math.min(satIdx ?? satFrames.length - 1, satFrames.length - 1) : 0;
+  const selectionIndex = satSelection ? satFrames.findIndex((time) => Date.parse(time) >= Date.parse(satSelection.time)) : -1;
+  const sIdx = selectionIndex < 0 ? Math.max(0, satFrames.length - 1) : selectionIndex;
   const satRenderBounds = useMemo(() => sat ? satelliteRegionBounds(sat.bounds) : null, [sat]);
-  const satUrlAt = useCallback((i: number) => (sat && satRenderBounds && satFrames[i]
-    ? satelliteStackUrl(satQ.catalogs.map((catalog, index) => ({
-      url: regionalSatelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds, satFrames[i], isDesktop),
-      opacity: satelliteOpacity[activeSatellites[index]] ?? 1,
-    }))) : null), [sat, satFrames, isDesktop, satRenderBounds, satQ.catalogs, satelliteOpacity, activeSatellites]);
-  useEffect(() => {
-    retainSatelliteRequests(satFrames.map((_, i) => satUrlAt(i)));
-  }, [satUrlAt, satFrames]);
+  const satUrls = useMemo(() => sat && satRenderBounds ? sat.frames.map((time) =>
+    satelliteStackUrl(satQ.catalogs.map((catalog) => ({
+      url: regionalSatelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds, time, isDesktop),
+      opacity: satelliteOpacity[catalog.product] ?? 1,
+    })))) : [], [sat, satRenderBounds, satQ.catalogs, satelliteOpacity, isDesktop]);
+  const satUrl = satUrls[sIdx];
+  const satCandidate = sat && satRenderBounds && satUrl ? {
+    url: satUrl, bounds: satRenderBounds, warp: false, attribution: sat.attribution, group: "satellite",
+  } : null;
+  const [shownSatellite, setShownSatellite] = useState<{
+    renderer: object; overlay: NonNullable<typeof satCandidate>; time: string; label: string;
+  } | null>(null);
+  const shownSat = satProduct && shownSatellite?.renderer === renderer ? shownSatellite : null;
+  const [shownRadar, setShownRadar] = useState<{ renderer: object; product: string; time: string } | null>(null);
+  const displayedRadar = radarProduct && shownRadar?.renderer === renderer && shownRadar.product === radarProduct
+    ? shownRadar : null;
+  const selectSatellite = (index: number, direction = Math.sign(index - sIdx)) => {
+    if (!satFrames[index]) return;
+    setSatSelection({ time: satFrames[index], direction: direction || satSelection?.direction || -1 });
+    if (readyKey.startsWith("overlay-error:")) setReadyFrame(null);
+  };
   const marineFrames = marine?.frames ?? [];
   const defaultMarineIdx = useMemo(() => {
     const idx = marineFrames.findIndex((time) => Date.parse(time) >= Date.now());
@@ -230,16 +244,37 @@ export default function Home() {
   const marineUrl = marineOn ? marineUrlAt(mIdx) : null;
   const marineDirections = marineOn && marineModel === "ww3" && marineArrows;
   const marineVectorsQ = useMarineVectors(marineTime, Math.round(view.zoom), marineDirections, marine?.run_time);
+  const marineGroup = marineUrl && marine ? `marine:${marine.model}:${marineParam}:${marine.forcing ?? ""}:${marine.run_time}` : null;
+  const aromeGroup = aromeUrl && arome ? `arome:${aromeParam}:${arome.run_time}` : null;
+  const modelGroup = marineGroup ?? aromeGroup;
+  const marineLabels = marine ? marineFrames.map((time) =>
+    `H+${String(Math.round((Date.parse(time) - Date.parse(marine.run_time)) / 3600000)).padStart(2, "0")} · ${fmtDayTime(time)}`) : [];
+  const aromeLabels = aromeFrames.map((f) => `H+${String(f.lead_hours).padStart(2, "0")} · ${fmtDayTime(f.valid_time)}`);
   const overlay = marineUrl && marine
     ? { url: marineUrl, bounds: marineRenderCatalog!.bounds, warp: false, attribution: marine.attribution,
-        group: `marine:${marine.model}:${marineParam}:${marine.forcing ?? ""}:${marine.run_time}` }
+        group: marineGroup! }
     : aromeUrl && arome
-    ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)" }
-    : sat && satRenderBounds && satUrlAt(sIdx) ? { url: satUrlAt(sIdx)!, bounds: satRenderBounds, warp: false, attribution: sat.attribution } : null;
+    ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)", group: aromeGroup! }
+    : satCandidate ?? shownSat?.overlay ?? null;
+  const [shownModel, setShownModel] = useState<{ renderer: object; group: string; label: string } | null>(null);
+  const displayedModelLabel = shownModel?.renderer === renderer && shownModel.group === modelGroup ? shownModel.label : null;
+  const onLayerReady = (key: string) => {
+    setReadyFrame({ renderer, key });
+    if (radarLayer && key === radarFrameKey(radarLayer)) setShownRadar({ renderer, ...radarLayer });
+    if (satCandidate && key === `overlay:${satCandidate.url}`) {
+      setShownSatellite({ renderer, overlay: satCandidate, time: satFrames[sIdx], label: sat!.label });
+    }
+    if (modelGroup && overlay && key === `overlay:${overlay.url}`) {
+      setShownModel({ renderer, group: modelGroup, label: marineGroup ? marineLabels[mIdx] : aromeLabels[lIdx] });
+    }
+    if (satCandidate && key.endsWith(satCandidate.url) && new URLSearchParams(window.location.search).get("diagnostica") === "satellite") {
+      console.info("EUMETSAT", JSON.stringify({ frame: satFrames[sIdx], ...satelliteCache.snapshot() }));
+    }
+  };
   const currentKey = radarLayer ? radarFrameKey(radarLayer) : overlay ? `overlay:${overlay.url}` : "";
   const frameFailed = radarLayer ? readyKey === radarFrameErrorKey(radarLayer)
     : !!overlay && readyKey === `overlay-error:${overlay.url}`;
-  const frameReady = currentKey !== "" && (readyKey === currentKey || frameFailed)
+  const frameReady = (!satProduct || !!satCandidate) && currentKey !== "" && (readyKey === currentKey || frameFailed)
     && (!marineDirections || !!marineVectorsQ.data || marineVectorsQ.isError || frameFailed);
   const visibleMarineVectors = marineDirections && marineUrl && readyKey === `overlay:${marineUrl}`
     ? marineVectorsQ.data ?? null : null;
@@ -265,7 +300,12 @@ export default function Home() {
     : windMeta && !windFrame ? "Scadenza senza vettori vento pubblicati." : windQ.isError ? "File vettoriale non valido." : null;
 
   // reset timeline when the animated layer changes
-  useEffect(() => { setPlaying(false); setRadarIdx(null); setSatIdx(null); }, [anim]);
+  useEffect(() => { setPlaying(false); setRadarIdx(null); }, [anim]);
+  useEffect(() => { if (!modelGroup) setShownModel(null); }, [modelGroup]);
+  useEffect(() => { if (!radarProduct) setShownRadar(null); }, [radarProduct]);
+  useEffect(() => {
+    if (!satProduct) { setSatSelection(null); setShownSatellite(null); }
+  }, [satProduct]);
   // SRI is no longer offered as a display layer. Clear a saved selection from
   // older sessions so it cannot remain active invisibly in the background.
   useEffect(() => { if (anim === "radar-SRI") setAnim("none"); }, [anim, setAnim]);
@@ -281,7 +321,7 @@ export default function Home() {
       if (marineUrl) setMarineIdx((mIdx + 1) % marineFrames.length);
       else if (radarLayer) setRadarIdx((rIdx + 1) % radarFrames.length);
       else if (aromeUrl) setLeadIdx((lIdx + 1) % aromeFrames.length);
-      else if (sat) setSatIdx((sIdx + 1) % satFrames.length);
+      else if (satFrames.length) selectSatellite((sIdx + 1) % satFrames.length, 1);
     }, BASE_DELAY / speed);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -295,21 +335,30 @@ export default function Home() {
     }
   }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length]);
 
-  // Both renderers share the same fixed Mediterranean archive, retained across zoom/pan.
-  // Three workers avoid flooding WMS while sharing in-flight requests with playback.
   useEffect(() => {
-    if (!sat || !satFrames.length || readyKey !== `overlay:${satUrlAt(sIdx)}`) return;
-    let stopped = false, next = 0;
-    const urls = Array.from({ length: satFrames.length - 1 }, (_, i) => satUrlAt((sIdx + i + 1) % satFrames.length));
-    const worker = async () => {
-      while (!stopped && next < urls.length) {
-        const url = urls[next++];
-        if (url) { try { await satelliteImage(url); } catch { /* retry on selection */ } }
-      }
-    };
-    void Promise.all(Array.from({ length: Math.min(3, urls.length) }, worker));
-    return () => { stopped = true; };
-  }, [sat, satFrames, satUrlAt, sIdx, readyKey]);
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    const conserve = connection?.saveData || connection?.effectiveType?.endsWith("2g");
+    const wanted = new Set(satelliteNeighbors(sIdx, satUrls.length, satSelection?.direction ?? -1, playing, conserve)
+      .map((index) => satUrls[index]));
+    for (const [url, controller] of prefetching.current) {
+      if (wanted.has(url)) continue;
+      controller.abort();
+      prefetching.current.delete(url);
+    }
+    if (!satUrl || readyKey !== `overlay:${satUrl}`) return;
+    for (const url of wanted) {
+      if (prefetching.current.has(url)) continue;
+      const controller = new AbortController();
+      prefetching.current.set(url, controller);
+      void satelliteCache.prefetch(url, controller.signal).catch(() => {
+        if (prefetching.current.get(url) === controller) prefetching.current.delete(url);
+      });
+    }
+  }, [satUrls, satUrl, sIdx, satSelection?.direction, playing, readyKey]);
+  useEffect(() => {
+    const pending = prefetching.current;
+    return () => { for (const controller of pending.values()) controller.abort(); pending.clear(); };
+  }, []);
 
   // Only one marine frame is prefetched, after the selected raster has loaded.
   useEffect(() => {
@@ -331,7 +380,7 @@ export default function Home() {
   const aromeMeta = arome?.parameters.find((p) => p.key === aromeParam);
   const aromePointStops = aromeParam === AROME_PRECIP_KEY ? arome?.hourly_precip_stops : aromeMeta?.stops;
   const aromePointRequest = useMemo(() => {
-    if (!aromePoint || anim !== "arome" || !aromeUrl || !arome || !aromePointStops?.length) return null;
+    if (!aromePoint || anim !== "arome" || !aromeUrl || readyKey !== `overlay:${aromeUrl}` || !arome || !aromePointStops?.length) return null;
     return {
       ...aromePoint, url: aromeUrl, bounds: arome.bounds, key: aromeParam,
       label: aromeParam === AROME_PRECIP_KEY ? "Precipitazione oraria" : aromeMeta?.label ?? aromeParam,
@@ -341,14 +390,14 @@ export default function Home() {
         ? arome.product_url_template.replace("{parameter}", "t2m").replace("{lead}", String(aromeFrames[lIdx]?.lead_hours ?? 0).padStart(2, "0"))
         : undefined,
     };
-  }, [aromePoint, anim, aromeUrl, arome, aromeParam, aromePointStops, aromeMeta, aromeFrames, lIdx]);
+  }, [aromePoint, anim, aromeUrl, readyKey, arome, aromeParam, aromePointStops, aromeMeta, aromeFrames, lIdx]);
   const aromePointQ = useAromePoint(aromePointRequest);
   const timeline = marineOn ? marine && marineUrl ? (
     <TimelinePlayer
       title={`${marine.model === "ww3" ? "WW3 MEDITA" : `SHYFEM · ${marine.forcing === "ICON" ? "ICON-2I" : marine.forcing}`} · ${MARINE_LABELS[marineParam].short} (${MARINE_LABELS[marineParam].unit})`}
-      labels={marineFrames.map((time) => `H+${String(Math.round((Date.parse(time) - Date.parse(marine.run_time)) / 3600000)).padStart(2, "0")} · ${fmtDayTime(time)}`)}
+      labels={marineLabels}
       index={mIdx} setIndex={setMarineIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
-      loading={!frameReady} legend={<MarineLegend parameter={marineParam} />}
+      loading={!frameReady} displayedLabel={displayedModelLabel} legend={<MarineLegend parameter={marineParam} />}
       note={`Corsa ${new Intl.DateTimeFormat("it-IT", { timeZone: "UTC", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(marine.run_time))} UTC · orari della timeline locali · ${marineFrames.length} scadenze pubblicate.${Date.now() - Date.parse(marine.run_time) > 36 * 3600000 ? " Corsa meno recente: verificare l’ora di emissione." : ""}${marineQ.isError ? " Aggiornamento non riuscito: ultima corsa verificata." : ""}${frameFailed ? " Fotogramma non caricato: resta l’ultimo caricato, se presente." : ""}${marineDirections && marineVectorsQ.isError ? " Direzioni delle onde non disponibili per questo orario." : ""}`}
     >
       <MarineAttribution catalog={marine} />
@@ -363,7 +412,7 @@ export default function Home() {
       title={radarProduct === "OPERA" ? "Radar Europa EUMETNET OPERA · osservato" : `Radar DPC ${radarProduct} · osservato`}
       labels={radarFrames.map((t) => fmtTime(t))}
       index={rIdx} setIndex={setRadarIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
-      loading={!frameReady} legend={radarProduct === "OPERA" ? <OperaLegend /> : <RadarLegend product={radarProduct!} />}
+      loading={!frameReady} displayedLabel={displayedRadar ? fmtTime(displayedRadar.time) : null} legend={radarProduct === "OPERA" ? <OperaLegend /> : <RadarLegend product={radarProduct!} />}
       note={(radarProduct === "OPERA"
         ? `Ultime 3 ore, passo 15 min, ${radarFrames.length} frame verificati. NIMBUS rain rate (Z–R Marshall–Palmer) · EUMETNET OPERA CC BY 4.0 · tiles RadarEU.`
         : "Ultime 3 ore, passo 5 min. © Dipartimento della Protezione Civile.")
@@ -372,17 +421,18 @@ export default function Home() {
   ) : aromeUrl && arome ? (
     <TimelinePlayer
       title={`AROME HD · previsione · ${aromeParam === AROME_PRECIP_KEY ? "precipitazione oraria" : aromeMeta?.label ?? aromeParam}`}
-      labels={aromeFrames.map((f) => `H+${String(f.lead_hours).padStart(2, "0")} · ${fmtDayTime(f.valid_time)}`)}
+      labels={aromeLabels}
       index={lIdx} setIndex={setLeadIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
-      loading={!frameReady} legend={<AromeLegend meta={aromeMeta} isPrecip={aromeParam === AROME_PRECIP_KEY} hourlyPrecipStops={arome.hourly_precip_stops} />}
+      loading={!frameReady} displayedLabel={displayedModelLabel} legend={<AromeLegend meta={aromeMeta} isPrecip={aromeParam === AROME_PRECIP_KEY} hourlyPrecipStops={arome.hourly_precip_stops} />}
       note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · clicca sulla mappa per interrogare un punto. Celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Flussi 10 m animati in base alle raffiche previste." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
     />
   ) : sat ? (
     <TimelinePlayer
       title={`${sat.label} · osservato`}
       labels={satFrames.map((t) => fmtTime(t))}
-      index={sIdx} setIndex={setSatIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
+      index={sIdx} setIndex={selectSatellite} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady}
+      displayedLabel={shownSat ? `${fmtTime(shownSat.time)}${shownSat.label === sat.label ? "" : ` · ${shownSat.label}`}` : null}
       legend={satProduct === "rdt" ? <div className="text-[10px] text-slate-200"><span className="mr-1 inline-block h-3 w-3 border-2 border-red-500" />Contorni delle celle convettive identificate dal satellite · RDT (NWC SAF)</div> : satProduct === "cloudtype" ? <details className="text-[10px] text-slate-200"><summary className="cursor-pointer">Legenda Cloud Type RGB · italiano</summary><div className="grid grid-cols-2 gap-1 py-2">{[
         ["#df2929", "Cirri sottili; rosso più scuro sul mare"],
         ["#ffee35", "Nubi spesse di ghiaccio; ghiaccio alla sommità"],
@@ -393,17 +443,21 @@ export default function Home() {
         ["#ffffff", "Nubi d’acqua sopraffusa"],
         ["#71ff28", "Neve e ghiaccio al suolo"],
       ].map(([color, text]) => <div key={text} className="flex items-center gap-1"><span className="h-3 w-3 shrink-0 rounded" style={{backgroundColor: color}} />{text}</div>)}</div><p>Colori indicativi · prodotto diurno.</p><a href="https://user.eumetsat.int/s3/eup-strapi-media/QG_Cloud_Type_RGB_ab06957dd1.pdf" target="_blank" rel="noreferrer">Guida EUMETSAT / EUMeTrain</a></details> : undefined}
-      note={`${sat.attribution} · Mediterraneo · passo ${sat.step_minutes} min.${sat.daytime_only ? " Prodotto diurno: di notte l'immagine è scura." : ""}${frameFailed ? " Frame non caricato: non mostrato." : ""}`}
+      note={`${sat.attribution} · Mediterraneo · passo ${sat.step_minutes} min.${sat.daytime_only ? " Prodotto diurno: di notte l'immagine è scura." : ""}${satQ.isError ? " Catalogo temporaneamente indisponibile, archivio precedente in uso." : ""}${frameFailed ? " Fotogramma non disponibile. Resta l’ultima immagine caricata, se presente." : ""}`}
     />
   ) : satProduct && (satQ.isError || satQ.isLoading) ? (
     <div className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-300" data-testid="satellite-status">
       {satQ.isLoading ? "Verifica dei frame EUMETSAT disponibili…" : satProduct === "li"
         ? "MTG Lightning Imager: nessun frame con attività nelle ultime 2 ore, oppure archivio non disponibile. Nessuna immagine mostrata."
-        : "EUMETSAT: nessun frame disponibile al momento. Nessuna immagine mostrata."}
+        : "EUMETSAT: catalogo al momento indisponibile."}
+      {shownSat && <div>In vista {shownSat.label} · {fmtTime(shownSat.time)}</div>}
     </div>
-  ) : anim.startsWith("radar-") && radarQ.isError ? (
-    <div className="pointer-events-auto rounded-xl border border-red-900 bg-slate-900/95 p-3 text-xs text-red-200" data-testid="radar-unavailable">
-      Radar-DPC: ultimo prodotto non disponibile. Nessun frame mostrato.
+  ) : radarProduct ? (
+    <div role="status" className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-200" data-testid="radar-unavailable">
+      {radarQ.isError ? "Radar: ultimo prodotto non disponibile."
+        : radarNumericQ.isError ? "Radar: archivio dei valori puntuali non disponibile."
+        : radarQ.isLoading || radarNumericQ.isLoading ? "Radar: verifica dei fotogrammi e dei valori puntuali…"
+        : "Radar: nessun orario comune fra immagini e valori puntuali."}
     </div>
   ) : null;
 
@@ -441,7 +495,8 @@ export default function Home() {
       arrowCount={visible.filter((s) => s.wind_kmh != null && s.wind_dir != null && s.freshness !== "unavailable").length}
       interpolationEnabled={stationInterpolationOn} setInterpolationEnabled={setStationInterpolationOn}
       interpolationKey={stationInterpolationKey} setInterpolationKey={setStationInterpolationKey}
-      interpolationCount={interpolationValid.length} interpolationUsed={interpolationUsed} interpolationLatest={interpolationLatest ? fmtTime(interpolationLatest) : null}
+      interpolationCount={interpolationValid.length} interpolationUsed={interpolationUsed.variable === stationInterpolationKey ? interpolationUsed.count : 0}
+      interpolationLatest={interpolationUsed.variable === stationInterpolationKey && interpolationUsed.latest ? fmtTime(interpolationUsed.latest) : null}
       boundaries={boundariesOn} setBoundaries={setBoundariesOn} subregions={subregionsOn} setSubregions={setSubregionsOn}
       municipalities={municipalOn} setMunicipalities={setMunicipalOn} />
   );
@@ -459,11 +514,11 @@ export default function Home() {
       counts={counts} loading={stationsQ.isLoading} />
   );
   const mapProps = {
-    satelliteBounds: satProduct ? satRenderBounds ?? MEDITERRANEAN_BOUNDS : null,
+    satelliteBounds: satProduct ? satRenderBounds ?? shownSat?.overlay.bounds ?? MEDITERRANEAN_BOUNDS : null,
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: mapRadarLayer,
     radarPoint: radarLayer ? radarPoint : null,
     onRadarPoint: (point: RadarPoint) => { setRadarPoint(point); setAromePoint(null); },
-    aromePointEnabled: anim === "arome" && !!aromeUrl && !mode3d,
+    aromePointEnabled: anim === "arome" && !!aromeUrl && readyKey === `overlay:${aromeUrl}` && !mode3d,
     onAromePoint: (point: RadarPoint) => { setAromePoint(point); setRadarPoint(null); },
     overlay, opacity,
     onLayerReady, fires: null,
@@ -475,11 +530,11 @@ export default function Home() {
     interpolationEnabled: stationInterpolationOn && !mode3d,
     interpolationKey: stationInterpolationKey,
     interpolationSamples: interpolationValid,
-    onInterpolationCoverage: setInterpolationUsed,
+    onInterpolationCoverage,
   };
   const legends = (
     <>
-      {stationInterpolationOn && !mode3d && <StationInterpolationLegend variable={stationInterpolationKey} latest={interpolationLatest} count={interpolationValid.length} used={interpolationUsed} />}
+      {stationInterpolationOn && !mode3d && <StationInterpolationLegend variable={stationInterpolationKey} coverage={interpolationUsed} count={interpolationValid.length} />}
       <StationLegend param={param} showHistoricDay={param.key === "rain_today" && visible.some((station) => stationParameterLabel(station, param) !== param.label)} />
       {hydrometersOn && <HydroLegend count={hydrometersQ.data?.length ?? 0} />}
       {accumulationLayer && <DpcAccumulationLegend product={accumulationLayer.product} time={accumulationLayer.time} />}
@@ -491,16 +546,18 @@ export default function Home() {
   return (
     <div data-testid="app-root" data-wall={wallOn ? "on" : "off"} className={cn("fixed inset-0 overflow-hidden bg-[#0B0F17]", wallOn && "wall")}>
       {mode3d
-        ? <MapView3D key={`3d-${basemap}`} {...mapProps} onUnavailable={() => setMode3d(false)} />
+        ? <Suspense fallback={<div className="fixed inset-0 grid place-items-center text-sm text-slate-300" role="status">Caricamento vista 3D…</div>}>
+          <MapView3D key={`3d-${basemap}`} {...mapProps} onUnavailable={() => setMode3d(false)} />
+        </Suspense>
         : <MapView key="2d" {...mapProps} liveWind={liveWindOn ? liveWindQ.data?.field ?? null : null} stationArrows={liveWindOn && stationArrowsOn} wind={anim === "arome" && windOn ? windQ.data ?? null : null} />}
 
-      {radarLayer && radarPoint && (
+      {displayedRadar && radarPoint && (
         <div className="pointer-events-none fixed right-3 top-[115px] z-40 w-[min(360px,calc(100vw-24px))] md:right-4 md:top-[92px]">
-          <RadarPointPanel product={radarLayer.product} time={radarLayer.time}
+          <RadarPointPanel product={displayedRadar.product} time={displayedRadar.time}
             point={radarPoint} onClose={() => setRadarPoint(null)} />
         </div>
       )}
-      {anim === "arome" && aromePoint && (
+      {anim === "arome" && aromeUrl && readyKey === `overlay:${aromeUrl}` && aromePoint && (
         <div className="pointer-events-none fixed right-3 top-[115px] z-40 w-[min(360px,calc(100vw-24px))] md:right-4 md:top-[92px]">
           <AromePointPanel point={aromePoint} time={aromeFrames[lIdx]?.valid_time ?? ""}
             value={aromePointQ.data} loading={aromePointQ.isLoading || aromePointQ.isFetching}

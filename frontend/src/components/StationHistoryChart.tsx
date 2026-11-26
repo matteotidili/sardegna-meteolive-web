@@ -26,7 +26,7 @@ export default function StationHistoryChart({ station }: { station: Station }) {
   const temp = station.rain_only ? [] : withGaps(pts, "temp");
   const rain = withGaps(pts, "rain");
   const now = Date.now(), domain: [number, number] = [now - 24 * 3600_000, now];
-  const has = temp.length > 1 || rain.length > 1;
+  const has = temp.length > 0 || rain.length > 0;
 
   return (
     <div className="mt-3 border-t border-slate-800 pt-2" data-testid="station-history-chart">
@@ -53,8 +53,8 @@ export default function StationHistoryChart({ station }: { station: Station }) {
                 labelFormatter={(l: string) => DHM.format(Number(l))}
                 formatter={(value: number, name: string) => [`${value.toLocaleString("it-IT", { maximumFractionDigits: 1 })} ${name === "temp" ? "°C" : "mm"}`, name === "temp" ? "Temperatura" : "Pioggia (contatore giornaliero)"]}
               />
-              {temp.length > 0 && <Line yAxisId="t" data={temp} dataKey="temp" stroke="#FB923C" strokeWidth={1.8} dot={false} connectNulls={false} isAnimationActive={false} />}
-              {rain.length > 0 && <Line yAxisId="r" data={rain} dataKey="rain" type="stepAfter" stroke="#38BDF8" strokeWidth={1.6} dot={false} connectNulls={false} isAnimationActive={false} />}
+              {temp.length > 0 && <Line yAxisId="t" data={temp} dataKey="temp" stroke="#FB923C" strokeWidth={1.8} dot={temp.length === 1} connectNulls={false} isAnimationActive={false} />}
+              {rain.length > 0 && <Line yAxisId="r" data={rain} dataKey="rain" type="stepAfter" stroke="#38BDF8" strokeWidth={1.6} dot={rain.length === 1} connectNulls={false} isAnimationActive={false} />}
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -65,7 +65,8 @@ export default function StationHistoryChart({ station }: { station: Station }) {
           Solo campioni reali, interruzioni oltre 80 min lasciate vuote. Pioggia = cumulata giornaliera, azzerata a mezzanotte (ora di Roma).
           {!station.rain_only && !q.data.tempSource && (q.data.tempPublished
             ? " Nessuna temperatura storica per questa stazione."
-            : " Storico temperatura non ancora pubblicato dal repository dati (station_history_24h.json).")}
+            : " Storico della temperatura non disponibile.")}
+          {q.data.retained && " Aggiornamento non riuscito. Sono mostrati gli ultimi campioni disponibili con l’ora della misura."}
           {q.data.rainSource && ` Fonte pioggia: ${q.data.rainSource}.`}
         </p>
       )}

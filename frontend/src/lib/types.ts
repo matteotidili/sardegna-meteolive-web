@@ -116,6 +116,7 @@ export interface AlertsResponse {
   max_level: number;
   warnings: AlertWarning[];
   available: boolean;
+  degraded?: boolean;
 }
 
 export type RGB = [number, number, number];
