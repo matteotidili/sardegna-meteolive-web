@@ -24,6 +24,8 @@ import { fetchHydroHistory, hydroColor, hydroFmtLevel, hydroPopupHtml, type Hydr
 import { DEFAULT_CENTER, DEFAULT_ZOOM, MEDITERRANEAN_BOUNDS, mapControls, mapFitPadding } from "@/lib/mapControls";
 import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
 import { BOUNDARY_HALO, BOUNDARY_LINE, MUNICIPAL_LINE, MUNICIPAL_MIN_ZOOM, SUBREGION_LABEL_MIN_ZOOM, SUBREGION_LINE, bboxCenter, loadBoundaries, loadMunicipalities, loadSubregions } from "@/lib/boundaries";
+import { insideSardinia, loadSardiniaMask, type SardiniaMask } from "@/lib/sardiniaMask";
+import { smoothSurface } from "@/lib/interpolationSurface";
 import { createStationInterpolator, interpolateAt, interpolationColor, interpolationCoverage, type InterpolationCoverage, type InterpolationKey, type InterpolationSample } from "@/lib/stationInterpolation";
 
 export type Basemap = "dark" | "satellite" | "light" | "streets" | "relief";
@@ -133,6 +135,7 @@ export default function MapView(props: Props) {
   const mapRef = useRef<L.Map | null>(null);
   const baseRef = useRef<L.TileLayer[]>([]);
   const markersRef = useRef<L.LayerGroup | null>(null);
+  const sardiniaMask = useRef<SardiniaMask | null>(null);
   const interpolationCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const radarRef = useRef<L.GridLayer | null>(null);
   const radarPointRef = useRef<L.CircleMarker | null>(null);
@@ -236,7 +239,8 @@ export default function MapView(props: Props) {
         const key = cb.current.interpolationKey;
         const samples = cb.current.interpolationSamples;
         const hull = convexHull(samples.map(({ station }) => m.latLngToContainerPoint([station.lat, station.lon])));
-        const estimate = hull.length >= 3 && insidePolygon(e.containerPoint, hull)
+        const estimate = sardiniaMask.current && insideSardinia(sardiniaMask.current, e.latlng.lat, e.latlng.lng)
+          && hull.length >= 3 && insidePolygon(e.containerPoint, hull)
           ? interpolateAt(e.latlng.lat, e.latlng.lng, samples, key) : null;
         const param = PARAM_BY_KEY[key];
         const latest = (estimate?.stations ?? []).map((station) => observationTimeFor(station, param)).filter((x): x is string => !!x)
@@ -278,6 +282,13 @@ export default function MapView(props: Props) {
     const { interpolationEnabled, interpolationKey: key, interpolationSamples: samples, onInterpolationCoverage } = props;
     const estimateAt = key ? createStationInterpolator(samples, key) : null;
     let frame = 0;
+    let alive = true;
+    let maskStatus: InterpolationCoverage["maskStatus"] = sardiniaMask.current ? "ready" : "loading";
+    const surface = document.createElement("canvas");
+    const raster = surface.getContext("2d");
+    const maskCanvas = document.createElement("canvas");
+    const maskContext = maskCanvas.getContext("2d", { willReadFrequently: true });
+    if (!raster || !maskContext) return;
     const redraw = () => {
       frame = 0;
       const size = m.getSize(), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -287,49 +298,81 @@ export default function MapView(props: Props) {
       canvas.height = Math.max(1, Math.round(size.y * dpr));
       L.DomUtil.setPosition(canvas, m.containerPointToLayerPoint([0, 0]));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (!interpolationEnabled || !key || !estimateAt || samples.length < 3) {
-        onInterpolationCoverage({ variable: key ?? null, count: 0, latest: null, oldest: null });
+      if (!interpolationEnabled || !key || !estimateAt || !sardiniaMask.current || samples.length < 3) {
+        onInterpolationCoverage({ variable: key ?? null, count: 0, latest: null, oldest: null, maskStatus });
         return;
       }
       const hull = convexHull(samples.map((x) => m.latLngToContainerPoint([x.station.lat, x.station.lon])));
       if (hull.length < 3) {
-        onInterpolationCoverage({ variable: key ?? null, count: 0, latest: null, oldest: null });
+        onInterpolationCoverage({ variable: key ?? null, count: 0, latest: null, oldest: null, maskStatus });
         return;
       }
       const xs = hull.map((p) => p.x), ys = hull.map((p) => p.y);
       const minX = Math.max(0, Math.floor(Math.min(...xs))), maxX = Math.min(size.x, Math.ceil(Math.max(...xs)));
       const minY = Math.max(0, Math.floor(Math.min(...ys))), maxY = Math.min(size.y, Math.ceil(Math.max(...ys)));
-      // Preserve small supported areas at overview zoom. Larger areas use
-      // a coarser display grid to keep redraws responsive.
-      const step = Math.min(9, Math.max(2, Math.floor(Math.min(maxX - minX, maxY - minY) / 3)));
-      ctx.save();
-      ctx.beginPath();
-      hull.forEach(({ x, y }, i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
-      ctx.closePath();
-      ctx.clip();
-      ctx.globalAlpha = 0.56;
-      const usedStations = new Map<string, Station>();
-      for (let y = minY; y < maxY; y += step) for (let x = minX; x < maxX; x += step) {
-        const center = L.point(x + Math.min(step, maxX - x) / 2, y + Math.min(step, maxY - y) / 2);
-        if (!insidePolygon(center, hull)) continue;
-        const ll = m.containerPointToLatLng(center);
-        const estimate = estimateAt(ll.lat, ll.lng);
-        if (!estimate) continue;
-        ctx.fillStyle = interpolationColor(estimate.value, key);
-        ctx.fillRect(x, y, step + 0.5, step + 0.5);
-        estimate.stations.forEach((station) => usedStations.set(station.id, station));
+      const width = maxX - minX, height = maxY - minY;
+      if (width <= 0 || height <= 0) {
+        onInterpolationCoverage({ variable: key, count: 0, latest: null, oldest: null, maskStatus });
+        return;
       }
+      const coast = new Path2D();
+      const origin = m.getPixelOrigin().add(m.containerPointToLayerPoint([0, 0]));
+      for (const polygon of sardiniaMask.current) for (const ring of polygon) {
+        ring.forEach(([lon, lat], i) => {
+          // Project in floating point so small islands and coastal holes survive at overview zoom.
+          const pixel = m.project([lat, lon]).subtract(origin);
+          if (i === 0) coast.moveTo(pixel.x, pixel.y);
+          else coast.lineTo(pixel.x, pixel.y);
+        });
+        coast.closePath();
+      }
+      surface.width = width;
+      surface.height = height;
+      maskCanvas.width = width;
+      maskCanvas.height = height;
+      maskContext.translate(-minX, -minY);
+      maskContext.fill(coast, "evenodd");
+      const land = maskContext.getImageData(0, 0, width, height).data;
+      const usedStations = new Map<string, Station>();
+      smoothSurface(raster, width, height, (x, y) => {
+        const point = L.point(minX + x, minY + y);
+        if (!insidePolygon(point, hull)) return null;
+        const { lat, lng } = m.containerPointToLatLng(point);
+        const estimate = estimateAt(lat, lng);
+        if (!estimate) return null;
+        if (land[(Math.min(height - 1, Math.floor(y)) * width + Math.min(width - 1, Math.floor(x))) * 4 + 3]) {
+          estimate.stations.forEach((station) => usedStations.set(station.id, station));
+        }
+        return interpolationColor(estimate.value, key);
+      });
+      ctx.save();
+      ctx.clip(coast, "evenodd");
+      ctx.globalAlpha = 0.56;
+      ctx.drawImage(surface, minX, minY);
       ctx.restore();
-      onInterpolationCoverage(interpolationCoverage(usedStations.values(), key));
+      onInterpolationCoverage({ ...interpolationCoverage(usedStations.values(), key), maskStatus });
     };
     const scheduleRedraw = () => { if (!frame) frame = requestAnimationFrame(redraw); };
     scheduleRedraw();
+    if (interpolationEnabled && !sardiniaMask.current) {
+      void loadSardiniaMask().then((mask) => {
+        if (!alive) return;
+        sardiniaMask.current = mask;
+        maskStatus = "ready";
+        scheduleRedraw();
+      }).catch(() => {
+        if (!alive) return;
+        maskStatus = "error";
+        scheduleRedraw();
+      });
+    }
     m.on("moveend zoomend resize", scheduleRedraw);
     const resize = new ResizeObserver(() => {
       if (mapRef.current === m) m.invalidateSize({ pan: false });
     });
     resize.observe(m.getContainer());
     return () => {
+      alive = false;
       m.off("moveend zoomend resize", scheduleRedraw);
       resize.disconnect();
       cancelAnimationFrame(frame);

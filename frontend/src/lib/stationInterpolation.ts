@@ -71,6 +71,7 @@ export function distanceKm(aLat: number, aLon: number, bLat: number, bLon: numbe
 }
 
 export interface InterpolationCoverage {
+  maskStatus?: "loading" | "ready" | "error";
   variable: InterpolationKey | null;
   count: number;
   latest: string | null;

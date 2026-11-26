@@ -1,6 +1,7 @@
 import type { AromeParameter } from "@/lib/types";
 import { AROME_PRECIP_STOPS, PHASE_LABELS, RAIN_GRADIENT, RATE_GRADIENT, TEMP_GRADIENT, type ParamDef } from "@/lib/meteo";
 import { DPC_LEGEND } from "@/lib/dpcRadar";
+import type { LightningStatus } from "@/lib/lightning";
 import { LIVE_WIND_STOPS } from "@/lib/liveWind";
 import { interpolationScale, interpolationParam, type InterpolationCoverage, type InterpolationKey } from "@/lib/stationInterpolation";
 import { fmtAge, fmtTime } from "@/lib/meteo";
@@ -16,7 +17,7 @@ export function StationLegend({ param, showHistoricDay }: { param: ParamDef; sho
   return (
     <div data-testid="station-legend" className="pointer-events-auto rounded-xl border border-slate-800 bg-slate-900/90 px-2.5 py-2 text-slate-200 shadow-xl backdrop-blur-xl">
       <div className="mb-1 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.16em] text-slate-400">
-        <span>{param.label}</span><span className="font-num normal-case">{param.unit}</span>
+        <span>{param.label} · stazioni</span><span className="font-num normal-case">{param.unit}</span>
       </div>
       {temperature ? (
         <>
@@ -49,7 +50,7 @@ export function StationLegend({ param, showHistoricDay }: { param: ParamDef; sho
 export function StationInterpolationLegend({ variable, coverage, count }: {
   variable: InterpolationKey; coverage: InterpolationCoverage; count: number;
 }) {
-  const pending = coverage.variable !== variable;
+  const pending = coverage.variable !== variable || coverage.maskStatus === "loading";
   const { count: used, latest, oldest } = pending ? { count: 0, latest: null, oldest: null } : coverage;
   const param = interpolationParam(variable);
   const scale = interpolationScale(variable);
@@ -69,11 +70,11 @@ export function StationInterpolationLegend({ variable, coverage, count }: {
         </>
       ) : (
         <p className="text-[10px] text-amber-200">
-          {pending ? "Calcolo della copertura…" : count < 3 ? "Servono almeno 3 stazioni recenti con questa misura." : "Nessuna area con copertura sufficiente nella vista."}
+          {coverage.maskStatus === "error" ? "Confine della Sardegna non disponibile. Mappa stimata sospesa." : pending ? "Caricamento del confine e della copertura…" : count < 3 ? "Servono almeno 3 stazioni recenti con questa misura." : "Nessuna area con copertura sufficiente nella vista."}
         </p>
       )}
       <div className="mt-1 flex flex-wrap items-center justify-between gap-x-2 text-[9px] text-slate-400">
-        <span>IDW² · {used} stazioni utilizzate{used !== count && ` su ${count} idonee`}</span>
+        <span>Stima da misure vicine (IDW²) · {used} stazioni utilizzate{used !== count && ` su ${count} idonee`}</span>
         {latest && <span>Ultimo dato {fmtTime(latest)} · {fmtAge(Math.max(0, (Date.now() - Date.parse(latest)) / 60000))}</span>}
         {oldest && oldest !== latest && <span>Età massima {fmtAge(Math.max(0, (Date.now() - Date.parse(oldest)) / 60000))}</span>}
       </div>
@@ -138,12 +139,12 @@ export function AromeLegend({ meta, isPrecip, hourlyPrecipStops }: {
   );
 }
 
-export function LightningLegend({ live, count }: { live: boolean; count: number }) {
+export function LightningLegend({ status, count }: { status: LightningStatus; count: number }) {
   const items: [string, string][] = [["#fff34d", "<5′"], ["#ff9f1a", "5–15′"], ["#ef5b35", "15–30′"], ["#b53b4b", "30–45′"], ["#6f3a44", "45–60′"]];
   return (
     <div data-testid="lightning-legend" className="pointer-events-auto mt-1.5 rounded-xl border border-slate-800 bg-slate-900/90 px-2.5 py-2 text-slate-200 shadow-xl backdrop-blur-xl">
       <div className="mb-1 flex justify-between text-[10px] uppercase tracking-[0.16em] text-slate-400">
-        <span>Fulmini · età scarica</span><span className="font-num normal-case">{live ? `LIVE · ${count}` : "in connessione"}</span>
+        <span>Fulmini · età scarica</span><span className="font-num normal-case">{status === "live" ? `${count} rilevamenti` : status === "error" ? "Dati interrotti" : "Collegamento in corso"}</span>
       </div>
       <div className="flex gap-2 text-[9px] text-slate-300">
         {items.map(([c, l]) => <span key={l} className="inline-flex items-center gap-1"><span className="size-2.5 rounded-full border border-black" style={{ background: c }} />{l}</span>)}
@@ -157,14 +158,14 @@ export function LiveWindLegend({ time }: { time: string | null }) {
   return (
     <div data-testid="live-wind-legend" className="pointer-events-auto mt-1.5 rounded-xl border border-slate-800 bg-slate-900/90 px-2.5 py-2 text-slate-200 shadow-xl backdrop-blur-xl">
       <div className="mb-1 flex justify-between gap-3 text-[10px] uppercase tracking-[0.16em] text-slate-400">
-        <span>Vento attuale 10 m</span><span className="font-num normal-case">km/h</span>
+        <span>Vento stimato a 10 m</span><span className="font-num normal-case">km/h</span>
       </div>
       <div className="flex gap-px overflow-hidden rounded">
         {LIVE_WIND_STOPS.map((s) => (
           <div key={s.label} className="min-w-9 flex-1 py-0.5 text-center font-num text-[9px] font-medium text-slate-950" style={{ background: s.color }}>{s.label}</div>
         ))}
       </div>
-      <p data-testid="live-wind-legend-time" className="mt-1 text-[9px] text-slate-500">Analisi modello · Mediterraneo + ICON-2I Sardegna · {time ?? "in caricamento"} · non è una misura</p>
+      <p data-testid="live-wind-legend-time" className="mt-1 text-[9px] text-slate-500">Previsione per l’ora attuale · {time ?? "in caricamento"} · Open-Meteo / ICON-2I</p>
     </div>
   );
 }

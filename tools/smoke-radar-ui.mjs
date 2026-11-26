@@ -89,7 +89,7 @@ async function scenario(name, viewport, mobile) {
   if (mobile) await page.getByTestId("mobile-layers-sheet-trigger").click();
   await page.getByTestId("layer-toggle-radar-vmi").click();
   if (mobile) await page.keyboard.press("Escape");
-  await page.getByText("Radar DPC VMI · osservato").first().waitFor({ timeout: 45000 });
+  await page.getByTestId("timeline-title").filter({ hasText: "Echi radar sull’Italia" }).waitFor({ timeout: 45000 });
 
   const canvas = page.getByTestId("map-canvas");
   await canvas.waitFor({ timeout: 30000 });

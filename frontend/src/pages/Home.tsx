@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import MapView, { type Basemap, type MapViewState } from "@/components/MapView";
 import StationList from "@/components/StationList";
 import StationCard from "@/components/StationCard";
-import LayerPanel, { SAT_OPTIONS, type AnimLayer } from "@/components/LayerPanel";
+import LayerPanel, { type AnimLayer } from "@/components/LayerPanel";
 import TimelinePlayer from "@/components/TimelinePlayer";
+import { forecastTitle, SAT_OPTIONS, satelliteTitle } from "@/lib/layerPresentation";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
 import { AromeLegend, DpcAccumulationLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationInterpolationLegend, StationLegend } from "@/components/Legends";
@@ -35,7 +36,7 @@ import { useHydrometers } from "@/lib/hydro";
 import { useMarineCatalog, useMarineVectors } from "@/hooks/useMarine";
 import { marineImageUrl, type MarineForcing, type MarineModel, type MarineParameter } from "@/lib/marine";
 import { marineViewportBounds } from "@/lib/marineViewport";
-import { interpolationSamples, type InterpolationCoverage, type InterpolationKey } from "@/lib/stationInterpolation";
+import { INTERPOLATION_OPTIONS, interpolationParam, interpolationSamples, type InterpolationCoverage, type InterpolationKey } from "@/lib/stationInterpolation";
 
 const MapView3D = lazy(() => import("@/components/MapView3D"));
 
@@ -123,7 +124,8 @@ export default function Home() {
 
   const [sheet, setSheet] = useState<"none" | "stations" | "layers">("none");
 
-  const param = PARAM_BY_KEY[paramKey] ?? PARAMS[0];
+  const interpolateMarkers = stationInterpolationOn && !mode3d && !showIspraBuoys && !showRonBuoys;
+  const param = interpolateMarkers ? interpolationParam(stationInterpolationKey) : PARAM_BY_KEY[paramKey] ?? PARAMS[0];
   const stationsQ = useStations();
   const alertsQ = useAlerts();
   const radarProduct = anim.startsWith("radar-") ? anim.slice(6) : null;
@@ -170,7 +172,7 @@ export default function Home() {
   );
   const [interpolationUsed, setInterpolationUsed] = useState<InterpolationCoverage>({ variable: null, count: 0, latest: null, oldest: null });
   const onInterpolationCoverage = useCallback((coverage: InterpolationCoverage) => setInterpolationUsed((last) =>
-    last.variable === coverage.variable && last.count === coverage.count && last.latest === coverage.latest && last.oldest === coverage.oldest
+    last.variable === coverage.variable && last.count === coverage.count && last.latest === coverage.latest && last.oldest === coverage.oldest && last.maskStatus === coverage.maskStatus
       ? last : coverage), []);
   // The network filters affect the marker/list display only.
   const interpolationValid = useMemo(
@@ -269,7 +271,7 @@ export default function Home() {
     setReadyFrame({ renderer, key });
     if (radarLayer && key === radarFrameKey(radarLayer)) setShownRadar({ renderer, ...radarLayer });
     if (satCandidate && key === `overlay:${satCandidate.url}`) {
-      setShownSatellite({ renderer, overlay: satCandidate, time: satFrames[sIdx], label: sat!.label });
+      setShownSatellite({ renderer, overlay: satCandidate, time: satFrames[sIdx], label: satQ.catalogs.map((product) => satelliteTitle(product.product, product.label)).join(" + ") });
     }
     if (modelGroup && overlay && key === `overlay:${overlay.url}`) {
       setShownModel({ renderer, group: modelGroup, label: marineGroup ? marineLabels[mIdx] : aromeLabels[lIdx] });
@@ -390,7 +392,7 @@ export default function Home() {
     if (!aromePoint || anim !== "arome" || !aromeUrl || readyKey !== `overlay:${aromeUrl}` || !arome || !aromePointStops?.length) return null;
     return {
       ...aromePoint, url: aromeUrl, bounds: arome.bounds, key: aromeParam,
-      label: aromeParam === AROME_PRECIP_KEY ? "Precipitazione oraria" : aromeMeta?.label ?? aromeParam,
+      label: forecastTitle(aromeParam, aromeMeta),
       unit: aromeParam === AROME_PRECIP_KEY ? "mm" : aromeMeta?.unit ?? "",
       stops: aromePointStops,
       maskUrl: aromeParam === AROME_PRECIP_KEY
@@ -399,9 +401,11 @@ export default function Home() {
     };
   }, [aromePoint, anim, aromeUrl, readyKey, arome, aromeParam, aromePointStops, aromeMeta, aromeFrames, lIdx]);
   const aromePointQ = useAromePoint(aromePointRequest);
+  const satelliteDescription = SAT_OPTIONS.find(({ key }) => key === satProduct)?.sub;
+  const satelliteLabel = satQ.catalogs.map((product) => satelliteTitle(product.product, product.label)).join(" + ");
   const timeline = marineOn ? marine && marineUrl ? (
     <TimelinePlayer
-      title={`${marine.model === "ww3" ? "WW3 MEDITA" : `SHYFEM · ${marine.forcing === "ICON" ? "ICON-2I" : marine.forcing}`} · ${MARINE_LABELS[marineParam].short} (${MARINE_LABELS[marineParam].unit})`}
+      title={`${MARINE_LABELS[marineParam].label} (${MARINE_LABELS[marineParam].unit})`} kind="Previsione"
       labels={marineLabels}
       index={mIdx} setIndex={setMarineIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady} displayedLabel={displayedModelLabel} legend={<MarineLegend parameter={marineParam} />}
@@ -416,7 +420,7 @@ export default function Home() {
     </div>
   ) : radarLayer ? (
     <TimelinePlayer
-      title={radarProduct === "OPERA" ? "Radar Europa EUMETNET OPERA · osservato" : `Radar DPC ${radarProduct} · osservato`}
+      title={radarProduct === "OPERA" ? "Intensità di pioggia in Europa (mm/h)" : "Echi radar sull’Italia"} kind="Osservazione radar"
       labels={radarFrames.map((t) => fmtTime(t))}
       index={rIdx} setIndex={setRadarIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady} displayedLabel={displayedRadar ? fmtTime(displayedRadar.time) : null} legend={radarProduct === "OPERA" ? <OperaLegend /> : <RadarLegend product={radarProduct!} />}
@@ -427,20 +431,24 @@ export default function Home() {
     />
   ) : aromeUrl && arome ? (
     <TimelinePlayer
-      title={`AROME HD · previsione · ${aromeParam === AROME_PRECIP_KEY ? "precipitazione oraria" : aromeMeta?.label ?? aromeParam}`}
+      title={forecastTitle(aromeParam, aromeMeta, true)} kind="Previsione"
       labels={aromeLabels}
       index={lIdx} setIndex={setLeadIdx} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady} displayedLabel={displayedModelLabel} legend={<AromeLegend meta={aromeMeta} isPrecip={aromeParam === AROME_PRECIP_KEY} hourlyPrecipStops={arome.hourly_precip_stops} />}
-      note={`Corsa ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · clicca sulla mappa per interrogare un punto. Celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Flussi 10 m animati in base alle raffiche previste." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
+      note={`Previsione AROME emessa il ${fmtTime(arome.run_time)} (età ${String(arome.run_age_hours).replace(".", ",")} h) · ${arome.producer} · clicca sulla mappa per interrogare un punto. Celle senza dati trasparenti.${windQ.data && windOn && !mode3d ? " Flussi 10 m animati in base alle raffiche previste." : ""}${frameFailed ? " Frame non disponibile." : ""}`}
     />
+  ) : anim === "arome" ? (
+    <div role="status" className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-300">
+      {aromeQ.isLoading ? "Caricamento delle previsioni meteo…" : "Previsioni meteo al momento non disponibili."}
+    </div>
   ) : sat ? (
     <TimelinePlayer
-      title={`${sat.label} · osservato`}
+      title={satelliteLabel || sat.label} kind="Immagine satellitare"
       labels={satFrames.map((t) => fmtTime(t))}
       index={sIdx} setIndex={selectSatellite} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
       loading={!frameReady}
-      displayedLabel={shownSat ? `${fmtTime(shownSat.time)}${shownSat.label === sat.label ? "" : ` · ${shownSat.label}`}` : null}
-      legend={satProduct === "rdt" ? <div className="text-[10px] text-slate-200"><span className="mr-1 inline-block h-3 w-3 border-2 border-red-500" />Contorni delle celle convettive identificate dal satellite · RDT (NWC SAF)</div> : satProduct === "cloudtype" ? <details className="text-[10px] text-slate-200"><summary className="cursor-pointer">Legenda Cloud Type RGB · italiano</summary><div className="grid grid-cols-2 gap-1 py-2">{[
+      displayedLabel={shownSat ? `${fmtTime(shownSat.time)}${shownSat.label === satelliteLabel ? "" : ` · ${shownSat.label}`}` : null}
+      legend={satProduct === "rdt" ? <div className="text-[10px] text-slate-200"><span className="mr-1 inline-block h-3 w-3 border-2 border-red-500" />Contorni delle celle convettive identificate dal satellite · RDT (NWC SAF)</div> : satProduct === "cloudtype" ? <details className="text-[10px] text-slate-200"><summary className="cursor-pointer">Come leggere i colori</summary><div className="grid grid-cols-2 gap-1 py-2">{[
         ["#df2929", "Cirri sottili; rosso più scuro sul mare"],
         ["#ffee35", "Nubi spesse di ghiaccio; ghiaccio alla sommità"],
         ["#6752b3", "Terra emersa (blu/viola)"],
@@ -450,13 +458,13 @@ export default function Home() {
         ["#ffffff", "Nubi d’acqua sopraffusa"],
         ["#71ff28", "Neve e ghiaccio al suolo"],
       ].map(([color, text]) => <div key={text} className="flex items-center gap-1"><span className="h-3 w-3 shrink-0 rounded" style={{backgroundColor: color}} />{text}</div>)}</div><p>Colori indicativi · prodotto diurno.</p><a href="https://user.eumetsat.int/s3/eup-strapi-media/QG_Cloud_Type_RGB_ab06957dd1.pdf" target="_blank" rel="noreferrer">Guida EUMETSAT / EUMeTrain</a></details> : undefined}
-      note={`${sat.attribution} · Mediterraneo · passo ${sat.step_minutes} min.${sat.daytime_only ? " Prodotto diurno: di notte l'immagine è scura." : ""}${satQ.isError ? " Catalogo temporaneamente indisponibile, archivio precedente in uso." : ""}${frameFailed ? " Fotogramma non disponibile. Resta l’ultima immagine caricata, se presente." : ""}`}
+      note={`${satelliteDescription ? satelliteDescription + " " : ""}${sat.attribution} · Mediterraneo · passo ${sat.step_minutes} min.${sat.daytime_only ? " Prodotto diurno: di notte l'immagine è scura." : ""}${satQ.isError ? " Catalogo temporaneamente indisponibile, archivio precedente in uso." : ""}${frameFailed ? " Fotogramma non disponibile. Resta l’ultima immagine caricata, se presente." : ""}`}
     />
   ) : satProduct && (satQ.isError || satQ.isLoading) ? (
-    <div className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-300" data-testid="satellite-status">
+    <div role="status" className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-300" data-testid="satellite-status">
       {satQ.isLoading ? "Verifica dei frame EUMETSAT disponibili…" : satProduct === "li"
-        ? "MTG Lightning Imager: nessun frame con attività nelle ultime 2 ore, oppure archivio non disponibile. Nessuna immagine mostrata."
-        : "EUMETSAT: catalogo al momento indisponibile."}
+        ? "Immagini dei fulmini indisponibili. Il catalogo può essere temporaneamente vuoto."
+        : "Archivio delle immagini satellitari temporaneamente indisponibile."}
       {shownSat && <div>In vista {shownSat.label} · {fmtTime(shownSat.time)}</div>}
     </div>
   ) : radarProduct ? (
@@ -502,6 +510,7 @@ export default function Home() {
       arrowCount={visible.filter((s) => s.wind_kmh != null && s.wind_dir != null && s.freshness !== "unavailable").length}
       interpolationEnabled={stationInterpolationOn} setInterpolationEnabled={setStationInterpolationOn}
       interpolationKey={stationInterpolationKey} setInterpolationKey={setStationInterpolationKey}
+      interpolationMaskStatus={interpolationUsed.maskStatus}
       interpolationCount={interpolationValid.length} interpolationUsed={interpolationUsed.variable === stationInterpolationKey ? interpolationUsed.count : 0}
       interpolationLatest={interpolationUsed.variable === stationInterpolationKey && interpolationUsed.latest ? fmtTime(interpolationUsed.latest) : null}
       boundaries={boundariesOn} setBoundaries={setBoundariesOn} subregions={subregionsOn} setSubregions={setSubregionsOn}
@@ -546,7 +555,7 @@ export default function Home() {
       {hydrometersOn && <HydroLegend count={hydrometersQ.data?.length ?? 0} />}
       {accumulationLayer && <DpcAccumulationLegend product={accumulationLayer.product} time={accumulationLayer.time} />}
       {liveWindOn && !mode3d && <LiveWindLegend time={liveWindQ.isError ? "non disponibile" : liveWindTime} />}
-      {lightningOn && <LightningLegend live={lightning.status === "live"} count={lightning.strokes.length} />}
+      {lightningOn && <LightningLegend status={lightning.status} count={lightning.strokes.length} />}
     </>
   );
 
@@ -584,9 +593,14 @@ export default function Home() {
           </div>
           <div data-testid="parameter-selector-bar" className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg border border-slate-800/80 bg-slate-950/60 p-1">
             {PARAMS.filter((p) => !p.marine).map((p) => (
-              <button key={p.key} data-testid={`parameter-chip-${p.key}`} aria-pressed={p.key === paramKey} onClick={() => { setShowIspraBuoys(false); setShowRonBuoys(false); setParamKey(p.key); }}
+              <button key={p.key} data-testid={`parameter-chip-${p.key}`} aria-pressed={p.key === param.key} onClick={() => {
+                setShowIspraBuoys(false); setShowRonBuoys(false); setParamKey(p.key);
+                const option = INTERPOLATION_OPTIONS.find(({ key }) => key === p.key);
+                if (stationInterpolationOn && option) setStationInterpolationKey(option.key);
+                else if (interpolateMarkers) setStationInterpolationOn(false);
+              }}
                 className={cn("shrink-0 rounded-md px-2.5 py-1 text-xs transition-colors duration-150",
-                  p.key === paramKey ? "bg-sky-600 font-medium text-white shadow-sm shadow-sky-500/30" : "text-slate-300 hover:bg-slate-800 hover:text-slate-100")}>
+                  p.key === param.key ? "bg-sky-600 font-medium text-white shadow-sm shadow-sky-500/30" : "text-slate-300 hover:bg-slate-800 hover:text-slate-100")}>
                 {p.label}
               </button>
             ))}
@@ -633,14 +647,16 @@ export default function Home() {
               {wallLayers ? <PanelLeftClose className="size-4" /> : <PanelLeftOpen className="size-4" />} Layer {anim !== "none" && <span className="size-1.5 rounded-full bg-sky-400" />}
             </button>
           )}
-          {(!wallOn || wallLayers) && <aside className={cn("thin-scroll fixed bottom-4 left-4 z-20 w-72", "overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/92 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl", wallOn ? "top-[170px]" : "top-[124px]")} data-testid="desktop-layer-panel" style={{ maxHeight: wallOn ? "calc(100vh - 186px - 90px)" : "calc(100vh - 140px - 90px)" }}>
-            {layerPanel}
-          </aside>}
+          <div className={cn("pointer-events-none fixed bottom-4 left-4 z-20 flex w-72 flex-col justify-end gap-2", wallOn ? "top-[170px]" : "top-[124px]")}>
+            {(!wallOn || wallLayers) && <aside className="pointer-events-auto thin-scroll min-h-0 flex-1 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/92 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl" data-testid="desktop-layer-panel">
+              {layerPanel}
+            </aside>}
+            <div className="shrink-0">{legends}</div>
+          </div>
           <aside className="fixed bottom-4 right-4 top-[124px] z-20 flex w-[340px] flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/92 shadow-2xl shadow-black/60 backdrop-blur-xl" data-testid="desktop-station-panel">
             {selected && <StationCard station={selected} param={param} onClose={() => setSelectedId(null)} className="m-2 mb-0 shrink-0 rounded-xl" />}
             {stationList}
           </aside>
-          <div className="fixed bottom-4 left-4 z-20 w-72">{legends}</div>
           <div className="pointer-events-none fixed bottom-4 left-[316px] right-[372px] z-20 flex justify-center">
             <div className="w-full max-w-2xl">{timeline}</div>
           </div>
