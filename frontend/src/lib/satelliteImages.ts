@@ -1,6 +1,6 @@
 // The key is the complete original GetMap URL, including product, time,
 // projection, bounds, format and dimensions. A stack has its own opacity key.
-export const isSatelliteImage = (url: string) => url.startsWith("https://view.eumetsat.int/") || url.startsWith("satellite-stack:");
+export const isSatelliteImage = (url: string) => url.startsWith("https://view.eumetsat.int/") || (url.startsWith("satellite-stack:") || url.startsWith("satellite-sandwich:"));
 type Layer = { url: string; opacity: number };
 type Priority = "display" | "prefetch";
 type Raster = { image: HTMLImageElement; url: string; bytes: number };
@@ -12,8 +12,56 @@ export function satelliteStackUrl(layers: Layer[]): string {
   return layers.length === 1 && layers[0].opacity === 1 ? layers[0].url : "satellite-stack:" + JSON.stringify(layers);
 }
 
+export function satelliteSandwichUrl(visible: string, infrared: string): string {
+  return "satellite-sandwich:" + JSON.stringify([{ url: visible, opacity: 1 }, { url: infrared, opacity: 1 }]);
+}
+
+// Approximate solar elevation at the centre of Sardinia. Whole-domain night fallback.
+export function sandwichDay(time: string): boolean {
+  const d = new Date(time), day = (d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000 + 1;
+  const h = d.getUTCHours() + d.getUTCMinutes()/60 + d.getUTCSeconds()/3600;
+  const g = 2*Math.PI/365*(day-1), lat=39.9*Math.PI/180;
+  const eq=229.18*(.000075+.001868*Math.cos(g)-.032077*Math.sin(g)-.014615*Math.cos(2*g)-.040849*Math.sin(2*g));
+  const dec=.006918-.399912*Math.cos(g)+.070257*Math.sin(g)-.006758*Math.cos(2*g)+.000907*Math.sin(2*g)-.002697*Math.cos(3*g)+.00148*Math.sin(3*g);
+  const ha=(h*60+eq+36-720)*Math.PI/720;
+  return Math.asin(Math.sin(lat)*Math.sin(dec)+Math.cos(lat)*Math.cos(dec)*Math.cos(ha))*180/Math.PI>5;
+}
+
 function layersOf(url: string): Layer[] | null {
-  return url.startsWith("satellite-stack:") ? JSON.parse(url.slice("satellite-stack:".length)) as Layer[] : null;
+  const prefix = url.startsWith("satellite-stack:") ? "satellite-stack:" : url.startsWith("satellite-sandwich:") ? "satellite-sandwich:" : null;
+  return prefix ? JSON.parse(url.slice(prefix.length)) as Layer[] : null;
+}
+
+const sandwichStops: [number, [number, number, number]][] = [[0,[85,102,127]],[.55,[111,159,200]],[.72,[85,210,212]],[.85,[247,207,88]],[.94,[247,111,65]],[1,[226,79,162]]];
+function sandwichTone(v: number): number[] {
+  for (let i=1;i<sandwichStops.length;i++) {
+    const [a,lo]=sandwichStops[i-1], [b,hi]=sandwichStops[i];
+    if (v<=b) { const t=(v-a)/(b-a); return lo.map((c,j)=>c+(hi[j]-c)*t); }
+  }
+  return sandwichStops[sandwichStops.length-1][1];
+}
+
+// Rendered WMS tones are NOT calibrated brightness temperatures.
+// If IR already contains colour preserve that palette. Otherwise use a relative
+// display-tone palette; never label these colours as physical temperature.
+export function blendSandwich(visible: Uint8ClampedArray, thermal: Uint8ClampedArray) {
+  let chromatic=0,valid=0;
+  for (let i=0;i<thermal.length;i+=4) {
+    if (!thermal[i+3]) continue;
+    valid++;
+    if (Math.max(thermal[i],thermal[i+1],thermal[i+2])-Math.min(thermal[i],thermal[i+1],thermal[i+2])>12) chromatic++;
+  }
+  if (!valid) throw new Error("Frame IR vuoto");
+  const hasColour=chromatic/valid>.02;
+  for (let i=0;i<visible.length;i+=4) {
+    if (!visible[i+3]||!thermal[i+3]) continue;
+    const r=thermal[i],g=thermal[i+1],b=thermal[i+2],v=(.2126*r+.7152*g+.0722*b)/255;
+    const gray=.2126*visible[i]+.7152*visible[i+1]+.0722*visible[i+2];
+    const chroma=Math.max(r,g,b)-Math.min(r,g,b);
+    const alpha=hasColour?Math.min(.76,chroma/120):Math.max(0,Math.min(.72,(v-.5)*1.44));
+    const tone=hasColour?[r,g,b]:sandwichTone(v), texture=.30+.70*gray/255;
+    for(let c=0;c<3;c++)visible[i+c]=Math.round(gray*(1-alpha)+tone[c]*texture*alpha);
+  }
 }
 
 async function decode(url: string, signal: AbortSignal, image = new Image()) {
@@ -116,7 +164,7 @@ export function createSatelliteCache({ maxBytes = 192 * 1024 * 1024, maxImages =
     }
   }
 
-  async function compose(layers: Layer[], entry: Entry): Promise<Raster> {
+  async function compose(layers: Layer[], entry: Entry, sandwich = false): Promise<Raster> {
     const signal = AbortSignal.any([entry.controller.signal, AbortSignal.timeout(timeout)]);
     const rasters = await Promise.all(layers.map(({ url }) => acquire(url, signal, entry.priority)));
     signal.throwIfAborted();
@@ -125,13 +173,23 @@ export function createSatelliteCache({ maxBytes = 192 * 1024 * 1024, maxImages =
     canvas.height = rasters[0].image.naturalHeight;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Composizione satellitare non disponibile");
-    rasters.forEach(({ image }, i) => {
-      if (image.naturalWidth !== canvas.width || image.naturalHeight !== canvas.height) {
-        throw new Error("Dimensioni WMS incompatibili nello stack");
-      }
-      ctx.globalAlpha = layers[i].opacity;
-      ctx.drawImage(image, 0, 0);
-    });
+    for (const { image } of rasters) {
+      if (image.naturalWidth !== canvas.width || image.naturalHeight !== canvas.height) throw new Error("Dimensioni WMS incompatibili nello stack");
+    }
+    if (sandwich) {
+      ctx.drawImage(rasters[1].image,0,0);
+      const thermal=ctx.getImageData(0,0,canvas.width,canvas.height);
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(rasters[0].image,0,0);
+      const visible=ctx.getImageData(0,0,canvas.width,canvas.height);
+      blendSandwich(visible.data,thermal.data);
+      ctx.putImageData(visible,0,0);
+    } else {
+      rasters.forEach(({ image }, i) => {
+        ctx.globalAlpha = layers[i].opacity;
+        ctx.drawImage(image, 0, 0);
+      });
+    }
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     canvas.width = canvas.height = 0;
     if (!blob) throw new Error("Composizione satellitare non disponibile");
@@ -151,7 +209,7 @@ export function createSatelliteCache({ maxBytes = 192 * 1024 * 1024, maxImages =
       const fresh = { controller: new AbortController(), users: 0, priority } as Entry;
       images.set(url, fresh);
       const layers = layersOf(url);
-      fresh.promise = (layers ? compose(layers, fresh) : download(url, fresh)).then((raster) => {
+      fresh.promise = (layers ? compose(layers, fresh, url.startsWith("satellite-sandwich:")) : download(url, fresh)).then((raster) => {
         if (fresh.controller.signal.aborted) {
           URL.revokeObjectURL(raster.url);
           throw abortError();
