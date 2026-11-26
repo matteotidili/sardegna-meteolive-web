@@ -167,9 +167,10 @@ export default function Home() {
     [all, networks, param.rain, marineView, showIspraBuoys, showRonBuoys],
   );
   const interpolationStations = useMemo(
-    () => all.filter((s) => s.network !== "mareografico" && s.network !== "ron"
-      && networks[networkGroup(s.network)] !== false),
-    [all, networks],
+    // Analysis uses every available station source, regardless of which networks
+    // are currently hidden from the map/list.
+    () => all.filter((s) => s.network !== "mareografico" && s.network !== "ron"),
+    [all],
   );
   const interpolationValid = useMemo(
     () => interpolationSamples(interpolationStations, stationInterpolationKey),
@@ -268,6 +269,9 @@ export default function Home() {
 
   // reset timeline when the animated layer changes
   useEffect(() => { setPlaying(false); setRadarIdx(null); setSatIdx(null); }, [anim]);
+  // SRI is no longer offered as a display layer. Clear a saved selection from
+  // older sessions so it cannot remain active invisibly in the background.
+  useEffect(() => { if (anim === "radar-SRI") setAnim("none"); }, [anim, setAnim]);
   // Il punto resta fisso durante l'animazione e la timeline. Fuori dal
   // contesto radar il pannello non deve sovrapporsi agli altri layer.
   useEffect(() => { if (!radarProduct) setRadarPoint(null); }, [radarProduct]);
