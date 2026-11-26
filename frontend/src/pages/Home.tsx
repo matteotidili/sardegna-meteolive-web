@@ -1,6 +1,6 @@
 import { WEBCAMS } from "@/lib/webcams";
 import { useSatelliteStack } from "@/hooks/useSatelliteStack";
-import { satelliteCache, satelliteNeighbors, satelliteStackUrl } from "@/lib/satelliteImages";
+import { satelliteCache, satelliteNeighbors, satelliteStackUrl, satelliteSandwichUrl, sandwichDay } from "@/lib/satelliteImages";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box, MonitorPlay, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import OpsClock from "@/components/OpsClock";
@@ -198,9 +198,13 @@ export default function Home() {
   const sIdx = selectionIndex < 0 ? Math.max(0, satFrames.length - 1) : selectionIndex;
   const satRenderBounds = useMemo(() => sat ? satelliteRegionBounds(sat.bounds) : null, [sat]);
   const satUrls = useMemo(() => sat && satRenderBounds ? sat.frames.map((time) =>
-    satelliteStackUrl(satQ.catalogs.map((catalog) => ({
-      url: regionalSatelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds, time, isDesktop),
-      opacity: satelliteOpacity[catalog.product] ?? 1,
+    satelliteStackUrl(satQ.catalogs.map((catalog) => {
+      const ir = regionalSatelliteUrl(catalog.wms_url, catalog.layer, catalog.format, satRenderBounds, time, isDesktop);
+      const visible = catalog.sandwich_visible;
+      const url = visible && sandwichDay(time)
+        ? satelliteSandwichUrl(regionalSatelliteUrl(visible.wms_url, visible.layer, visible.format, satRenderBounds, time, isDesktop), ir)
+        : ir;
+      return { url, opacity: satelliteOpacity[catalog.product] ?? 1 };
     })))) : [], [sat, satRenderBounds, satQ.catalogs, satelliteOpacity, isDesktop]);
   const satUrl = satUrls[sIdx];
   useEffect(() => {
