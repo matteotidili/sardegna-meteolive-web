@@ -215,6 +215,13 @@ export default function Home() {
       opacity: satelliteOpacity[catalog.product] ?? 1,
     })))) : [], [sat, satRenderBounds, satQ.catalogs, satelliteOpacity, isDesktop]);
   const satUrl = satUrls[sIdx];
+  useEffect(() => {
+    if (!mode3d || !satUrl) return;
+    // Start the selected frame alongside the WebGL chunk, basemap and terrain.
+    const controller = new AbortController();
+    void satelliteCache.prepare(satUrl, controller.signal).catch(() => {});
+    return () => controller.abort();
+  }, [mode3d, satUrl]);
   const satCandidate = sat && satRenderBounds && satUrl ? {
     url: satUrl, bounds: satRenderBounds, warp: false, attribution: sat.attribution, group: "satellite",
   } : null;

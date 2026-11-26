@@ -198,6 +198,9 @@ export function createSatelliteCache({ maxBytes = 192 * 1024 * 1024, maxImages =
 
   return {
     snapshot,
+    async prepare(url: string, signal: AbortSignal) {
+      await acquire(url, signal, "display");
+    },
     async prefetch(url: string, signal: AbortSignal) {
       const already = images.get(url)?.raster;
       await acquire(url, signal, "prefetch");

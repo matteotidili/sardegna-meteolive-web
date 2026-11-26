@@ -24,6 +24,8 @@ import { OPERA_TILE_BASE, operaStamp } from "@/lib/clientData";
  * Wind streamlines are 2D-only.
  */
 let protocolReady = false;
+let overlayImageSequence = 0;
+const overlayImages = new Map<string, HTMLImageElement>();
 function ensureProtocol() {
   if (protocolReady) return;
   protocolReady = true;
@@ -32,6 +34,13 @@ function ensureProtocol() {
     if (!m) throw new Error("bad dpc url");
     const data = await dpcTilePng(m[1], decodeURIComponent(m[2]), +m[3], +m[4], +m[5], abort.signal);
     return { data };
+  });
+  maplibregl.addProtocol("meteo-overlay", async (params, abort) => {
+    abort.signal.throwIfAborted();
+    const image = overlayImages.get(params.url);
+    if (!image) throw new DOMException("Immagine della mappa annullata", "AbortError");
+    overlayImages.delete(params.url);
+    return { data: image };
   });
 }
 
@@ -387,6 +396,9 @@ export default function MapView3D(props: Props) {
     const current = () => !controller.signal.aborted && token === tokenRef.current && mapRef.current === m && cb.current.overlay?.url === ov.url;
     void preloadOverlayImage(ov.warp ? mercatorImage(ov.url, s, n) : ov.url, controller.signal).then((image) => {
       if (!current()) return;
+      // Give MapLibre the raster that was already decoded by the shared loader.
+      const url = `meteo-overlay://image/${++overlayImageSequence}`;
+      overlayImages.set(url, image);
       let finished = false;
       const finish = (success: boolean) => {
         if (finished || !current()) return;
@@ -413,6 +425,7 @@ export default function MapView3D(props: Props) {
       const timer = setTimeout(() => finish(false), 20_000);
       const unwatch = () => {
         clearTimeout(timer);
+        overlayImages.delete(url);
         m.off("render", rendered);
         m.off("sourcedata", data);
         m.off("error", error);
@@ -421,7 +434,7 @@ export default function MapView3D(props: Props) {
       m.on("sourcedata", data);
       m.on("error", error);
       try {
-        source.updateImage({ url: image.src, coordinates: [[w, n], [e, n], [e, s], [w, s]] });
+        source.updateImage({ url, coordinates: [[w, n], [e, n], [e, s], [w, s]] });
       } catch { finish(false); }
     }).catch(() => {
       if (overlayLoadRef.current === controller) overlayLoadRef.current = null;

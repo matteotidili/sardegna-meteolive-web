@@ -24,10 +24,12 @@ it("shares an in-flight WMS image with display and returns independent cache-hit
   const worker = new AbortController(), viewer = new AbortController();
   const preload = cache.prefetch(source, worker.signal);
   const cancelled = expect(preload).rejects.toMatchObject({ name: "AbortError" });
+  const prepared = cache.prepare(source, viewer.signal);
   const display = cache.display(source, viewer.signal);
   worker.abort();
   await cancelled;
   complete(response());
+  await prepared;
   const first = await display;
   const second = await cache.display(source, viewer.signal);
   expect(first.src).toBe(second.src);

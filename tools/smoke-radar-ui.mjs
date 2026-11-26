@@ -142,8 +142,7 @@ async function scenario(name, viewport, mobile) {
   await clickFreeMapPoint(page, '[data-testid="map-canvas-3d"]');
   await page.getByTestId("radar-point-panel").waitFor({ timeout: 20000 });
   console.log("RADAR 3D PANEL OK",name);
-  // Segnala eventuali errori applicativi senza confonderli con asset di rete esterni.
-  console.log("PAGE ERRORS",name,JSON.stringify(errors.slice(0,8)));
+  assert.deepEqual(errors, [], `Errori applicativi durante la sequenza radar ${name}`);
   await context.close();
 }
 

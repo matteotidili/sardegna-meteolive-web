@@ -163,6 +163,8 @@ export default function MapView(props: Props) {
       center: props.initialView.center, zoom: props.initialView.zoom,
       minZoom: 3, maxZoom: 13, zoomControl: false, worldCopyJump: false,
       zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
+      // ResizeObserver owns size updates so Leaflet cannot emit a delayed moveend after unmount.
+      trackResize: false,
       // Commit map tiles and station anchors together; interrupted CSS zooms can
       // leave tile panes and markers at different transforms.
       zoomAnimation: false, markerZoomAnimation: false, fadeAnimation: false,
@@ -217,6 +219,7 @@ export default function MapView(props: Props) {
       if (overlay) overlay.setBounds(overlay.getBounds());
     });
     m.on("moveend", () => {
+      if (mapRef.current !== m) return;
       const c = m.getCenter();
       cb.current.onViewChange({ center: [+c.lat.toFixed(4), +c.lng.toFixed(4)], zoom: m.getZoom() });
       emitBounds();
@@ -259,7 +262,8 @@ export default function MapView(props: Props) {
       windRef.current?.destroy(); windRef.current = null;
       liveWindRef.current?.destroy(); liveWindRef.current = null;
       radarPointRef.current?.remove(); radarPointRef.current = null;
-      m.remove(); mapRef.current = null;
+      mapRef.current = null;
+      m.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -321,7 +325,9 @@ export default function MapView(props: Props) {
     const scheduleRedraw = () => { if (!frame) frame = requestAnimationFrame(redraw); };
     scheduleRedraw();
     m.on("moveend zoomend resize", scheduleRedraw);
-    const resize = new ResizeObserver(() => m.invalidateSize({ pan: false }));
+    const resize = new ResizeObserver(() => {
+      if (mapRef.current === m) m.invalidateSize({ pan: false });
+    });
     resize.observe(m.getContainer());
     return () => {
       m.off("moveend zoomend resize", scheduleRedraw);

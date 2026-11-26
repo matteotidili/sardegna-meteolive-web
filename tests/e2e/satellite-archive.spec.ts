@@ -160,3 +160,18 @@ test("loads DPC radar tiles through MapLibre before showing their time", async (
   await expect(page.getByTestId("timeline-current-label")).toContainText(label, { timeout: 65000 });
   expect(requested).toBeGreaterThan(0);
 });
+
+test("can switch away from Leaflet while a resize is settling", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile", "Riproduce il ridimensionamento della finestra desktop");
+  await mockBasemap(page);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("./", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("map-canvas")).toBeVisible();
+  await page.setViewportSize({ width: 1100, height: 675 });
+  await page.getByTestId("map-mode-toggle").click();
+  await expect(page.getByTestId("map-canvas-3d")).toBeVisible({ timeout: 35000 });
+  // Leaflet's default window resize defers moveend by 200 ms.
+  await page.waitForTimeout(250);
+  expect(errors).toEqual([]);
+});
