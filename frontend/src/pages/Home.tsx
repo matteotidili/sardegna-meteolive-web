@@ -205,7 +205,7 @@ export default function Home() {
         ? satelliteSandwichUrl(regionalSatelliteUrl(visible.wms_url, visible.layer, visible.format, satRenderBounds, time, isDesktop), ir)
         : ir;
       return { url, opacity: satelliteOpacity[catalog.product] ?? 1 };
-    })))) : [], [sat, satRenderBounds, satQ.catalogs, satelliteOpacity, isDesktop]);
+    }))) : [], [sat, satRenderBounds, satQ.catalogs, satelliteOpacity, isDesktop]);
   const satUrl = satUrls[sIdx];
   useEffect(() => {
     if (!mode3d || !satUrl) return;
