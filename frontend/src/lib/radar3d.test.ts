@@ -118,7 +118,7 @@ describe("3D radar frame ownership", () => {
     radar.destroy();
   });
 
-  it("retains the last successful frame on source error or timeout and cleans watchers", () => {
+  it("allows partial radar tiles to render and retains the last frame on timeout", () => {
     vi.useFakeTimers();
     const { map, radar, ready } = setup();
     radar.set(frame(1)); map.load();
@@ -130,11 +130,12 @@ describe("3D radar frame ownership", () => {
     expect(map.sources.has(displayed)).toBe(false);
     radar.set(frame(3));
     map.emit("error", { sourceId: map.newest() }); map.load();
-    expect(ready).toHaveBeenLastCalledWith(radarFrameErrorKey(frame(3)));
-    expect([...map.sources.keys()]).toEqual([current]);
+    expect(ready).toHaveBeenLastCalledWith(radarFrameKey(frame(3)));
+    expect(map.sources.has(current)).toBe(false);
+    const afterPartial = map.newest();
     radar.set(frame(4)); vi.advanceTimersByTime(1000);
     expect(ready).toHaveBeenLastCalledWith(radarFrameErrorKey(frame(4)));
-    expect([...map.sources.keys()]).toEqual([current]);
+    expect([...map.sources.keys()]).toEqual([afterPartial]);
     expect(map.listenerCount()).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
     radar.destroy();
