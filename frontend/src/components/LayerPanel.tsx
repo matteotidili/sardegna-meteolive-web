@@ -16,6 +16,7 @@ export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
   { key: "truecolour", title: "MTG GeoColour RGB", sub: "FCI · giorno e notte" },
   { key: "cloudtype", title: "MTG Cloud Type RGB", sub: "Tipologia delle nubi · diurno" },
   { key: "ir105", title: "MTG IR10.5 µm", sub: "FCI HRFI · giorno e notte" },
+  { key: "sandwich", title: "MTG Sandwich VIS/IR HD", sub: "Composito qualitativo · IR notturno · nessuna scala termica calibrata" },
   { key: "cloudphase", title: "MTG Cloud Phase RGB", sub: "Microfisica nubi · diurno" },
   { key: "snowfog", title: "MTG Day Snow Fog RGB", sub: "Neve, nebbia, nubi basse · diurno" },
   { key: "preciprate", title: "H SAF H40B", sub: "Precipitation rate · prodotto derivato" },
