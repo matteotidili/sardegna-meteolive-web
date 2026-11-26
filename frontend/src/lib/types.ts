@@ -206,6 +206,7 @@ export interface ModelPoint {
 export interface SatelliteFrames {
   product: string; label: string; layer: string; attribution: string; format: string; step_minutes: number;
   wms_url: string; bounds: [number, number][]; frames: string[]; latest: string | null; daytime_only: boolean;
+  sandwich_visible?: { wms_url: string; layer: string; format: string };
 }
 
 export interface Stroke { lat: number; lon: number; time: number }
