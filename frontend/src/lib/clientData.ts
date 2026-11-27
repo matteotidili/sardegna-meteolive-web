@@ -192,7 +192,8 @@ export async function getStations(): Promise<StationsResponse> {
       warning: !data ? "Sorgente non raggiungibile: nessun dato disponibile." : retained ? "Aggiornamento non riuscito: mostrato l'ultimo dataset valido scaricato." : null,
     }));
   });
-  // CEDOC: live file, otherwise last valid snapshot explicitly marked as such
+  // CEDOC rows can contain multiple sensors per station. Collapse them
+  // into one map marker and keep per-variable observation metadata.
   const [liveResult, sitesResult, lastValidResult] = await Promise.all([
     getJson("data/cedoc.json"), getJson("data/cedoc_sites.json"), getJson("data/cedoc_last_valid.json", 600),
   ]);
@@ -201,8 +202,14 @@ export async function getStations(): Promise<StationsResponse> {
   const liveRows = (live.stations as Json[]) ?? [];
   const fallbackRows = ((lastValid.stations as Json[]) ?? []).map((row) => ({ ...row, __last_valid_snapshot: true }));
   const mergedRows = mergeCedocRows([...liveRows, ...fallbackRows], today);
-  const rows = mergedRows.flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
-  const fallbackUsed = mergedRows.some((r) => r.used_last_valid === true);
+  const rows = mergedRows.flatMap((row) => {
+    const station = normalize(row, "cedoc", now, today, true);
+    if (!station) return [];
+    station.cedoc = row.cedoc as Station["cedoc"];
+    station.rain_48h_source = row.rain_48h_source as string | null;
+    return [withDtm(station, row)];
+  });
+  const fallbackUsed = mergedRows.some((row) => row.used_last_valid === true);
   const opts: Partial<NetworkStatus> = {
     status: live.status === "degraded" || fallbackUsed ? "degraded" : undefined,
     using_last_valid: fallbackUsed || liveResult.retained,
@@ -211,7 +218,7 @@ export async function getStations(): Promise<StationsResponse> {
       : (live.warning as string) ?? null,
   };
   const payload = live;
-  const measured = new Set(rows.map((s) => s.id));
+  const measured = new Set(rows.map((station) => station.id));
   const sites = (((sitesResult.data ?? {}) as Json).stations as Json[] | undefined) ?? [];
   const catalogueOnly: Station[] = sites.flatMap((site) => {
     const id = "cedoc:" + (site.station_id ?? site.name);
@@ -223,8 +230,11 @@ export async function getStations(): Promise<StationsResponse> {
   });
   const allCedoc = [...rows, ...catalogueOnly];
   stations.push(...allCedoc);
-  const withMeasureCount = rows.filter((s) => s.rain_today !== null || s.rain_48h !== null).length;
-  const siteCount = new Set([...sites.map((s) => String(s.station_id ?? s.name)), ...rows.map((s) => s.id.replace(/^cedoc:/, ""))]).size;
+  const withMeasureCount = rows.filter((station) => station.rain_today !== null || station.rain_48h !== null).length;
+  const siteCount = new Set([
+    ...sites.map((site) => String(site.station_id ?? site.name)),
+    ...rows.map((station) => station.id.replace(/^cedoc:/, "")),
+  ]).size;
   opts.with_measure_count = withMeasureCount;
   opts.without_measure_count = Math.max(0, siteCount - withMeasureCount);
   opts.unreachable_count = num(((live.coverage ?? {}) as Json).unreachable) ?? 0;
