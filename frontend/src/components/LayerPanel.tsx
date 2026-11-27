@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Radar, CloudSun, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves, Camera } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { AromeResponse, Icon2iResponse } from "@/lib/types";
+import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
 import type { LightningStatus } from "@/lib/lightning";
 import { cn } from "@/lib/utils";
 import { SUBREGIONS_CREDIT } from "@/lib/boundaries";
 
-export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "icon2i" | "marine" | `sat-${string}`;
+export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "marine" | `sat-${string}`;
 
 export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
   { key: "eview", title: "MSG European HRV RGB", sub: "Vista europea HRV · passo 15 min" },
@@ -16,7 +16,7 @@ export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
   { key: "truecolour", title: "MTG GeoColour RGB", sub: "FCI · giorno e notte" },
   { key: "cloudtype", title: "MTG Cloud Type RGB", sub: "Tipologia delle nubi · diurno" },
   { key: "ir105", title: "MTG IR10.5 µm", sub: "FCI HRFI · giorno e notte" },
-  { key: "sandwich", title: "MTG Sandwich VIS/IR HD", sub: "Composito qualitativo · IR notturno · nessuna scala termica calibrata" },
+  { key: "sandwich", title: "MTG Sandwich VIS 0,6 + IR 10,5 µm", sub: "VIS in scala di grigi + IR a opacità variabile · al buio resta l’IR" },
   { key: "cloudphase", title: "MTG Cloud Phase RGB", sub: "Microfisica nubi · diurno" },
   { key: "snowfog", title: "MTG Day Snow Fog RGB", sub: "Neve, nebbia, nubi basse · diurno" },
   { key: "preciprate", title: "H SAF H40B", sub: "Precipitation rate · prodotto derivato" },
@@ -33,9 +33,6 @@ interface Props {
   accumulation: string | null;
   setAccumulation: (product: string | null) => void;
   accumulationStatus: string;
-  icon2iParam: string;
-  setIcon2iParam: (k: string) => void;
-  icon2i: Icon2iResponse | undefined;
   aromeParam: string;
   setAromeParam: (k: string) => void;
   arome: AromeResponse | undefined;
@@ -153,26 +150,6 @@ export default function LayerPanel(p: Props) {
       </div>
 
       <div className={SECTION}>Modello numerico</div>
-      <Toggle testid="layer-toggle-icon2i" on={p.anim === "icon2i"} onClick={() => toggleAnim("icon2i")}
-        icon={<CloudSun className="size-4" />} title="ICON-2I ItaliaMeteo"
-        sub={p.icon2i ? `Corsa ${p.icon2i.run_time.slice(11, 16)} UTC · H+1…H+${p.icon2i.horizon_hours}` : "Previsione a circa 2,2 km · fino a 72 ore"} />
-      {p.anim === "icon2i" && !p.icon2i && <p className="px-1 text-[10px] text-amber-200">Catalogo ICON-2I in caricamento o temporaneamente non disponibile.</p>}
-      {p.anim === "icon2i" && p.icon2i && (
-        <div className="space-y-1.5 pl-1">
-          <Select value={p.icon2iParam} onValueChange={(v: string) => p.setIcon2iParam(v)}>
-            <SelectTrigger data-testid="icon2i-parameter-select" className="h-8 w-full border-slate-700 bg-slate-950/60 text-xs">
-              <SelectValue>{(v) => p.icon2i?.parameters.find((x) => x.key === v)?.label ?? String(v)}</SelectValue>
-            </SelectTrigger>
-            <SelectContent className="max-h-80 border-slate-700 bg-slate-900">
-              {[...new Set(p.icon2i.parameters.map((x) => x.group))].map((g) => <SelectGroup key={g}>
-                <SelectLabel>{g}</SelectLabel>
-                {p.icon2i!.parameters.filter((x) => x.group === g).map((x) => <SelectItem key={x.key} value={x.key} data-testid={`icon2i-param-option-${x.key}`}>{x.label}</SelectItem>)}
-              </SelectGroup>)}
-            </SelectContent>
-          </Select>
-          {!p.icon2i.complete && <p className="text-[10px] text-amber-200">Corsa parziale: {p.icon2i.frames.length}/{p.icon2i.horizon_hours} scadenze disponibili.</p>}
-        </div>
-      )}
       <Toggle testid="layer-toggle-arome" on={p.anim === "arome"} onClick={() => toggleAnim("arome")}
         icon={<CloudSun className="size-4" />} title="AROME-France HD"
         sub={p.arome ? `Corsa ${p.arome.run_time.slice(11, 16)} UTC · età ${p.arome.run_age_hours.toString().replace(".", ",")} h` : "Previsione 0,01° · H+1…H+51"} />

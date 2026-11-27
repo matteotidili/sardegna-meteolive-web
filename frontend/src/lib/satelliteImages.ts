@@ -32,35 +32,28 @@ function layersOf(url: string): Layer[] | null {
   return prefix ? JSON.parse(url.slice(prefix.length)) as Layer[] : null;
 }
 
-const sandwichStops: [number, [number, number, number]][] = [[0,[85,102,127]],[.55,[111,159,200]],[.72,[85,210,212]],[.85,[247,207,88]],[.94,[247,111,65]],[1,[226,79,162]]];
-function sandwichTone(v: number): number[] {
-  for (let i=1;i<sandwichStops.length;i++) {
-    const [a,lo]=sandwichStops[i-1], [b,hi]=sandwichStops[i];
-    if (v<=b) { const t=(v-a)/(b-a); return lo.map((c,j)=>c+(hi[j]-c)*t); }
-  }
-  return sandwichStops[sandwichStops.length-1][1];
-}
-
-// Rendered WMS tones are NOT calibrated brightness temperatures.
-// If IR already contains colour preserve that palette. Otherwise use a relative
-// display-tone palette; never label these colours as physical temperature.
+/** Composite qualitative: VIS0.6 grayscale base, IR10.5 grayscale overlay.
+ * IR opacity increases with brightness in the WMS display (cold cloud tops are
+ * brighter in the standard IR greyscale). This display alpha is not a calibrated
+ * brightness temperature and is used only to retain visible-channel texture.
+ */
 export function blendSandwich(visible: Uint8ClampedArray, thermal: Uint8ClampedArray) {
-  let chromatic=0,valid=0;
-  for (let i=0;i<thermal.length;i+=4) {
-    if (!thermal[i+3]) continue;
-    valid++;
-    if (Math.max(thermal[i],thermal[i+1],thermal[i+2])-Math.min(thermal[i],thermal[i+1],thermal[i+2])>12) chromatic++;
-  }
-  if (!valid) throw new Error("Frame IR vuoto");
-  const hasColour=chromatic/valid>.02;
-  for (let i=0;i<visible.length;i+=4) {
-    if (!visible[i+3]||!thermal[i+3]) continue;
-    const r=thermal[i],g=thermal[i+1],b=thermal[i+2],v=(.2126*r+.7152*g+.0722*b)/255;
-    const gray=.2126*visible[i]+.7152*visible[i+1]+.0722*visible[i+2];
-    const chroma=Math.max(r,g,b)-Math.min(r,g,b);
-    const alpha=hasColour?Math.min(.76,chroma/120):Math.max(0,Math.min(.72,(v-.5)*1.44));
-    const tone=hasColour?[r,g,b]:sandwichTone(v), texture=.30+.70*gray/255;
-    for(let c=0;c<3;c++)visible[i+c]=Math.round(gray*(1-alpha)+tone[c]*texture*alpha);
+  const length = Math.min(visible.length, thermal.length);
+  for (let i = 0; i < length; i += 4) {
+    const visAlpha = visible[i + 3] / 255;
+    const irAlpha = thermal[i + 3] / 255;
+    if (!visAlpha) continue;
+    const visGray = 0.2126 * visible[i] + 0.7152 * visible[i + 1] + 0.0722 * visible[i + 2];
+    const irGray = 0.2126 * thermal[i] + 0.7152 * thermal[i + 1] + 0.0722 * thermal[i + 2];
+    // Cloud-top IR signal gets more weight; warm land and sea leave the VIS
+    // texture dominant. Bounds keep the grayscale overlay subtle and legible.
+    const opacity = irAlpha * (0.12 + 0.46 * irGray / 255);
+    const gray = irAlpha ? visGray * (1 - opacity) + irGray * opacity : visGray;
+    const value = Math.max(0, Math.min(255, Math.round(gray * visAlpha)));
+    visible[i] = value;
+    visible[i + 1] = value;
+    visible[i + 2] = value;
+    visible[i + 3] = Math.round(visible[i + 3]);
   }
 }
 

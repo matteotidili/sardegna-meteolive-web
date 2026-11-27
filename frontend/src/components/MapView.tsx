@@ -70,8 +70,6 @@ interface Props {
   onRadarPoint: (p: RadarPoint) => void;
   aromePointEnabled: boolean;
   onAromePoint: (p: RadarPoint) => void;
-  icon2iPointEnabled: boolean;
-  onIcon2iPoint: (p: RadarPoint) => void;
   overlay: { url: string; bounds: [number, number][]; warp: boolean; attribution: string; group?: string } | null;
   marineVectors: GeoJSON.FeatureCollection | null;
   wind: WindField | null;
@@ -190,8 +188,6 @@ export default function MapView(props: Props) {
       if (cb.current.radar) {
         cb.current.onSelect(null);
         cb.current.onRadarPoint({ lat: e.latlng.lat, lon: e.latlng.lng });
-      } else if (cb.current.icon2iPointEnabled) {
-        cb.current.onIcon2iPoint({ lat: e.latlng.lat, lon: e.latlng.lng });
       } else if (cb.current.aromePointEnabled) {
         cb.current.onSelect(null);
         cb.current.onAromePoint({ lat: e.latlng.lat, lon: e.latlng.lng });
