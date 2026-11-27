@@ -156,7 +156,7 @@ function mergeCedocRows(input: Json[], today: string): Json[] {
           value, observed, day: day || romeDay(observed),
           source: variable?.source_url ?? row.source_url,
           fallback: variable?.retained === true || row.__last_valid_snapshot === true,
-          freshness: key === "rain_today" && day && day !== today ? "historic" as Freshness
+          freshness: key === "rain_today" && (day || romeDay(observed)) !== today ? "historic" as Freshness
             : (variable?.status as Freshness | undefined) ??
               (Date.now() - observed.getTime() <= 90 * 60_000 ? "fresh" : Date.now() - observed.getTime() <= 180 * 60_000 ? "stale" : "historic"),
           fetched: variable?.fetched_at ?? row.fetched_at ?? null,
