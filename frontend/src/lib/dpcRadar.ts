@@ -132,7 +132,8 @@ export function createDpcLayer(product: string, iso: string, opacity: number, pa
         if (im) {
           const ctx = canvas.getContext("2d", { willReadFrequently: true });
           if (ctx) {
-            ctx.imageSmoothingEnabled = false;
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
             const sz = 256 / s.scale;
             ctx.drawImage(im, s.ox * sz, s.oy * sz, sz, sz, 0, 0, 256, 256);
             try { decode(ctx, product); } catch { /* tainted canvas: leave raw */ }
@@ -145,7 +146,7 @@ export function createDpcLayer(product: string, iso: string, opacity: number, pa
   });
   const LayerCtor = Layer as unknown as new (o: L.GridLayerOptions & { attribution?: string }) => L.GridLayer;
   return new LayerCtor({
-    opacity, pane, tileSize: 256, maxNativeZoom: 12, updateWhenZooming: false, keepBuffer: 1,
+    opacity, pane, tileSize: 256, maxNativeZoom: 12, maxZoom: 16, updateWhenZooming: true, keepBuffer: 2,
     bounds: L.latLngBounds([35.0, 5.0], [48.0, 20.0]),
     attribution: "Radar © Dipartimento della Protezione Civile",
   });

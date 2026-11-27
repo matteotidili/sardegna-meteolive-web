@@ -107,19 +107,19 @@ export default function MapView3D(props: Props) {
       m = new maplibregl.Map({
       container: el.current,
       center: [props.initialView.center[1], props.initialView.center[0]],
-      zoom: props.initialView.zoom - 1, minZoom: 2, pitch: 55, bearing: -12, maxPitch: 75,
+      zoom: props.initialView.zoom - 1, minZoom: 2, maxZoom: 18, pitch: 62, bearing: -12, maxPitch: 75,
       attributionControl: { compact: true },
       style: {
         version: 8,
         sources: {
-          base: { type: "raster", tiles: tiles(b.url), tileSize: 256, attribution: b.attr, maxzoom: 18 },
-          ...(b.labels ? { labels: { type: "raster" as const, tiles: tiles(b.labels), tileSize: 256, maxzoom: 18 } } : {}),
+          base: { type: "raster", tiles: tiles(b.url), tileSize: 256, attribution: b.attr, maxzoom: 19 },
+          ...(b.labels ? { labels: { type: "raster" as const, tiles: tiles(b.labels), tileSize: 256, maxzoom: 19 } } : {}),
           terrain: { type: "raster-dem", url: "https://tiles.mapterhorn.com/tilejson.json" },
           hill: { type: "raster-dem", url: "https://tiles.mapterhorn.com/tilejson.json" },
         },
         layers: [
           { id: "base", type: "raster", source: "base" },
-          { id: "hillshade", type: "hillshade", source: "hill", paint: { "hillshade-exaggeration": 0.45, "hillshade-shadow-color": "#0B0F17" } },
+          { id: "hillshade", type: "hillshade", source: "hill", paint: { "hillshade-exaggeration": 0.68, "hillshade-shadow-color": "#111820", "hillshade-highlight-color": "#f4f6ef", "hillshade-illumination-direction": 315, "hillshade-illumination-anchor": "viewport" } },
           ...(b.labels ? [{ id: "labels", type: "raster" as const, source: "labels" }] : []),
         ],
       },
@@ -133,10 +133,10 @@ export default function MapView3D(props: Props) {
     m.on("load", () => {
       readyRef.current = true;
       // terrain only after load: an easing frame before the DEM exists crashes MapLibre's elevation lookup
-      m.setTerrain({ source: "terrain", exaggeration: 1.4 });
+      m.setTerrain({ source: "terrain", exaggeration: 1.6 });
       for (const id of ["overlay", "overlay-next"]) {
         m.addSource(id, { type: "image", url: EMPTY_OVERLAY, coordinates: [[0, 1], [1, 1], [1, 0], [0, 0]] });
-        m.addLayer({ id, type: "raster", source: id, paint: { "raster-opacity": 0, "raster-fade-duration": 0 } }, b.labels ? "labels" : undefined);
+        m.addLayer({ id, type: "raster", source: id, paint: { "raster-opacity": 0, "raster-fade-duration": 0, "raster-resampling": "linear" } }, b.labels ? "labels" : undefined);
         m.setPaintProperty(id, "raster-opacity-transition", { duration: 0 });
       }
       m.addSource("marine-vectors", { type: "geojson", data: EMPTY });

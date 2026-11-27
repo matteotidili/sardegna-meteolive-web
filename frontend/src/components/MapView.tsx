@@ -131,7 +131,7 @@ export default function MapView(props: Props) {
     if (!el.current || mapRef.current) return;
     const m = L.map(el.current, {
       center: props.initialView.center, zoom: props.initialView.zoom,
-      minZoom: 3, maxZoom: 13, zoomControl: false, worldCopyJump: false,
+      minZoom: 3, maxZoom: 16, zoomControl: false, worldCopyJump: false,
       zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 120,
       // ResizeObserver owns size updates so Leaflet cannot emit a delayed moveend after unmount.
       trackResize: false,
@@ -141,6 +141,7 @@ export default function MapView(props: Props) {
       maxBounds: L.latLngBounds([26, -20], [54, 42]), preferCanvas: false,
     });
     m.createPane("weather").style.zIndex = "350";
+    m.createPane("imagery").style.zIndex = "325";
     m.createPane("bounds").style.zIndex = "370";
     m.getPane("bounds")!.style.pointerEvents = "none";
     m.createPane("municipal").style.zIndex = "360";
@@ -253,8 +254,8 @@ export default function MapView(props: Props) {
     if (!m) return;
     baseRef.current.forEach((l) => l.remove());
     const b = BASEMAPS[props.basemap];
-    const layers = [L.tileLayer(b.url, { attribution: b.attr, maxZoom: 13, subdomains: "abcd" }).addTo(m)];
-    if (b.labels) layers.push(L.tileLayer(b.labels, { pane: "labels", maxZoom: 13, subdomains: "abcd" }).addTo(m));
+    const layers = [L.tileLayer(b.url, { attribution: b.attr, maxZoom: 16, maxNativeZoom: 16, updateWhenZooming: true, keepBuffer: 3, subdomains: "abcd" }).addTo(m)];
+    if (b.labels) layers.push(L.tileLayer(b.labels, { pane: "labels", maxZoom: 16, maxNativeZoom: 16, updateWhenZooming: true, keepBuffer: 3, subdomains: "abcd" }).addTo(m));
     baseRef.current = layers;
   }, [props.basemap]);
 
