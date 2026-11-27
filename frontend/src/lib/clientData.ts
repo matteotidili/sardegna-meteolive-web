@@ -133,6 +133,9 @@ function status(key: string, label: string, source: string, rows: Station[], p: 
 /** CEDOC may publish more than one sensor record for a single station. Merge
  * measurements by station and variable before creating markers; otherwise a
  * later empty/secondary sensor row can cover a valid rainfall marker. */
+/** Collapse CEDOC's station/sensor rows into one station marker.
+ * A sensor can carry an older daily value while its station row carries a
+ * newer 48 h total; freshness is evaluated independently per variable. */
 function mergeCedocRows(input: Json[], today: string): Json[] {
   const groups = new Map<string, Json[]>();
   for (const row of input) {
@@ -141,32 +144,47 @@ function mergeCedocRows(input: Json[], today: string): Json[] {
     groups.set(id, [...(groups.get(id) ?? []), row]);
   }
   return [...groups.values()].map((records) => {
-    const base = records.find((r) => num(r.lat) !== null && num(r.lon) !== null) ?? records[0];
+    const base = records.find((row) => num(row.lat) !== null && num(row.lon) !== null) ?? records[0];
     const choose = (key: "rain_today" | "rain_48h") => {
       const candidates = records.flatMap((row) => {
-        const variables = (row.variables ?? {}) as Json;
-        const variable = (variables[key] ?? {}) as Json;
-        const value = num(variable.value ?? row[key]);
-        const observed = parse(variable.observed_at ?? row.observed_at ?? row.last);
-        const day = String(variable.local_day ?? row.observed_day ?? "");
+        const variable = ((row.variables ?? {}) as Json)[key] as Json | undefined;
+        const value = num(variable?.value ?? row[key]);
+        const observed = parse(variable?.observed_at ?? row.observed_at ?? row.last);
+        const day = String(variable?.local_day ?? row.observed_day ?? "");
         if (value === null || !observed || (key === "rain_today" && day !== today)) return [];
-        return [{ value, observed, day, source: variable.source_url ?? row.source_url,
-          fallback: row.__last_valid_snapshot === true }];
+        return [{
+          value, observed, day: day || romeDay(observed),
+          source: variable?.source_url ?? row.source_url,
+          fallback: variable?.retained === true || row.__last_valid_snapshot === true,
+          freshness: (variable?.status as Freshness | undefined) ??
+            (Date.now() - observed.getTime() <= 90 * 60_000 ? "fresh" : Date.now() - observed.getTime() <= 180 * 60_000 ? "stale" : "historic"),
+          fetched: variable?.fetched_at ?? row.fetched_at ?? null,
+          basis: variable?.observed_at_basis,
+        }];
       }).sort((a, b) => b.observed.getTime() - a.observed.getTime() || Number(a.fallback) - Number(b.fallback));
       return candidates[0] ?? null;
     };
     const daily = choose("rain_today"), rolling = choose("rain_48h");
-    const latest = [daily?.observed, rolling?.observed].filter((x): x is Date => !!x)
+    const latest = [daily?.observed, rolling?.observed].filter((value): value is Date => !!value)
       .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
     return {
       ...base,
       rain_today: daily?.value ?? null,
       rain_48h: rolling?.value ?? null,
+      rain_48h_source: rolling ? "cedoc_direct" : null,
       observed_day: daily?.day ?? null,
       last: iso(latest),
       observed_at: iso(latest),
       source_url: rolling?.source ?? daily?.source ?? base.source_url,
       used_last_valid: !!(daily?.fallback || rolling?.fallback),
+      cedoc: {
+        ...(daily ? { rain_today: { value: daily.value, observed_at: iso(daily.observed)!, fetched_at: daily.fetched,
+          local_day: daily.day, source_url: daily.source as string | null, freshness: daily.freshness,
+          retained: daily.fallback, ...(daily.basis ? { observed_at_basis: daily.basis } : {}) } } : {}),
+        ...(rolling ? { rain_48h: { value: rolling.value, observed_at: iso(rolling.observed)!, fetched_at: rolling.fetched,
+          local_day: rolling.day, source_url: rolling.source as string | null, freshness: rolling.freshness,
+          retained: rolling.fallback } } : {}),
+      },
     };
   });
 }
@@ -225,7 +243,7 @@ export async function getStations(): Promise<StationsResponse> {
     if (measured.has(id)) return [];
     const station = normalize({ ...site, rain_today: null, rain_48h: null, last: null }, "cedoc", now, today, true);
     if (!station) return [];
-    station.observation_type = "CEDOC catalog only · nessuna misura recente disponibile";
+    station.observation_type = "CEDOC catalog only · nessuna misura pluviometrica disponibile";
     return [station];
   });
   const allCedoc = [...rows, ...catalogueOnly];
@@ -237,7 +255,8 @@ export async function getStations(): Promise<StationsResponse> {
   ]).size;
   opts.with_measure_count = withMeasureCount;
   opts.without_measure_count = Math.max(0, siteCount - withMeasureCount);
-  opts.unreachable_count = num(((live.coverage ?? {}) as Json).unreachable) ?? 0;
+  const stationCoverage = (live.station_coverage ?? {}) as Json;
+  opts.unreachable_count = num(stationCoverage.unreachable) ?? num(((live.coverage ?? {}) as Json).unreachable) ?? 0;
   networks.push(status("cedoc", "CEDOC Pluviometri", (live.source as string) ?? "Sardegna CEDOC / ADIS", allCedoc, payload, opts));
   return { server_time: iso(now)!, local_day: today, stations, networks };
 }
