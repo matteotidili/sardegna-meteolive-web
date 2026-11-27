@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Radar, CloudSun, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves, Camera } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { AromeResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
 import type { LightningStatus } from "@/lib/lightning";
@@ -99,9 +101,20 @@ const SECTION = "pt-1 text-[10px] uppercase tracking-[0.18em] text-slate-500";
 const LSTATUS: Record<LightningStatus, string> = { off: "Blitzortung / LightningMaps · ultimi 60 min", connecting: "Connessione al feed…", live: "LIVE", error: "Feed interrotto · nuovo tentativo…" };
 
 export default function LayerPanel(p: Props) {
+  const [icon2iOpen, setIcon2iOpen] = useState(false);
   const groups = new Map<string, AromeResponse["parameters"]>();
   (p.arome?.parameters ?? []).forEach((x) => groups.set(x.group, [...(groups.get(x.group) ?? []), x]));
-  const labelOf = (k: string) => (k === AROME_PRECIP_KEY ? "Precipitazione oraria" : p.arome?.parameters.find((x) => x.key === k)?.label ?? k);
+  const shortLabels: Record<string, string> = {
+    t2m: "Temperatura a 2 m", tmaxrun: "Temperatura massima a 2 m", tminrun: "Temperatura minima a 2 m",
+    windchill: "Wind chill", humidex: "Humidex", td2m: "Punto di rugiada a 2 m", rh2m: "Umidità a 2 m",
+    wind10: "Vento a 10 m", winddir10: "Direzione del vento", gust10: "Raffiche", gustmaxrun: "Raffica massima",
+    cape: "CAPE (CAPE_INS)", pressure_sfc: "Pressione al suolo", cloud_low: "Nubi basse", cloud_mid: "Nubi medie",
+    cloud_high: "Nubi alte", sim_refl: "Riflettività simulata", rain_acc: "Precipitazioni cumulate",
+    rain_liquid_acc: "Pioggia cumulata", rain_1h: "Pioggia oraria", snow_1h: "Neve oraria",
+    graupel_1h: "Graupel orario", snow_acc: "Neve cumulata", graupel_acc: "Graupel cumulato",
+    frozen_acc: "Neve e graupel cumulati", precip_phase: "Fase delle precipitazioni", sim_ir: "Infrarosso simulato",
+  };
+  const labelOf = (k: string) => (k === AROME_PRECIP_KEY ? "Precipitazione oraria" : shortLabels[k] ?? p.arome?.parameters.find((x) => x.key === k)?.label ?? k);
   const toggleAnim = (a: AnimLayer) => p.setAnim(p.anim === a ? "none" : a);
 
   // Opacity: local state while dragging, committed on release (no re-render storm on mobile)
@@ -140,6 +153,30 @@ export default function LayerPanel(p: Props) {
       </div>
 
       <div className={SECTION}>Modello numerico</div>
+      <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5" data-testid="icon2i-model-card">
+        <div className="text-[13px] font-medium text-slate-200">ICON-2I · ItaliaMeteo / ARPAE</div>
+        <p className="mt-0.5 text-[10px] leading-snug text-slate-400">Modello italiano a circa 2,2 km · corse 00 e 12 UTC · previsioni fino a 72 ore.</p>
+        <Button type="button" size="sm" variant="outline" className="mt-2 h-8 border-slate-700 bg-slate-900 text-xs text-slate-100 hover:bg-slate-800" data-testid="icon2i-open-map" onClick={() => setIcon2iOpen(true)}>
+          <CloudSun className="size-3.5" /> Apri mappa e previsioni
+        </Button>
+      </div>
+      <Dialog open={icon2iOpen} onOpenChange={setIcon2iOpen}>
+        <DialogContent className="flex h-[94vh] w-[98vw] max-w-none flex-col gap-2 border-slate-700 bg-slate-950 p-3 text-slate-100 sm:max-w-[96vw] sm:p-4" data-testid="icon2i-map-dialog" showCloseButton>
+          <DialogHeader className="shrink-0 pr-8">
+            <DialogTitle className="font-heading">ICON-2I · previsione interattiva</DialogTitle>
+            <DialogDescription className="text-xs text-slate-400">MeteoHub · ItaliaMeteo, ARPAE e CINECA. Seleziona i parametri e scorri le scadenze nella mappa.</DialogDescription>
+          </DialogHeader>
+          <iframe
+            title="Mappa previsionale ICON-2I di MeteoHub"
+            src="https://meteohub.agenziaitaliameteo.it/app/maps/forecasts"
+            className="min-h-0 w-full flex-1 rounded-md border border-slate-800 bg-white"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+            data-testid="icon2i-map-frame"
+          />
+        </DialogContent>
+      </Dialog>
       <Toggle testid="layer-toggle-arome" on={p.anim === "arome"} onClick={() => toggleAnim("arome")}
         icon={<CloudSun className="size-4" />} title="AROME-France HD"
         sub={p.arome ? `Corsa ${p.arome.run_time.slice(11, 16)} UTC · età ${p.arome.run_age_hours.toString().replace(".", ",")} h` : "Previsione 0,01° · H+1…H+51"} />
@@ -158,7 +195,7 @@ export default function LayerPanel(p: Props) {
                 <SelectGroup key={g}>
                   <SelectLabel>{g}</SelectLabel>
                   {list.map((x) => (
-                    <SelectItem key={x.key} value={x.key} data-testid={`arome-param-option-${x.key}`}>{x.label}</SelectItem>
+                    <SelectItem key={x.key} value={x.key} data-testid={`arome-param-option-${x.key}`}>{labelOf(x.key)}</SelectItem>
                   ))}
                 </SelectGroup>
               ))}

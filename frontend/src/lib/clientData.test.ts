@@ -30,7 +30,7 @@ afterEach(() => vi.unstubAllGlobals());
 it("combines new station history with earlier rain and retains good series through a malformed response", async () => {
   const minute = Math.floor(Date.now() / 60000);
   const key = "dpcn-sardegna|Example";
-  const station = { id: "dpcn-sardegna:Example", network: "dpcn-sardegna", name: "Example" };
+  const station = { id: "dpcn-sardegna:Example", network: "dpcn-sardegna", name: "Example" } as import("./types").Station;
   let malformed = false;
   vi.stubGlobal("fetch", vi.fn(async (url: string) => Response.json(url.includes("station_history_24h.json")
     ? malformed ? { format: "station_history_v1", series: [] } : {

@@ -17,6 +17,7 @@ const RADAR_API = "https://radar-api.protezionecivile.it";
 
 type Json = Record<string, unknown>;
 const lastGood = new Map<string, unknown>();
+const lastCedocGood = new Map<string, Json>();
 
 async function getJson<T = Json>(path: string, bustSec = 30): Promise<{ data: T | null; retained: boolean }> {
   const url = (path.startsWith("http") ? path : DATA_BASE + path);
@@ -25,7 +26,14 @@ async function getJson<T = Json>(path: string, bustSec = 30): Promise<{ data: T 
     const r = await fetch(`${url}${sep}t=${Math.floor(Date.now() / 1000 / bustSec)}`, { cache: "no-store" });
     if (!r.ok) throw new Error(String(r.status));
     const d = (await r.json()) as T;
+    if (path === "data/cedoc.json" && !Array.isArray((d as Json).stations)) {
+      const previous = lastCedocGood.get(url) as T | undefined;
+      if (previous) return { data: previous, retained: true };
+      throw new Error("Schema CEDOC non valido");
+    }
+    if ((path === "data/am.json" || path === "data/cedoc.json" || path === "data/meteoalarm.json") && !Array.isArray((d as Json).stations ?? (path === "data/meteoalarm.json" ? (d as Json).warnings : []))) throw new Error("Schema feed non valido");
     lastGood.set(url, d);
+    if (path === "data/cedoc.json") lastCedocGood.set(url, d as Json);
     return { data: d, retained: false };
   } catch {
     const prev = lastGood.get(url) as T | undefined; // keep last valid copy, flagged as retained
@@ -67,10 +75,11 @@ const OPTIONAL_NETWORKS = new Set(["meteonetwork", "local", "mareografico", "ron
 function normalize(raw: Json, network: string, now: Date, today: string, rainOnly = false): Station | null {
   const lat = num(raw.lat), lon = num(raw.lon);
   if (lat === null || lon === null) return null;
-  const last = parse(raw.last);
+  const parsedLast = parse(raw.last);
+  const last = parsedLast && parsedLast.getTime() <= now.getTime() ? parsedLast : null;
   const obsDay = last ? romeDay(last) : null;
   const avail = (raw.available ?? {}) as Record<string, boolean>;
-  const g = (field: string, key: string) => (rainOnly && !field.startsWith("rain") ? null : avail[key] === false ? null : num(raw[field]));
+  const g = (field: string, key: string) => (rainOnly && !field.startsWith("rain") ? null : avail[key] === false || avail[field] === false || (parsedLast !== null && last === null) ? null : num(raw[field]));
   const s: Station = {
     id: `${network}:${raw.station_id ?? raw.icao ?? raw.name}`,
     name: String(raw.name ?? "Senza nome"), network, lat, lon,
@@ -83,7 +92,7 @@ function normalize(raw: Json, network: string, now: Date, today: string, rainOnl
     gust_day_max_kmh: raw.gust_day === today ? num(raw.gust_day_max_kmh) : null,
     gust_day_max_at: raw.gust_day === today ? (raw.gust_day_max_at as string) ?? null : null,
     gust_day_source: raw.gust_day === today ? (raw.gust_day_source as string) ?? null : null,
-    rain_rate: g("rain_rate", "rain"), rain_today: g("rain_today", "rain"),
+    rain_rate: typeof raw.rain_rate === "string" && raw.rain_rate.trim() === "" ? null : g("rain_rate", "rain"), rain_today: g("rain_today", "rain"),
     rain_48h: num(raw.rain_48h), rain_48h_source: (raw.rain_48h_source as string) ?? null,
     pressure_hpa: rainOnly ? null : num(raw.pressure_hpa),
     last: iso(last), obs_day: obsDay, is_today: obsDay === today, age_min: null, freshness: "unavailable",
@@ -127,6 +136,7 @@ function status(key: string, label: string, source: string, rows: Station[], p: 
     latest_obs: lasts.length ? lasts.sort().at(-1)! : null, station_count: rows.length,
     fresh_count: c("fresh"), stale_count: c("stale"), historic_count: c("historic"),
     using_last_valid: o.using_last_valid ?? false, warning: o.warning ?? null,
+    with_measure_count: o.with_measure_count, without_measure_count: o.without_measure_count, unreachable_count: o.unreachable_count,
   };
 }
 
@@ -136,14 +146,14 @@ function status(key: string, label: string, source: string, rows: Station[], p: 
 /** Collapse CEDOC's station/sensor rows into one station marker.
  * A sensor can carry an older daily value while its station row carries a
  * newer 48 h total; freshness is evaluated independently per variable. */
-function mergeCedocRows(input: Json[], today: string): Json[] {
+function mergeCedocRows(input: Json[], today: string, outage = false): Json[] {
   const groups = new Map<string, Json[]>();
   for (const row of input) {
     const id = String(row.station_id ?? row.name ?? "");
     if (!id) continue;
     groups.set(id, [...(groups.get(id) ?? []), row]);
   }
-  return [...groups.values()].map((records) => {
+  return [...groups.entries()].map(([id, records]) => {
     const base = records.find((row) => num(row.lat) !== null && num(row.lon) !== null) ?? records[0];
     const choose = (key: "rain_today" | "rain_48h") => {
       const candidates = records.flatMap((row) => {
@@ -170,21 +180,22 @@ function mergeCedocRows(input: Json[], today: string): Json[] {
       .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
     return {
       ...base,
-      rain_today: daily?.value ?? null,
+      station_id: base.station_id ?? id,
+      rain_today: daily?.day === today ? daily.value : null,
       rain_48h: rolling?.value ?? null,
       rain_48h_source: rolling ? "cedoc_direct" : null,
       observed_day: daily?.day ?? null,
       last: iso(latest),
       observed_at: iso(latest),
       source_url: rolling?.source ?? daily?.source ?? base.source_url,
-      used_last_valid: !!(daily?.fallback || rolling?.fallback),
+      used_last_valid: outage || !!(daily?.fallback || rolling?.fallback),
       cedoc: {
         ...(daily ? { rain_today: { value: daily.value, observed_at: iso(daily.observed)!, fetched_at: daily.fetched,
-          local_day: daily.day, source_url: daily.source as string | null, freshness: daily.freshness,
-          retained: daily.fallback, ...(daily.basis ? { observed_at_basis: daily.basis } : {}) } } : {}),
+          local_day: daily.day, source_url: daily.source as string | null, freshness: outage ? "stale" : daily.freshness,
+          retained: outage || daily.fallback, ...(daily.basis ? { observed_at_basis: daily.basis } : {}) } } : {}),
         ...(rolling ? { rain_48h: { value: rolling.value, observed_at: iso(rolling.observed)!, fetched_at: rolling.fetched,
-          local_day: rolling.day, source_url: rolling.source as string | null, freshness: rolling.freshness,
-          retained: rolling.fallback } } : {}),
+          local_day: rolling.day, source_url: rolling.source as string | null, freshness: outage ? "stale" : rolling.freshness,
+          retained: outage || rolling.fallback } } : {}),
       },
     };
   });
@@ -204,7 +215,19 @@ export async function getStations(): Promise<StationsResponse> {
     if (OPTIONAL_NETWORKS.has(key) && !results[i].data) return;
     const { data, retained } = results[i];
     const p = (data ?? {}) as Json;
-    const rows = ((p.stations as Json[]) ?? []).flatMap((r) => { const s = normalize(r, key, now, today); return s ? [withDtm(s, r)] : []; });
+    const records = ((p.stations as Json[]) ?? []).map((r) => ({ ...r, ...(retained ? { __retained: true } : {}) }));
+    const byId = new Map<string, { station: Station; raw: Json }>();
+    for (const raw of records) {
+      const station = normalize(raw, key, now, today);
+      if (!station) continue;
+      const previous = byId.get(station.id);
+      if (!previous || (parse(station.last)?.getTime() ?? -Infinity) > (parse(previous.station.last)?.getTime() ?? -Infinity)) byId.set(station.id, { station, raw });
+    }
+    const rows = [...byId.values()].map(({ station, raw }) => {
+      const resolved = withDtm(station, raw);
+      if (retained && resolved.freshness === "fresh") resolved.freshness = "stale";
+      return resolved;
+    });
     stations.push(...rows);
     networks.push(status(key, label, (p.source as string) ?? label, rows, p, {
       using_last_valid: retained,
@@ -219,11 +242,20 @@ export async function getStations(): Promise<StationsResponse> {
   const live = (liveResult.data ?? {}) as Json;
   const lastValid = (lastValidResult.data ?? {}) as Json;
   const liveRows = (live.stations as Json[]) ?? [];
-  const fallbackRows = ((lastValid.stations as Json[]) ?? []).map((row) => ({ ...row, __last_valid_snapshot: true }));
-  const mergedRows = mergeCedocRows([...liveRows, ...fallbackRows], today);
+  const fallbackRows = (liveResult.retained ? ((live.stations as Json[]) ?? []) : (lastValid.stations as Json[]) ?? []).map((row) => ({ ...row, __last_valid_snapshot: true }));
+  const outage = (!!liveResult.retained || !liveResult.data) && !!liveResult.data;
+  const sites = (((sitesResult.data ?? {}) as Json).stations as Json[] | undefined) ?? [];
+  const mergedRows = mergeCedocRows([...(outage ? [] : liveRows), ...fallbackRows, ...sites], today, outage);
   const rows = mergedRows.flatMap((row) => {
     const station = normalize(row, "cedoc", now, today, true);
-    if (!station) return [];
+    if (!station) {
+      const id = String(row.station_id ?? row.name ?? "");
+      const site = sites.find((candidate) => String(candidate.station_id ?? candidate.name) === id);
+      const empty = site && normalize({ ...site, station_id: id }, "cedoc", now, today, true);
+      if (!empty) return [];
+      empty.cedoc = {};
+      return [withDtm(empty, site!)];
+    }
     station.cedoc = row.cedoc as Station["cedoc"];
     station.rain_48h_source = row.rain_48h_source as string | null;
     return [withDtm(station, row)];
@@ -239,10 +271,16 @@ export async function getStations(): Promise<StationsResponse> {
   const payload = live;
   // Pubblica solo stazioni con almeno un valore pluviometrico verificato.
   // L'anagrafica senza misure resta nei metadati di copertura, mai tra i marker.
-  const sites = (((sitesResult.data ?? {}) as Json).stations as Json[] | undefined) ?? [];
   const allCedoc = rows.filter((station) => station.rain_today !== null || station.rain_48h !== null);
-  stations.push(...allCedoc);
-  const withMeasureCount = rows.filter((station) => station.rain_today !== null || station.rain_48h !== null).length;
+  const noMeasureCedoc = rows.filter((station) => station.rain_today === null && station.rain_48h === null);
+  stations.push(...allCedoc, ...noMeasureCedoc);
+  const measureRows = [...liveRows, ...fallbackRows] as Json[];
+  const withMeasureCount = new Set([...measureRows.filter((row) => {
+    const variables = (row.variables ?? {}) as Json;
+    const daily = ((variables.rain_today ?? {}) as Json).value ?? row.rain_today;
+    const rolling = ((variables.rain_48h ?? {}) as Json).value ?? row.rain_48h;
+    return num(daily) !== null || num(rolling) !== null;
+  }).map((row) => String(row.station_id ?? row.name)), ...liveRows.map((row) => String(row.station_id ?? row.name))]).size;
   const siteCount = new Set([
     ...sites.map((site) => String(site.station_id ?? site.name)),
     ...rows.map((station) => station.id.replace(/^cedoc:/, "")),
@@ -250,15 +288,20 @@ export async function getStations(): Promise<StationsResponse> {
   opts.with_measure_count = withMeasureCount;
   opts.without_measure_count = Math.max(0, siteCount - withMeasureCount);
   const stationCoverage = (live.station_coverage ?? {}) as Json;
-  opts.unreachable_count = num(stationCoverage.unreachable) ?? num(((live.coverage ?? {}) as Json).unreachable) ?? 0;
+  const coverage = (live.coverage ?? {}) as Json;
+  opts.unreachable_count = num(stationCoverage.unreachable) ?? num(coverage.unreachable) ?? 0;
   networks.push(status("cedoc", "CEDOC Pluviometri", (live.source as string) ?? "Sardegna CEDOC / ADIS", allCedoc, payload, opts));
   return { server_time: iso(now)!, local_day: today, stations, networks };
 }
 
 // ---------------------------------------------------------------- alerts
+let lastValidAlerts: AlertsResponse | null = null;
 export async function getAlerts(): Promise<AlertsResponse> {
-  const { data } = await getJson<Json>("data/meteoalarm.json", 300);
-  if (!data) return { source: "MeteoAlarm", feed_updated: null, generated_at: null, active_count: 0, upcoming_count: 0, max_level: 0, warnings: [], available: false };
+  const { data, retained } = await getJson<Json>("data/meteoalarm.json", 300);
+  if (!data || !Array.isArray(data.warnings)) {
+    if (lastValidAlerts) return { ...lastValidAlerts, degraded: true };
+    return { source: "MeteoAlarm", feed_updated: null, generated_at: null, active_count: 0, upcoming_count: 0, max_level: 0, warnings: [], available: false };
+  }
   const now = Date.now(), regions = (data.regions ?? {}) as Record<string, { geometry?: GeoJSON.Geometry }>;
   const out: AlertWarning[] = [];
   for (const w of (data.warnings as Json[]) ?? []) {
@@ -275,11 +318,15 @@ export async function getAlerts(): Promise<AlertsResponse> {
     });
   }
   out.sort((a, b) => Number(a.status !== "active") - Number(b.status !== "active") || b.level - a.level || (a.onset ?? "").localeCompare(b.onset ?? ""));
-  return {
+  const feedTime = parse(data.feed_updated)?.getTime() ?? parse(data.generated_at)?.getTime() ?? now;
+  const response: AlertsResponse = {
     source: "MeteoAlarm / EUMETNET", feed_updated: (data.feed_updated as string) ?? null, generated_at: (data.generated_at as string) ?? null,
     active_count: out.filter((a) => a.status === "active").length, upcoming_count: out.filter((a) => a.status === "upcoming").length,
     max_level: Math.max(0, ...out.map((a) => a.level)), warnings: out, available: true,
+    degraded: retained || now - feedTime > 2 * 3600_000,
   };
+  lastValidAlerts = response;
+  return response;
 }
 
 // ---------------------------------------------------------------- AROME
@@ -487,19 +534,20 @@ export async function getModelPoint(lat: number, lon: number, at: string): Promi
 }
 
 // ---------------------------------------------------------------- radar / FRP / rain48
-export async function getDpcAccumulationTime(product: string): Promise<string> {
-  const r = await fetch(`${RADAR_API}/findLastProductByType?type=${encodeURIComponent(product)}&lang=it`, { cache: "no-store" });
+export async function getDpcAccumulationTime(product: string, signal?: AbortSignal): Promise<string> {
+  const r = await fetch(`${RADAR_API}/findLastProductByType?type=${encodeURIComponent(product)}&lang=it`, { cache: "no-store", signal });
   if (!r.ok) throw new Error("Accumulo Radar-DPC non disponibile");
   const ms = Number(((await r.json()) as { lastProducts?: { time: number }[] }).lastProducts?.[0]?.time);
   if (!Number.isFinite(ms)) throw new Error("Timestamp dell'accumulo non disponibile");
   return new Date(ms).toISOString();
 }
 
-export async function getRadar(product: string): Promise<RadarFrames> {
-  const r = await fetch(`${RADAR_API}/findLastProductByType?type=${product}&lang=it`, { cache: "no-store" });
+export async function getRadar(product: string, signal?: AbortSignal): Promise<RadarFrames> {
+  const r = await fetch(`${RADAR_API}/findLastProductByType?type=${product}&lang=it`, { cache: "no-store", signal });
   if (!r.ok) throw new Error("Radar-DPC non disponibile");
-  const ms = Number(((await r.json()) as { lastProducts?: { time: number }[] }).lastProducts?.[0]?.time);
-  if (!Number.isFinite(ms)) throw new Error("Radar-DPC: ultimo prodotto non disponibile");
+  const raw = ((await r.json()) as { lastProducts?: { time: number | null }[] }).lastProducts?.[0]?.time;
+  const ms = raw == null ? NaN : Number(raw);
+  if (!Number.isFinite(ms)) throw new Error("Timestamp del prodotto DPC non disponibile");
   const frames = Array.from({ length: 37 }, (_, i) => iso(new Date(ms - (36 - i) * 5 * 60000))!);
   return { product, latest_time: iso(new Date(ms))!, step_minutes: 5, frames };
 }
@@ -567,35 +615,40 @@ export interface HistoryPoint { t: number; temp: number | null; rain: number | n
 export interface StationHistory {
   points: HistoryPoint[]; // epoch ms, °C, daily rain counter mm
   tempSource: string | null; rainSource: string | null; generatedAt: string | null; tempPublished: boolean;
+  retained?: boolean;
 }
 
-export async function getStationHistory(s: Station): Promise<StationHistory> {
+const previousStationHistory = new Map<string, (number | null)[][]>();
+
+export async function getStationHistory(s: Station, _signal?: AbortSignal): Promise<StationHistory> {
   const key = s.id.replace(/^([^:]+):/, "$1|");
   const [hist, rain] = await Promise.all([getJson<Json>("data/station_history_24h.json", 300), getJson<Json>("data/rain_history.json", 300)]);
   const cut = Date.now() - 24 * 3600_000;
   const points = new Map<number, HistoryPoint>();
   const at = (t: number) => points.get(t) ?? points.set(t, { t, temp: null, rain: null }).get(t)!;
   // station_history_v1: [epoch_min, temp_tenths|null, rain_today_tenths|null] — real observation times
-  const hs = (hist.data?.series as Record<string, (number | null)[][]> | undefined)?.[key] ?? [];
+  const rawHistory = (hist.data?.series as Record<string, (number | null)[][]> | undefined)?.[key];
+  const hs = rawHistory ?? previousStationHistory.get(key) ?? [];
+  if (rawHistory) previousStationHistory.set(key, rawHistory);
   for (const [m, t10, r10] of hs) {
     const t = Number(m) * 60000;
-    if (t < cut) continue;
+    if (t < cut || t > Date.now()) continue;
     if (t10 != null) at(t).temp = t10 / 10;
     if (r10 != null) at(t).rain = r10 / 10;
   }
   let rainSource: string | null = hs.some((p) => p[2] != null) ? "station_history_24h.json" : null;
-  if (!rainSource) {
+  {
     // daily_counter_timeseries_v1 (rain 48 h chain): [epoch_min, rain_today_tenths]
     const rs = ((rain.data?.series ?? {}) as Record<string, number[][]>);
     const series = rs[key] ?? rs[`${s.network}|${s.name}`] ?? [];
-    for (const [m, r10] of series) { const t = m * 60000; if (t >= cut) at(t).rain = r10 / 10; }
-    if (series.length) rainSource = "rain_history.json";
+    for (const [m, r10] of series) { const t = m * 60000; if (t >= cut && t <= Date.now() && at(t).rain === null) at(t).rain = r10 / 10; }
+    if (series.length) rainSource = rainSource ? `${rainSource}, rain_history.json` : "rain_history.json";
   }
   return {
     points: [...points.values()].sort((a, b) => a.t - b.t),
     tempSource: hs.some((p) => p[1] != null) ? "station_history_24h.json" : null, rainSource,
     generatedAt: (hist.data?.generated_at as string) ?? (rain.data?.generated_at as string) ?? null,
-    tempPublished: !!hist.data,
+    tempPublished: !!hist.data, retained: hist.retained || rain.retained || !rawHistory,
   };
 }
 
@@ -613,7 +666,7 @@ const operaProbe = (d: Date) => new Promise<boolean>((res) => {
   im.src = `${OPERA_TILE_BASE}${operaStamp(d.toISOString())}/0/0/0.png?probe=${Math.floor(Date.now() / 60000)}`;
 });
 
-export async function getOpera(): Promise<RadarFrames> {
+export async function getOpera(_signal?: AbortSignal): Promise<RadarFrames> {
   const step = 15 * 60000, start = Math.floor(Date.now() / step) * step;
   let latest: Date | null = null;
   for (let i = 0; i < 16 && !latest; i++) { const d = new Date(start - i * step); if (await operaProbe(d)) latest = d; }
@@ -634,6 +687,24 @@ const SAT: Record<string, [string, string, string, string, number, boolean]> = {
   li: ["mtg_fd:li_afa", "MTG LI · Area dei lampi (AFA)", "© EUMETSAT · MTG LI Accumulated Flash Area", "image/png", 5, false],
 };
 
+export function satelliteTimes(text: string, retentionMinutes: number, _stepMinutes: number): { frames: string[] } {
+  const instants: number[] = [];
+  for (const part of text.split(",").map((value) => value.trim()).filter(Boolean)) {
+    const [first, last, duration] = part.split("/");
+    const start = Date.parse(first);
+    if (!Number.isFinite(start)) continue;
+    if (!last) { instants.push(start); continue; }
+    const end = Date.parse(last);
+    const minutes = Number(duration?.match(/^PT(\d+)M$/)?.[1]);
+    if (!Number.isFinite(end) || !minutes) continue;
+    for (let at = start; at <= end; at += minutes * 60_000) instants.push(at);
+  }
+  const latest = Math.max(...instants);
+  if (!Number.isFinite(latest)) return { frames: [] };
+  return { frames: [...new Set(instants.filter((at) => at >= latest - retentionMinutes * 60_000))]
+    .sort((a, b) => a - b).map((at) => new Date(at).toISOString()) };
+}
+
 function satelliteDomain(xml: Document, layer: string): [number, number][] {
   const layers = Array.from(xml.getElementsByTagNameNS("*", "Layer"));
   const node = layers.find((l) => Array.from(l.children).some((c) => c.localName === "Name" && c.textContent?.split(":").at(-1) === layer.split(":").at(-1)));
@@ -652,9 +723,9 @@ function satelliteDomain(xml: Document, layer: string): [number, number][] {
 
 const LI_AFA_WMS = "https://view.eumetsat.int/geoserver/mtg_fd/li_afa/ows";
 
-async function getLightningAfa(): Promise<SatelliteFrames> {
+async function getLightningAfa(signal?: AbortSignal): Promise<SatelliteFrames> {
   // Empty transparent maps are valid observations, not missing frames.
-  const response = await fetch(`${LI_AFA_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
+  const response = await fetch(`${LI_AFA_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store", signal });
   if (!response.ok) throw new Error(`EUMETSAT LI AFA HTTP ${response.status}`);
   const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension"))
@@ -673,11 +744,11 @@ async function getLightningAfa(): Promise<SatelliteFrames> {
     frames, latest: new Date(end).toISOString(), daytime_only: false };
 }
 
-async function getRgbSatellite(product: string): Promise<SatelliteFrames> {
+async function getRgbSatellite(product: string, signal?: AbortSignal): Promise<SatelliteFrames> {
   const cloud = product === "cloudtype";
   const layer = cloud ? "rgb_cloudtype" : "rgb_geocolour";
   const wms_url = `https://view.eumetsat.int/geoserver/mtg_fd/${layer}/ows`;
-  const r = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
+  const r = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store", signal });
   if (!r.ok) throw new Error(`EUMETSAT HTTP ${r.status}`);
   const xml = new DOMParser().parseFromString(await r.text(), "application/xml");
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
@@ -691,9 +762,9 @@ async function getRgbSatellite(product: string): Promise<SatelliteFrames> {
     wms_url, bounds: satelliteDomain(xml, layer), frames, latest: new Date(end).toISOString(), daytime_only: cloud };
 }
 
-async function getRdtSatellite(): Promise<SatelliteFrames> {
+async function getRdtSatellite(signal?: AbortSignal): Promise<SatelliteFrames> {
   const wms_url = "https://view.eumetsat.int/geoserver/msg_fes/rdt/ows";
-  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
+  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store", signal });
   if (!response.ok) throw new Error(`EUMETSAT RDT HTTP ${response.status}`);
   const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
@@ -708,11 +779,11 @@ async function getRdtSatellite(): Promise<SatelliteFrames> {
     latest: new Date(end).toISOString(), daytime_only: false };
 }
 
-async function getMsgRgbSatellite(product: "eview" | "airmass"): Promise<SatelliteFrames> {
+async function getMsgRgbSatellite(product: "eview" | "airmass", signal?: AbortSignal): Promise<SatelliteFrames> {
   const layer = product === "eview" ? "rgb_eview" : "rgb_airmass";
   const label = product === "eview" ? "MSG European HRV RGB" : "MSG Airmass RGB";
   const wms_url = `https://view.eumetsat.int/geoserver/msg_fes/${layer}/ows`;
-  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store" });
+  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store", signal });
   if (!response.ok) throw new Error(`EUMETSAT MSG RGB HTTP ${response.status}`);
   const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
@@ -727,16 +798,16 @@ async function getMsgRgbSatellite(product: "eview" | "airmass"): Promise<Satelli
     latest: new Date(end).toISOString(), daytime_only: false };
 }
 
-export async function getSatellite(product: string): Promise<SatelliteFrames> {
-  if (product === "eview" || product === "airmass") return getMsgRgbSatellite(product);
-  if (product === "rdt") return getRdtSatellite();
-  if (product === "truecolour" || product === "cloudtype") return getRgbSatellite(product);
-  if (product === "li") return getLightningAfa();
+export async function getSatellite(product: string, signal?: AbortSignal): Promise<SatelliteFrames> {
+  if (product === "eview" || product === "airmass") return getMsgRgbSatellite(product, signal);
+  if (product === "rdt") return getRdtSatellite(signal);
+  if (product === "truecolour" || product === "cloudtype") return getRgbSatellite(product, signal);
+  if (product === "li") return getLightningAfa(signal);
   const def = SAT[product];
   if (!def) throw new Error("Prodotto satellitare non supportato");
   const [layer, label, attribution, format, step, day] = def;
   const wms_url = `https://view.eumetsat.int/geoserver/mtg_fd/${layer.split(":").at(-1)}/ows`;
-  const capabilities = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-cache" });
+  const capabilities = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-cache", signal });
   if (!capabilities.ok) throw new Error("Catalogo satellitare non disponibile");
   const xml = new DOMParser().parseFromString(await capabilities.text(), "application/xml");
   const domain = satelliteDomain(xml, layer);
