@@ -13,8 +13,8 @@ import LayerPanel, { SAT_OPTIONS, type AnimLayer } from "@/components/LayerPanel
 import TimelinePlayer from "@/components/TimelinePlayer";
 import AlertBanner from "@/components/AlertBanner";
 import HealthDialog from "@/components/HealthDialog";
-import { AromeLegend, DpcAccumulationLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
-import { useAlerts, useArome, useAromePoint, useDpcAccumulation, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
+import { AromeLegend, Icon2iLegend, DpcAccumulationLegend, LightningLegend, LiveWindLegend, OperaLegend, RadarLegend, StationLegend } from "@/components/Legends";
+import { useAlerts, useArome, useIcon2i, useAromePoint, useIcon2iPoint, useDpcAccumulation, useRadar, useRain48, useStations, useWindField, useWindMeta } from "@/hooks/useMeteo";
 import { useIsDesktop, usePersistentState } from "@/hooks/usePersistentState";
 import { AROME_PRECIP_KEY, NETWORK_META, networkGroup, PARAMS, PARAM_BY_KEY, fmtDayTime, fmtTime, stationParameterLabel, type ParamKey } from "@/lib/meteo";
 import { mercatorImage } from "@/lib/mercator";
@@ -51,6 +51,7 @@ export default function Home() {
   const [showRonBuoys, setShowRonBuoys] = usePersistentState<boolean>("showRonBuoys", false);
   const [anim, setAnim] = usePersistentState<AnimLayer>("anim", "none");
   const [accumulation, setAccumulation] = usePersistentState<string | null>("dpc-accumulation", null);
+  const [icon2iParam, setIcon2iParam] = usePersistentState<string>("icon2iParam", "t2m");
   const [aromeParam, setAromeParam] = usePersistentState<string>("aromeParam", AROME_PRECIP_KEY);
   const [marineModel, setMarineModel] = usePersistentState<MarineModel>("marineModel", "ww3");
   const [marineParameter, setMarineParameter] = usePersistentState<MarineParameter>("marineParameter", "hs");
@@ -110,6 +111,7 @@ export default function Home() {
   const [radarIdx, setRadarIdx] = useState<number | null>(null);
   const [radarPoint, setRadarPoint] = useState<RadarPoint | null>(null);
   const [aromePoint, setAromePoint] = useState<RadarPoint | null>(null);
+  const [icon2iPoint, setIcon2iPoint] = useState<RadarPoint | null>(null);
   const [leadIdx, setLeadIdx] = useState<number | null>(null);
   const [marineIdx, setMarineIdx] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -129,6 +131,7 @@ export default function Home() {
   const accumulationQ = useDpcAccumulation(accumulationProduct);
   const radarNumericQ = useRadarNumericManifest(!!radarProduct);
   const aromeQ = useArome(true);
+  const icon2iQ = useIcon2i(true);
   const rain48Q = useRain48();
   const satProduct = anim.startsWith("sat-") ? anim.slice(4) : null;
   const [satellites, setSatellites] = usePersistentState<string[]>("satellite-stack", []);
@@ -174,6 +177,8 @@ export default function Home() {
   ), [radarQ.data, radarNumericQ.data, radarProduct]);
   const rIdx = radarFrames.length ? Math.min(radarIdx ?? radarFrames.length - 1, radarFrames.length - 1) : 0;
   const arome = aromeQ.data;
+  const icon2i = icon2iQ.data;
+  const icon2iFrames = icon2i?.frames ?? [];
   const aromeFrames = arome?.frames ?? [];
   const defaultLead = useMemo(() => {
     const now = Date.now();
@@ -181,6 +186,8 @@ export default function Home() {
     return i < 0 ? 0 : i;
   }, [aromeFrames]);
   const lIdx = aromeFrames.length ? Math.min(leadIdx ?? defaultLead, aromeFrames.length - 1) : 0;
+  const icon2iIdx = icon2iFrames.length ? Math.min(leadIdx ?? 0, icon2iFrames.length - 1) : 0;
+  const icon2iUrl = anim === "icon2i" && icon2i && icon2iFrames[icon2iIdx] ? icon2i.product_url_template.replace("{parameter}", icon2iParam).replace("{lead}", String(icon2iFrames[icon2iIdx].lead_hours).padStart(2, "0")) : null;
   const aromeUrlAt = useCallback((i: number) => {
     const f = aromeFrames[i];
     if (!f || !arome) return null;
@@ -245,15 +252,19 @@ export default function Home() {
   const marineVectorsQ = useMarineVectors(marineTime, Math.round(view.zoom), marineDirections, marine?.run_time);
   const marineGroup = marineUrl && marine ? `marine:${marine.model}:${marineParam}:${marine.forcing ?? ""}:${marine.run_time}` : null;
   const aromeGroup = aromeUrl && arome ? `arome:${aromeParam}:${arome.run_time}` : null;
-  const modelGroup = marineGroup ?? aromeGroup;
+  const icon2iGroup = icon2iUrl && icon2i ? `icon2i:${icon2iParam}:${icon2i.run_time}` : null;
+  const modelGroup = marineGroup ?? aromeGroup ?? icon2iGroup;
   const marineLabels = marine ? marineFrames.map((time) =>
     `H+${String(Math.round((Date.parse(time) - Date.parse(marine.run_time)) / 3600000)).padStart(2, "0")} · ${fmtDayTime(time)}`) : [];
   const aromeLabels = aromeFrames.map((f) => `H+${String(f.lead_hours).padStart(2, "0")} · ${fmtDayTime(f.valid_time)}`);
+  const icon2iLabels = icon2iFrames.map((f) => `H+${String(f.lead_hours).padStart(2, "0")} · ${fmtDayTime(f.valid_time)}`);
   const overlay = marineUrl && marine
     ? { url: marineUrl, bounds: marineRenderCatalog!.bounds, warp: false, attribution: marine.attribution,
         group: marineGroup! }
     : aromeUrl && arome
     ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)", group: aromeGroup! }
+    : icon2iUrl && icon2i
+    ? { url: icon2iUrl, bounds: icon2i.bounds, warp: false, attribution: "ICON-2I · ItaliaMeteo / ARPAE / CINECA", group: icon2iGroup! }
     : satCandidate ?? shownSat?.overlay ?? null;
   const [shownModel, setShownModel] = useState<{ renderer: object; group: string; label: string } | null>(null);
   const displayedModelLabel = shownModel?.renderer === renderer && shownModel.group === modelGroup ? shownModel.label : null;
@@ -264,7 +275,7 @@ export default function Home() {
       setShownSatellite({ renderer, overlay: satCandidate, time: satFrames[sIdx], label: sat!.label });
     }
     if (modelGroup && overlay && key === `overlay:${overlay.url}`) {
-      setShownModel({ renderer, group: modelGroup, label: marineGroup ? marineLabels[mIdx] : aromeLabels[lIdx] });
+      setShownModel({ renderer, group: modelGroup, label: marineGroup ? marineLabels[mIdx] : aromeGroup ? aromeLabels[lIdx] : icon2iLabels[icon2iIdx] });
     }
     if (satCandidate && key.endsWith(satCandidate.url) && new URLSearchParams(window.location.search).get("diagnostica") === "satellite") {
       console.info("EUMETSAT", JSON.stringify({ frame: satFrames[sIdx], ...satelliteCache.snapshot() }));
@@ -311,6 +322,7 @@ export default function Home() {
   // Il punto resta fisso durante l'animazione e la timeline. Fuori dal
   // contesto radar il pannello non deve sovrapporsi agli altri layer.
   useEffect(() => { if (!radarProduct) setRadarPoint(null); }, [radarProduct]);
+  useEffect(() => { if (anim !== "icon2i") setIcon2iPoint(null); }, [anim]);
   useEffect(() => { setPlaying(false); setMarineIdx(null); }, [marineModel, marineParam, marineForcing, marine?.run_time]);
 
   // playback: advance only once the current frame is fully drawn (no partial frames)
@@ -320,19 +332,24 @@ export default function Home() {
       if (marineUrl) setMarineIdx((mIdx + 1) % marineFrames.length);
       else if (radarLayer) setRadarIdx((rIdx + 1) % radarFrames.length);
       else if (aromeUrl) setLeadIdx((lIdx + 1) % aromeFrames.length);
+      else if (icon2iUrl) setLeadIdx((icon2iIdx + 1) % icon2iFrames.length);
       else if (satFrames.length) selectSatellite((sIdx + 1) % satFrames.length, 1);
     }, BASE_DELAY / speed);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, frameReady, speed, rIdx, lIdx, sIdx, mIdx, currentKey]);
+  }, [playing, frameReady, speed, rIdx, lIdx, icon2iIdx, icon2iFrames.length, sIdx, mIdx, currentKey]);
 
   // Prefetch the next projected AROME frames.
   useEffect(() => {
+    if (anim === "icon2i" && icon2iUrl && icon2i) {
+      const [[south], [north]] = icon2i.bounds;
+      [1, 2].forEach((d) => { const f = icon2iFrames[(icon2iIdx + d) % icon2iFrames.length]; if (f) void mercatorImage(icon2i.product_url_template.replace("{parameter}", icon2iParam).replace("{lead}", String(f.lead_hours).padStart(2, "0")), south, north); });
+    }
     if (anim === "arome" && arome) {
       const [[s], [n]] = arome.bounds;
       [1, 2].forEach((d) => { const u = aromeUrlAt((lIdx + d) % aromeFrames.length); if (u) void mercatorImage(u, s, n); });
     }
-  }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length]);
+  }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length, icon2i, icon2iUrl, icon2iFrames, icon2iIdx, icon2iParam]);
 
   useEffect(() => {
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
@@ -391,7 +408,22 @@ export default function Home() {
     };
   }, [aromePoint, anim, aromeUrl, readyKey, arome, aromeParam, aromePointStops, aromeMeta, aromeFrames, lIdx]);
   const aromePointQ = useAromePoint(aromePointRequest);
-  const timeline = marineOn ? marine && marineUrl ? (
+  const icon2iMeta=icon2i?.parameters.find((p)=>p.key===icon2iParam);
+  const icon2iPointRequest=icon2iPoint&&anim==="icon2i"&&icon2iUrl&&icon2i&&icon2iMeta?{
+    ...icon2iPoint,run:icon2i.run_time,lead:icon2iFrames[icon2iIdx]?.lead_hours??0,key:icon2iParam,label:icon2iMeta.label,unit:icon2iMeta.unit,
+  }:null;
+  const icon2iPointQ=useIcon2iPoint(icon2iPointRequest);
+  const timeline = anim === "icon2i" ? icon2iUrl && icon2i ? (
+    <TimelinePlayer title={`ICON-2I · ${icon2i.parameters.find((p) => p.key === icon2iParam)?.label ?? icon2iParam}`} labels={icon2iLabels}
+      index={icon2iIdx} setIndex={(i) => setLeadIdx(i)} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
+      loading={!frameReady} displayedLabel={displayedModelLabel} legend={<Icon2iLegend meta={icon2i.parameters.find((p) => p.key === icon2iParam) as any} />}
+      note={`Corsa ${fmtTime(icon2i.run_time)} · ${icon2i.producer} · clicca sulla mappa per interrogare un punto.`} />
+  ) : (
+    <div data-testid="icon2i-status" className="pointer-events-auto rounded-xl border border-slate-700 bg-slate-900/95 p-3 text-xs text-slate-200">
+      {icon2iQ.isLoading ? "Verifica delle previsioni ICON-2I…" : "Previsioni ICON-2I momentaneamente non disponibili."}
+      {icon2iQ.isError && <button data-testid="icon2i-retry" onClick={() => void icon2iQ.refetch()} className="ml-2 text-sky-300 underline">Riprova</button>}
+    </div>
+  ) : marineOn ? marine && marineUrl ? (
     <TimelinePlayer
       title={`${marine.model === "ww3" ? "WW3 MEDITA" : `SHYFEM · ${marine.forcing === "ICON" ? "ICON-2I" : marine.forcing}`} · ${MARINE_LABELS[marineParam].short} (${MARINE_LABELS[marineParam].unit})`}
       labels={marineLabels}
@@ -465,9 +497,10 @@ export default function Home() {
       accumulationStatus={accumulationProduct ? accumulationQ.isFetching && !accumulationQ.data ? "Ricerca dell'ultimo prodotto DPC…" : accumulationQ.isError && !accumulationQ.data ? "Prodotto DPC temporaneamente non disponibile." : accumulationQ.data ? `Aggiornato: ${fmtDayTime(accumulationQ.data)} · Protezione Civile` : "" : ""}
       setAnim={(next) => {
       setAnim(next);
+      if (next === "icon2i" || next === "arome") setLeadIdx(null);
       if (next !== "none") setAccumulation(null);
       if (next === "marine" && anim !== "marine") requestAnimationFrame(() => mapControls.fitMediterranean());
-    }} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}
+    }} icon2iParam={icon2iParam} setIcon2iParam={setIcon2iParam} icon2i={icon2i} aromeParam={aromeParam} setAromeParam={setAromeParam} arome={arome}
       showIspraBuoys={showIspraBuoys} setShowIspraBuoys={(on) => {
         setShowIspraBuoys(on);
         if (on) setParamKey("water_temp_c");
@@ -512,9 +545,11 @@ export default function Home() {
     satelliteBounds: satProduct ? satRenderBounds ?? shownSat?.overlay.bounds ?? MEDITERRANEAN_BOUNDS : null,
     basemap, stations: visible, param, selectedId, onSelect: setSelectedId, radar: mapRadarLayer,
     radarPoint: radarLayer ? radarPoint : null,
-    onRadarPoint: (point: RadarPoint) => { setRadarPoint(point); setAromePoint(null); },
+    onRadarPoint: (point: RadarPoint) => { setRadarPoint(point); setAromePoint(null); setIcon2iPoint(null); },
     aromePointEnabled: anim === "arome" && !!aromeUrl && readyKey === `overlay:${aromeUrl}` && !mode3d,
-    onAromePoint: (point: RadarPoint) => { setAromePoint(point); setRadarPoint(null); },
+    onAromePoint: (point: RadarPoint) => { setAromePoint(point); setIcon2iPoint(null); setRadarPoint(null); },
+    icon2iPointEnabled: anim === "icon2i" && !!icon2iUrl && readyKey === `overlay:${icon2iUrl}` && !mode3d,
+    onIcon2iPoint: (point: RadarPoint) => { setIcon2iPoint(point); setAromePoint(null); setRadarPoint(null); },
     overlay, opacity,
     onLayerReady, fires: null,
     webcams: webcamsOn ? WEBCAMS : [],
@@ -552,6 +587,13 @@ export default function Home() {
           <AromePointPanel point={aromePoint} time={aromeFrames[lIdx]?.valid_time ?? ""}
             value={aromePointQ.data} loading={aromePointQ.isLoading || aromePointQ.isFetching}
             error={aromePointQ.isError} onClose={() => setAromePoint(null)} />
+        </div>
+      )}
+
+      {anim === "icon2i" && icon2iUrl && readyKey === `overlay:${icon2iUrl}` && icon2iPoint && (
+        <div className="pointer-events-none fixed right-3 top-[115px] z-40 w-[min(360px,calc(100vw-24px))] md:right-4 md:top-[92px]">
+          <AromePointPanel model="ICON-2I" point={icon2iPoint} time={icon2iFrames[icon2iIdx]?.valid_time ?? ""} value={icon2iPointQ.data}
+            loading={icon2iPointQ.isLoading || icon2iPointQ.isFetching} error={icon2iPointQ.isError} onClose={() => setIcon2iPoint(null)} />
         </div>
       )}
 

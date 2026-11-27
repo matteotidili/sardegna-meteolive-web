@@ -6,7 +6,7 @@
  * station-vs-model point values. Upstream files are cache-busted every 30 seconds.
  */
 import type {
-  AlertWarning, AlertsResponse, AromeFrame, AromeParameter, AromeResponse, FireDetection, Freshness, FrpResponse,
+  AlertWarning, AlertsResponse, AromeFrame, AromeParameter, AromeResponse, Icon2iResponse, FireDetection, Freshness, FrpResponse,
   ModelPoint, NetworkStatus, PointValue, RadarFrames, Rain48Response, SatelliteFrames, Station, StationsResponse,
   WindGrid, WindMeta,
 } from "@/lib/types";
@@ -368,6 +368,46 @@ export async function getArome(): Promise<AromeResponse> {
       ? d.hourly_precip_stops as AromeResponse["hourly_precip_stops"] : undefined,
     frames, complete: horizon > 0 && frames.length === horizon,
   };
+}
+
+
+export async function getIcon2i(): Promise<Icon2iResponse> {
+  const { data } = await getJson<Json>("data/icon2i/forecast.json", 300);
+  if (!data || !parse(data.run_time)) throw new Error("Catalogo ICON-2I non disponibile");
+  const run = iso(parse(data.run_time))!;
+  const parameters = Object.entries((data.parameters ?? {}) as Record<string, Json>).map(([key, p]) => ({
+    key, label: String(p.label ?? key), unit: String(p.unit ?? ""), group: String(p.group ?? ""),
+    scale: String(p.scale ?? ""), stops: (p.stops as Icon2iResponse["parameters"][number]["stops"]) ?? [],
+  }));
+  const frames = ((data.frames as Json[]) ?? []).flatMap((f) => parse(f.valid_time)
+    ? [{ lead_hours: Number(f.lead_hours), valid_time: iso(parse(f.valid_time))! }] : []);
+  const horizon = Number(data.forecast_horizon_hours ?? 0);
+  return {
+    model: String(data.model ?? "ICON-2I"), producer: String(data.producer ?? "ItaliaMeteo / ARPAE / CINECA"),
+    run_time: run, run_age_hours: Math.round((Date.now() - Date.parse(run)) / 360000) / 10,
+    horizon_hours: horizon, bounds: (data.bounds as [number, number][]) ?? [],
+    product_url_template: aromeAsset(String(data.product_path_template ?? "data/icon2i/products/{parameter}/h{lead:02d}.webp"), run).replace("{lead:02d}", "{lead}"),
+    parameters, frames, complete: horizon > 0 && frames.length === horizon,
+  };
+}
+
+export async function getIcon2iPointValue(lat:number,lon:number,run:string,lead:number,key:string,label:string,unit:string):Promise<PointValue>{
+  const {data}=await getJson<Json>("data/icon2i/forecast.json",300);
+  const parameters=data?.parameters as Record<string,Json>|undefined;
+  const stops=(parameters?.[key]?.stops as [number,number[]][]|undefined)??[];
+  const url=aromeAsset(`data/icon2i/products/${key}/h${String(lead).padStart(2,"0")}.webp`,run);
+  const [[south,west],[north,east]]=data?.bounds as [number,number][];
+  let value:number|null=null;
+  if(lat>=south&&lat<=north&&lon>=west&&lon<=east){
+    const img=await imageData(url);
+    if(img){
+      const x=Math.min(img.width-1,Math.max(0,Math.floor((lon-west)/(east-west)*img.width)));
+      const y=Math.min(img.height-1,Math.max(0,Math.floor((north-lat)/(north-south)*img.height)));
+      const i=(y*img.width+x)*4;
+      if(img.data[i+3]>0)value=invert([img.data[i],img.data[i+1],img.data[i+2]],stops);
+    }
+  }
+  return {key,label,unit,value:value===null?null:Math.round(value*10)/10,direction_deg:null,method:"scala cromatica del raster ICON-2I"};
 }
 
 export async function getWindMeta(): Promise<WindMeta> {

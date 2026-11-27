@@ -46,6 +46,14 @@ export function StationLegend({ param, showHistoricDay }: { param: ParamDef; sho
 
 const rgb = (c: number[]) => `rgb(${c.join(",")})`;
 
+export function Icon2iLegend({meta}:{meta:AromeParameter|undefined}){
+  if(!meta?.stops.length)return null;
+  const stops=meta.stops, n=stops.length;
+  const gradient=stops.map(([,c],i)=>`${rgb(c)} ${(i/Math.max(1,n-1)*100).toFixed(2)}%`).join(", ");
+  const rainfall=meta.scale==="precip";
+  return <div className="mt-2" data-testid="icon2i-legend"><div className="mb-1 flex justify-between text-[9px] text-slate-300"><span>{meta.label}</span><span>{meta.unit}</span></div><div className="h-2.5 rounded border border-white/10" style={{background:`linear-gradient(90deg, ${gradient})`}}/><div className="mt-1 flex justify-between font-num text-[9px] text-slate-300">{stops.filter((_,i)=>i===0||i===n-1||i%Math.ceil(n/5)===0).map(([v],i)=><span key={`${v}-${i}`}>{v}{rainfall?"":""}</span>)}</div></div>;
+}
+
 export function AromeLegend({ meta, isPrecip, hourlyPrecipStops }: {
   meta: AromeParameter | undefined;
   isPrecip: boolean;

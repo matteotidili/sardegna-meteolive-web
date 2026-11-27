@@ -2,8 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
 import { decodeWind } from "@/lib/windFlow";
 import {
-  getAlerts, getArome, getDemElevation, getFrp, getModelPoint, getOpera, getRadar, getRain48, getSatellite, getStationHistory,
-  getAromePointValue, getDpcAccumulationTime, getGustGrid, getStations, getWindMeta,
+  getAlerts, getArome, getIcon2i, getDemElevation, getFrp, getModelPoint, getOpera, getRadar, getRain48, getSatellite, getStationHistory,
+  getAromePointValue, getIcon2iPointValue, getDpcAccumulationTime, getGustGrid, getStations, getWindMeta,
 } from "@/lib/clientData";
 import type { PointValue, RadarFrames, Station, WindGrid } from "@/lib/types";
 
@@ -19,6 +19,13 @@ export const useAromePoint = (request: AromePointRequest | null) => useQuery<Poi
   retry: false,
   queryFn: () => getAromePointValue(request!.lat, request!.lon, request!.url, request!.bounds,
     request!.key, request!.label, request!.unit, request!.stops, request!.maskUrl),
+});
+
+export interface Icon2iPointRequest { lat:number;lon:number;run:string;lead:number;key:string;label:string;unit:string; }
+export const useIcon2iPoint=(request:Icon2iPointRequest|null)=>useQuery<PointValue>({
+  queryKey:["icon2i-point",request?.run,request?.lead,request?.key,request?.lat.toFixed(4),request?.lon.toFixed(4)],
+  enabled:!!request,staleTime:Infinity,retry:false,
+  queryFn:()=>getIcon2iPointValue(request!.lat,request!.lon,request!.run,request!.lead,request!.key,request!.label,request!.unit),
 });
 
 export const useStationHistory = (s: Station | null) =>
@@ -46,6 +53,9 @@ export const useAlerts = () =>
 
 export const useArome = (enabled = true) =>
   useQuery({ queryKey: ["arome"], queryFn: getArome, refetchInterval: 15 * 60_000, enabled, retry: 1 });
+
+export const useIcon2i = (enabled = true) =>
+  useQuery({ queryKey: ["icon2i"], queryFn: getIcon2i, refetchInterval: 15 * 60_000, enabled, retry: 1 });
 
 export const useDpcAccumulation = (product: string | null) =>
   useQuery({ queryKey: ["dpc-accumulation", product], queryFn: ({ signal }) => getDpcAccumulationTime(product!, signal), enabled: !!product,

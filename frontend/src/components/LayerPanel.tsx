@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Radar, CloudSun, ShieldAlert, Wind, Satellite, Zap, MapIcon, Landmark, Grid2x2, Navigation, Waves, Camera } from "lucide-react";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { AromeResponse } from "@/lib/types";
+import type { AromeResponse, Icon2iResponse } from "@/lib/types";
 import { AROME_NOTES, AROME_PRECIP_KEY } from "@/lib/meteo";
 import type { LightningStatus } from "@/lib/lightning";
 import { cn } from "@/lib/utils";
 import { SUBREGIONS_CREDIT } from "@/lib/boundaries";
 
-export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "marine" | `sat-${string}`;
+export type AnimLayer = "none" | "radar-VMI" | "radar-SRI" | "radar-OPERA" | "arome" | "icon2i" | "marine" | `sat-${string}`;
 
 export const SAT_OPTIONS: { key: string; title: string; sub: string }[] = [
   { key: "eview", title: "MSG European HRV RGB", sub: "Vista europea HRV · passo 15 min" },
@@ -35,6 +33,9 @@ interface Props {
   accumulation: string | null;
   setAccumulation: (product: string | null) => void;
   accumulationStatus: string;
+  icon2iParam: string;
+  setIcon2iParam: (k: string) => void;
+  icon2i: Icon2iResponse | undefined;
   aromeParam: string;
   setAromeParam: (k: string) => void;
   arome: AromeResponse | undefined;
@@ -101,7 +102,6 @@ const SECTION = "pt-1 text-[10px] uppercase tracking-[0.18em] text-slate-500";
 const LSTATUS: Record<LightningStatus, string> = { off: "Blitzortung / LightningMaps · ultimi 60 min", connecting: "Connessione al feed…", live: "LIVE", error: "Feed interrotto · nuovo tentativo…" };
 
 export default function LayerPanel(p: Props) {
-  const [icon2iOpen, setIcon2iOpen] = useState(false);
   const groups = new Map<string, AromeResponse["parameters"]>();
   (p.arome?.parameters ?? []).forEach((x) => groups.set(x.group, [...(groups.get(x.group) ?? []), x]));
   const shortLabels: Record<string, string> = {
@@ -153,30 +153,26 @@ export default function LayerPanel(p: Props) {
       </div>
 
       <div className={SECTION}>Modello numerico</div>
-      <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-2.5" data-testid="icon2i-model-card">
-        <div className="text-[13px] font-medium text-slate-200">ICON-2I · ItaliaMeteo / ARPAE</div>
-        <p className="mt-0.5 text-[10px] leading-snug text-slate-400">Modello italiano a circa 2,2 km · corse 00 e 12 UTC · previsioni fino a 72 ore.</p>
-        <Button type="button" size="sm" variant="outline" className="mt-2 h-8 border-slate-700 bg-slate-900 text-xs text-slate-100 hover:bg-slate-800" data-testid="icon2i-open-map" onClick={() => setIcon2iOpen(true)}>
-          <CloudSun className="size-3.5" /> Apri mappa e previsioni
-        </Button>
-      </div>
-      <Dialog open={icon2iOpen} onOpenChange={setIcon2iOpen}>
-        <DialogContent className="flex h-[94vh] w-[98vw] max-w-none flex-col gap-2 border-slate-700 bg-slate-950 p-3 text-slate-100 sm:max-w-[96vw] sm:p-4" data-testid="icon2i-map-dialog" showCloseButton>
-          <DialogHeader className="shrink-0 pr-8">
-            <DialogTitle className="font-heading">ICON-2I · previsione interattiva</DialogTitle>
-            <DialogDescription className="text-xs text-slate-400">MeteoHub · ItaliaMeteo, ARPAE e CINECA. Seleziona i parametri e scorri le scadenze nella mappa.</DialogDescription>
-          </DialogHeader>
-          <iframe
-            title="Mappa previsionale ICON-2I di MeteoHub"
-            src="https://meteohub.agenziaitaliameteo.it/app/maps/forecasts"
-            className="min-h-0 w-full flex-1 rounded-md border border-slate-800 bg-white"
-            loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-            data-testid="icon2i-map-frame"
-          />
-        </DialogContent>
-      </Dialog>
+      <Toggle testid="layer-toggle-icon2i" on={p.anim === "icon2i"} onClick={() => toggleAnim("icon2i")}
+        icon={<CloudSun className="size-4" />} title="ICON-2I ItaliaMeteo"
+        sub={p.icon2i ? `Corsa ${p.icon2i.run_time.slice(11, 16)} UTC · H+1…H+${p.icon2i.horizon_hours}` : "Previsione a circa 2,2 km · fino a 72 ore"} />
+      {p.anim === "icon2i" && !p.icon2i && <p className="px-1 text-[10px] text-amber-200">Catalogo ICON-2I in caricamento o temporaneamente non disponibile.</p>}
+      {p.anim === "icon2i" && p.icon2i && (
+        <div className="space-y-1.5 pl-1">
+          <Select value={p.icon2iParam} onValueChange={(v: string) => p.setIcon2iParam(v)}>
+            <SelectTrigger data-testid="icon2i-parameter-select" className="h-8 w-full border-slate-700 bg-slate-950/60 text-xs">
+              <SelectValue>{(v) => p.icon2i?.parameters.find((x) => x.key === v)?.label ?? String(v)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent className="max-h-80 border-slate-700 bg-slate-900">
+              {[...new Set(p.icon2i.parameters.map((x) => x.group))].map((g) => <SelectGroup key={g}>
+                <SelectLabel>{g}</SelectLabel>
+                {p.icon2i!.parameters.filter((x) => x.group === g).map((x) => <SelectItem key={x.key} value={x.key} data-testid={`icon2i-param-option-${x.key}`}>{x.label}</SelectItem>)}
+              </SelectGroup>)}
+            </SelectContent>
+          </Select>
+          {!p.icon2i.complete && <p className="text-[10px] text-amber-200">Corsa parziale: {p.icon2i.frames.length}/{p.icon2i.horizon_hours} scadenze disponibili.</p>}
+        </div>
+      )}
       <Toggle testid="layer-toggle-arome" on={p.anim === "arome"} onClick={() => toggleAnim("arome")}
         icon={<CloudSun className="size-4" />} title="AROME-France HD"
         sub={p.arome ? `Corsa ${p.arome.run_time.slice(11, 16)} UTC · età ${p.arome.run_age_hours.toString().replace(".", ",")} h` : "Previsione 0,01° · H+1…H+51"} />

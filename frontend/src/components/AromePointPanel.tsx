@@ -10,16 +10,17 @@ interface Props {
   loading: boolean;
   error: boolean;
   onClose: () => void;
+  model?: string;
 }
 
 const decimal = (n: number) => n.toLocaleString("it-IT", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
-export default function AromePointPanel({ point, time, value, loading, error, onClose }: Props) {
+export default function AromePointPanel({ point, time, value, loading, error, onClose, model = "AROME HD" }: Props) {
   return (
     <div data-testid="arome-point-panel" className="pointer-events-auto w-full max-w-[360px] overflow-hidden rounded-2xl border border-violet-700/65 bg-slate-950/97 text-slate-100 shadow-2xl shadow-black/70 backdrop-blur-xl">
       <div className="flex items-start justify-between gap-2 border-b border-slate-800 bg-slate-900/85 px-3 py-2">
         <div>
-          <div className="text-xs font-semibold">AROME HD · valore puntuale</div>
+          <div className="text-xs font-semibold">{model} · valore puntuale</div>
           <div className="mt-0.5 text-[10px] text-slate-400">Valore letto dal raster del prodotto selezionato</div>
         </div>
         <button data-testid="arome-point-close" aria-label="Chiudi valore AROME" onClick={onClose}
@@ -38,7 +39,7 @@ export default function AromePointPanel({ point, time, value, loading, error, on
               ? <p className="mt-1 text-lg font-semibold">n.d. <span className="text-sm font-medium text-slate-400">{value?.unit}</span></p>
               : <p className="mt-1 text-lg font-semibold">{value.value.toLocaleString("it-IT", { maximumFractionDigits: 1 })} <span className="text-sm font-medium text-slate-400">{value.unit}</span></p>}
         </div>
-        <p className="text-[9px] leading-snug text-slate-500">Valore ricavato dalla scala cromatica del prodotto AROME; è una previsione di griglia, non una misura osservata.</p>
+      <p className="text-[9px] leading-snug text-slate-500">Valore previsto sulla griglia del modello, non una misura osservata.</p>
       </div>
     </div>
   );

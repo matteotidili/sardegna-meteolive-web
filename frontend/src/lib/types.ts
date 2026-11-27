@@ -121,6 +121,17 @@ export interface AlertsResponse {
 
 export type RGB = [number, number, number];
 
+export interface Icon2iParameter {
+  key: string; label: string; unit: string; group: string; scale: string;
+  stops: [number, RGB][];
+}
+export interface Icon2iFrame { lead_hours: number; valid_time: string; }
+export interface Icon2iResponse {
+  model: string; producer: string; run_time: string; run_age_hours: number;
+  horizon_hours: number; bounds: [number, number][]; product_url_template: string;
+  parameters: Icon2iParameter[]; frames: Icon2iFrame[]; complete: boolean;
+}
+
 export interface AromeParameter {
   key: string;
   label: string;
