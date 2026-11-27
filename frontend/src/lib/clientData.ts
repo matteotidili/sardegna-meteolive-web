@@ -151,7 +151,7 @@ function mergeCedocRows(input: Json[], today: string): Json[] {
         const value = num(variable?.value ?? row[key]);
         const observed = parse(variable?.observed_at ?? row.observed_at ?? row.last);
         const day = String(variable?.local_day ?? row.observed_day ?? "");
-        if (value === null || !observed || (key === "rain_today" && day !== today)) return [];
+        if (value === null || !observed || (key === "rain_today" && day && day !== today)) return [];
         return [{
           value, observed, day: day || romeDay(observed),
           source: variable?.source_url ?? row.source_url,
