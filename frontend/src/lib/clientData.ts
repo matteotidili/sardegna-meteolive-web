@@ -151,13 +151,14 @@ function mergeCedocRows(input: Json[], today: string): Json[] {
         const value = num(variable?.value ?? row[key]);
         const observed = parse(variable?.observed_at ?? row.observed_at ?? row.last);
         const day = String(variable?.local_day ?? row.observed_day ?? "");
-        if (value === null || !observed || (key === "rain_today" && day && day !== today)) return [];
+        if (value === null || !observed || (key === "rain_today" && day !== today)) return [];
         return [{
           value, observed, day: day || romeDay(observed),
           source: variable?.source_url ?? row.source_url,
           fallback: variable?.retained === true || row.__last_valid_snapshot === true,
-          freshness: (variable?.status as Freshness | undefined) ??
-            (Date.now() - observed.getTime() <= 90 * 60_000 ? "fresh" : Date.now() - observed.getTime() <= 180 * 60_000 ? "stale" : "historic"),
+          freshness: key === "rain_today" && day && day !== today ? "historic" as Freshness
+            : (variable?.status as Freshness | undefined) ??
+              (Date.now() - observed.getTime() <= 90 * 60_000 ? "fresh" : Date.now() - observed.getTime() <= 180 * 60_000 ? "stale" : "historic"),
           fetched: variable?.fetched_at ?? row.fetched_at ?? null,
           basis: variable?.observed_at_basis,
         }];
