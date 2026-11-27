@@ -237,17 +237,10 @@ export async function getStations(): Promise<StationsResponse> {
       : (live.warning as string) ?? null,
   };
   const payload = live;
-  const measured = new Set(rows.map((station) => station.id));
+  // Pubblica solo stazioni con almeno un valore pluviometrico verificato.
+  // L'anagrafica senza misure resta nei metadati di copertura, mai tra i marker.
   const sites = (((sitesResult.data ?? {}) as Json).stations as Json[] | undefined) ?? [];
-  const catalogueOnly: Station[] = sites.flatMap((site) => {
-    const id = "cedoc:" + (site.station_id ?? site.name);
-    if (measured.has(id)) return [];
-    const station = normalize({ ...site, rain_today: null, rain_48h: null, last: null }, "cedoc", now, today, true);
-    if (!station) return [];
-    station.observation_type = "CEDOC catalog only · nessuna misura pluviometrica disponibile";
-    return [station];
-  });
-  const allCedoc = [...rows, ...catalogueOnly];
+  const allCedoc = rows.filter((station) => station.rain_today !== null || station.rain_48h !== null);
   stations.push(...allCedoc);
   const withMeasureCount = rows.filter((station) => station.rain_today !== null || station.rain_48h !== null).length;
   const siteCount = new Set([
