@@ -113,13 +113,16 @@ it("selects solar daylight rather than fixed UTC hours for the sandwich", () => 
   expect(sandwichDay("2026-06-21T18:00:00Z")).toBe(true);
   expect(sandwichDay("2026-06-21T23:00:00Z")).toBe(false);
 });
-it("uses a distinct cache key and retains visible texture with relative IR colour", () => {
+it("uses a distinct cache key and builds a grayscale VIS/IR sandwich with variable opacity", () => {
   expect(isSatelliteImage(satelliteSandwichUrl(imageUrl(1),imageUrl(2)))).toBe(true);
   expect(satelliteSandwichUrl(imageUrl(1),imageUrl(2))).not.toBe(satelliteStackUrl([{url:imageUrl(1),opacity:1},{url:imageUrl(2),opacity:1}]));
-  const vis=new Uint8ClampedArray([80,80,80,255,220,220,220,255]);
-  const ir=new Uint8ClampedArray([245,245,245,255,245,245,245,255]);
+  const vis=new Uint8ClampedArray([128,128,128,255,128,128,128,255]);
+  const ir=new Uint8ClampedArray([32,32,32,255,245,245,245,255]);
   blendSandwich(vis,ir);
+  expect(vis[0]).toBe(vis[1]);
+  expect(vis[1]).toBe(vis[2]);
+  expect(vis[4]).toBe(vis[5]);
+  expect(vis[5]).toBe(vis[6]);
   expect(vis[0]).toBeLessThan(vis[4]);
-  expect(vis[0]).not.toEqual(vis[1]);
   expect(vis[3]).toBe(255);
 });
