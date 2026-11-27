@@ -150,8 +150,9 @@ function mergeCedocRows(input: Json[], today: string): Json[] {
         const observed = parse(variable.observed_at ?? row.observed_at ?? row.last);
         const day = String(variable.local_day ?? row.observed_day ?? "");
         if (value === null || !observed || (key === "rain_today" && day !== today)) return [];
-        return [{ value, observed, day, source: variable.source_url ?? row.source_url }];
-      }).sort((a, b) => b.observed.getTime() - a.observed.getTime());
+        return [{ value, observed, day, source: variable.source_url ?? row.source_url,
+          fallback: row.__last_valid_snapshot === true }];
+      }).sort((a, b) => b.observed.getTime() - a.observed.getTime() || Number(a.fallback) - Number(b.fallback));
       return candidates[0] ?? null;
     };
     const daily = choose("rain_today"), rolling = choose("rain_48h");
@@ -165,6 +166,7 @@ function mergeCedocRows(input: Json[], today: string): Json[] {
       last: iso(latest),
       observed_at: iso(latest),
       source_url: rolling?.source ?? daily?.source ?? base.source_url,
+      used_last_valid: !!(daily?.fallback || rolling?.fallback),
     };
   });
 }
@@ -191,22 +193,24 @@ export async function getStations(): Promise<StationsResponse> {
     }));
   });
   // CEDOC: live file, otherwise last valid snapshot explicitly marked as such
-  const [liveResult, sitesResult] = await Promise.all([
-    getJson("data/cedoc.json"), getJson("data/cedoc_sites.json"),
+  const [liveResult, sitesResult, lastValidResult] = await Promise.all([
+    getJson("data/cedoc.json"), getJson("data/cedoc_sites.json"), getJson("data/cedoc_last_valid.json", 600),
   ]);
   const live = (liveResult.data ?? {}) as Json;
-  let rows = mergeCedocRows((live.stations as Json[]) ?? [], today).flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
-  let opts: Partial<NetworkStatus> = { warning: (live.warning as string) ?? null };
-  let payload = live;
-  if (!rows.length) {
-    const lv = ((await getJson("data/cedoc_last_valid.json", 600)).data ?? {}) as Json;
-    rows = mergeCedocRows((lv.stations as Json[]) ?? [], today).flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
-    if (rows.length) {
-      payload = { ...lv, checked_at: live.generated_at };
-      opts = { status: "degraded", using_last_valid: true,
-        warning: `${(live.warning as string) ?? "Portale CEDOC non disponibile."} Mostrato l'ultimo snapshot valido (${lv.local_day ?? "data ignota"}), NON aggiornato.` };
-    }
-  }
+  const lastValid = (lastValidResult.data ?? {}) as Json;
+  const liveRows = (live.stations as Json[]) ?? [];
+  const fallbackRows = ((lastValid.stations as Json[]) ?? []).map((row) => ({ ...row, __last_valid_snapshot: true }));
+  const mergedRows = mergeCedocRows([...liveRows, ...fallbackRows], today);
+  const rows = mergedRows.flatMap((r) => { const s = normalize(r, "cedoc", now, today, true); return s ? [withDtm(s, r)] : []; });
+  const fallbackUsed = mergedRows.some((r) => r.used_last_valid === true);
+  const opts: Partial<NetworkStatus> = {
+    status: live.status === "degraded" || fallbackUsed ? "degraded" : undefined,
+    using_last_valid: fallbackUsed || liveResult.retained,
+    warning: fallbackUsed
+      ? `${(live.warning as string) ?? "Feed CEDOC parziale."} Per alcune variabili è mostrata l’ultima misura salvata, con orario originale.`
+      : (live.warning as string) ?? null,
+  };
+  const payload = live;
   const measured = new Set(rows.map((s) => s.id));
   const sites = (((sitesResult.data ?? {}) as Json).stations as Json[] | undefined) ?? [];
   const catalogueOnly: Station[] = sites.flatMap((site) => {
