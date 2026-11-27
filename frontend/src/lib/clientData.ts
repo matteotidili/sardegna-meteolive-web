@@ -223,6 +223,11 @@ export async function getStations(): Promise<StationsResponse> {
   });
   const allCedoc = [...rows, ...catalogueOnly];
   stations.push(...allCedoc);
+  const withMeasureCount = rows.filter((s) => s.rain_today !== null || s.rain_48h !== null).length;
+  const siteCount = new Set([...sites.map((s) => String(s.station_id ?? s.name)), ...rows.map((s) => s.id.replace(/^cedoc:/, ""))]).size;
+  opts.with_measure_count = withMeasureCount;
+  opts.without_measure_count = Math.max(0, siteCount - withMeasureCount);
+  opts.unreachable_count = num(((live.coverage ?? {}) as Json).unreachable) ?? 0;
   networks.push(status("cedoc", "CEDOC Pluviometri", (live.source as string) ?? "Sardegna CEDOC / ADIS", allCedoc, payload, opts));
   return { server_time: iso(now)!, local_day: today, stations, networks };
 }
