@@ -346,8 +346,7 @@ export default function MapView(props: Props) {
     const p = props.param;
     const items = props.stations
       .map((s) => ({ s, v: valueOf(s, p), f: freshnessFor(s, p) }))
-      .filter((x) => (x.v !== null && x.f !== "unavailable")
-        || (x.s.network === "cedoc" && p.rain));
+      .filter((x) => x.v !== null && x.f !== "unavailable");
     items.sort((a, b) =>
       (b.s.id === props.selectedId ? 1 : 0) - (a.s.id === props.selectedId ? 1 : 0) ||
       FRESH_PRIORITY[a.f] - FRESH_PRIORITY[b.f] ||
