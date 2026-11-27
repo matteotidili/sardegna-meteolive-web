@@ -264,7 +264,7 @@ export default function Home() {
     : aromeUrl && arome
     ? { url: aromeUrl, bounds: arome.bounds, warp: true, attribution: "AROME-France HD © Météo-France (Licence Ouverte 2.0)", group: aromeGroup! }
     : icon2iUrl && icon2i
-    ? { url: icon2iUrl, bounds: icon2i.bounds, warp: false, attribution: "ICON-2I · ItaliaMeteo / ARPAE / CINECA", group: icon2iGroup! }
+    ? { url: icon2iUrl, bounds: icon2i.bounds, warp: true, attribution: "ICON-2I · ItaliaMeteo / ARPAE / CINECA", group: icon2iGroup! }
     : satCandidate ?? shownSat?.overlay ?? null;
   const [shownModel, setShownModel] = useState<{ renderer: object; group: string; label: string } | null>(null);
   const displayedModelLabel = shownModel?.renderer === renderer && shownModel.group === modelGroup ? shownModel.label : null;
