@@ -138,7 +138,7 @@ describe("CEDOC station measurements", () => {
     const result = await getStations();
     const iglesias = result.stations.find((s) => s.id === "cedoc:451800")!;
     expect(iglesias).toMatchObject({
-      name: "Iglesias RF", rain_48h: 53.8, rain_today: 7,
+      name: "Iglesias RF", rain_48h: 53.8, rain_today: null,
       cedoc: {
         rain_48h: { value: 53.8, freshness: "fresh", retained: false },
         rain_today: { value: 7, local_day: "2026-11-25", observed_at: "2026-11-25T22:45:00Z", freshness: "historic", retained: true },
