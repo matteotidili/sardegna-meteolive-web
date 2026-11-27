@@ -351,8 +351,7 @@ export default function MapView3D(props: Props) {
     const p = cb.current.param, sel = cb.current.selectedId;
     const items = cb.current.stations
       .map((s) => ({ s, v: valueOf(s, p), f: freshnessFor(s, p) }))
-      .filter((x) => (x.v !== null && x.f !== "unavailable")
-        || (x.s.network === "cedoc" && p.rain))
+      .filter((x) => x.v !== null && x.f !== "unavailable")
       .sort((a, b) => (b.s.id === sel ? 1 : 0) - (a.s.id === sel ? 1 : 0) || FRESH_PRIORITY[a.f] - FRESH_PRIORITY[b.f] ||
         (NET_PRIORITY[a.s.network] ?? 9) - (NET_PRIORITY[b.s.network] ?? 9));
     markersRef.current = items.map(({ s, v, f }, rank) => {
