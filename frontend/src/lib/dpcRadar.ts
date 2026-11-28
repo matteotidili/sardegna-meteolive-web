@@ -116,6 +116,22 @@ export function dpcRadarTileUrl(product: string, iso: string, z: number, x: numb
   return `${TILES}/${accumulation?.path ?? product}/${path}/${z}/${x}/${y}/${accumulation?.file ?? product.toLowerCase()}.webp`;
 }
 
+/** Warm native DPC radar tiles covering the current viewport. */
+export async function prefetchDpcFrame(product: string, iso: string, bounds: [number, number, number, number]) {
+  const [north, east, south, west] = bounds;
+  const z = MAX_NATIVE_Z, count = 2 ** z;
+  const tile = (lat: number, lon: number) => ({
+    x: Math.floor((lon + 180) / 360 * count),
+    y: Math.floor((1 - Math.asinh(Math.tan(lat * Math.PI / 180)) / Math.PI) / 2 * count),
+  });
+  const nw = tile(north, west), se = tile(south, east);
+  const jobs: Promise<HTMLImageElement | null>[] = [];
+  for (let x = nw.x; x <= se.x; x++) for (let y = nw.y; y <= se.y; y++) {
+    jobs.push(loadImage(dpcRadarTileUrl(product, iso, z, x, y)));
+  }
+  await Promise.all(jobs);
+}
+
 function sourceTile(c: L.Coords) {
   if (c.z <= MAX_NATIVE_Z) return { z: c.z, x: c.x, y: c.y, scale: 1, ox: 0, oy: 0 };
   const scale = 2 ** (c.z - MAX_NATIVE_Z);

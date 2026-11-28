@@ -2,6 +2,7 @@ import { WEBCAMS } from "@/lib/webcams";
 import { useSatelliteStack } from "@/hooks/useSatelliteStack";
 import { satelliteCache, satelliteNeighbors, satelliteStackUrl, satelliteSandwichUrl, sandwichDay } from "@/lib/satelliteImages";
 import { preloadOverlayImage } from "@/lib/overlayImage";
+import { prefetchDpcFrame } from "@/lib/dpcRadar";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box, MonitorPlay, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import OpsClock from "@/components/OpsClock";
@@ -314,6 +315,15 @@ export default function Home() {
   // contesto radar il pannello non deve sovrapporsi agli altri layer.
   useEffect(() => { if (!radarProduct) setRadarPoint(null); }, [radarProduct]);
   useEffect(() => { setPlaying(false); setMarineIdx(null); }, [marineModel, marineParam, marineForcing, marine?.run_time]);
+
+  // Preload the next DPC scan's visible tiles through the same image cache as the layer.
+  useEffect(() => {
+    if (!radarProduct || radarProduct === "OPERA" || !radarFrames.length) return;
+    const controller = new AbortController();
+    const nextFrames = [1, 2].map((step) => radarFrames[(rIdx + step) % radarFrames.length]);
+    void Promise.allSettled(nextFrames.map((time) => prefetchDpcFrame(radarProduct, time, bbox ?? [48, 20, 35, 5])));
+    return () => controller.abort();
+  }, [radarProduct, radarFrames, rIdx, bbox]);
 
   // Prepare the next frame before changing the selected timestamp.
   useEffect(() => {
