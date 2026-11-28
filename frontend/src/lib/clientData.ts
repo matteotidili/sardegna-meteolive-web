@@ -678,6 +678,30 @@ export async function getOpera(_signal?: AbortSignal): Promise<RadarFrames> {
 }
 
 // ---------------------------------------------------------------- EUMETSAT MTG
+// Use the documented, shared EUMETView WMS endpoint for catalog discovery.
+// Layer-specific endpoints remain in GetMap URLs. Coalesce catalog requests so
+// stacked products and rapid toggles cannot fan out into one request per layer.
+const EUMETVIEW_CAPABILITIES = "https://view.eumetsat.int/geoserver/ows?service=WMS&request=GetCapabilities&version=1.3.0";
+let eumetCapabilitiesCache: { expiresAt: number; promise: Promise<Document> } | null = null;
+
+async function getEumetCapabilities(): Promise<Document> {
+  if (eumetCapabilitiesCache && eumetCapabilitiesCache.expiresAt > Date.now()) return eumetCapabilitiesCache.promise;
+  const promise = fetch(EUMETVIEW_CAPABILITIES, { cache: "no-store", signal: AbortSignal.timeout(15_000) })
+    .then(async (response) => {
+      if (!response.ok) throw new Error(\`EUMETView GetCapabilities HTTP \${response.status}\`);
+      const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+      if (xml.getElementsByTagName("parsererror").length) throw new Error("Risposta GetCapabilities EUMETView non valida");
+      return xml;
+    });
+  eumetCapabilitiesCache = { expiresAt: Date.now() + 60_000, promise };
+  try {
+    return await promise;
+  } catch (error) {
+    if (eumetCapabilitiesCache?.promise === promise) eumetCapabilitiesCache = null;
+    throw error;
+  }
+}
+
 const SAT: Record<string, [string, string, string, string, number, boolean]> = {
   truecolour: ["mtg_fd:rgb_truecolour", "MTG FCI True Colour RGB", "© EUMETSAT · MTG FCI True Colour RGB", "image/jpeg", 10, true],
   ir105: ["mtg_fd:ir105_hrfi", "MTG FCI IR10.5 µm HRFI", "© EUMETSAT · MTG FCI HRFI IR10.5 µm", "image/jpeg", 10, false],
@@ -728,11 +752,9 @@ function satelliteDomain(xml: Document, layer: string): [number, number][] {
 
 const LI_AFA_WMS = "https://view.eumetsat.int/geoserver/mtg_fd/li_afa/ows";
 
-async function getLightningAfa(signal?: AbortSignal): Promise<SatelliteFrames> {
+async function getLightningAfa(_signal?: AbortSignal): Promise<SatelliteFrames> {
   // Empty transparent maps are valid observations, not missing frames.
-  const response = await fetch(`${LI_AFA_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store", signal });
-  if (!response.ok) throw new Error(`EUMETSAT LI AFA HTTP ${response.status}`);
-  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+  const xml = await getEumetCapabilities();
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension"))
     .find((node) => node.getAttribute("name") === "time");
   const interval = dimension?.textContent?.trim().split("/") ?? [];
@@ -749,13 +771,11 @@ async function getLightningAfa(signal?: AbortSignal): Promise<SatelliteFrames> {
     frames, latest: new Date(end).toISOString(), daytime_only: false };
 }
 
-async function getRgbSatellite(product: string, signal?: AbortSignal): Promise<SatelliteFrames> {
+async function getRgbSatellite(product: string, _signal?: AbortSignal): Promise<SatelliteFrames> {
   const cloud = product === "cloudtype";
   const layer = cloud ? "rgb_cloudtype" : "rgb_geocolour";
   const wms_url = `https://view.eumetsat.int/geoserver/mtg_fd/${layer}/ows`;
-  const r = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store", signal });
-  if (!r.ok) throw new Error(`EUMETSAT HTTP ${r.status}`);
-  const xml = new DOMParser().parseFromString(await r.text(), "application/xml");
+  const xml = await getEumetCapabilities();
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
   const parts = dimension?.textContent?.trim().split("/") ?? [];
   const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
@@ -767,11 +787,9 @@ async function getRgbSatellite(product: string, signal?: AbortSignal): Promise<S
     wms_url, bounds: satelliteDomain(xml, layer), frames, latest: new Date(end).toISOString(), daytime_only: cloud };
 }
 
-async function getRdtSatellite(signal?: AbortSignal): Promise<SatelliteFrames> {
+async function getRdtSatellite(_signal?: AbortSignal): Promise<SatelliteFrames> {
   const wms_url = "https://view.eumetsat.int/geoserver/msg_fes/rdt/ows";
-  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store", signal });
-  if (!response.ok) throw new Error(`EUMETSAT RDT HTTP ${response.status}`);
-  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+  const xml = await getEumetCapabilities();
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
   const parts = dimension?.textContent?.trim().split("/") ?? [];
   const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
@@ -784,13 +802,11 @@ async function getRdtSatellite(signal?: AbortSignal): Promise<SatelliteFrames> {
     latest: new Date(end).toISOString(), daytime_only: false };
 }
 
-async function getMsgRgbSatellite(product: "eview" | "airmass", signal?: AbortSignal): Promise<SatelliteFrames> {
+async function getMsgRgbSatellite(product: "eview" | "airmass", _signal?: AbortSignal): Promise<SatelliteFrames> {
   const layer = product === "eview" ? "rgb_eview" : "rgb_airmass";
   const label = product === "eview" ? "MSG European HRV RGB" : "MSG Airmass RGB";
   const wms_url = `https://view.eumetsat.int/geoserver/msg_fes/${layer}/ows`;
-  const response = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-store", signal });
-  if (!response.ok) throw new Error(`EUMETSAT MSG RGB HTTP ${response.status}`);
-  const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+  const xml = await getEumetCapabilities();
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
   const parts = dimension?.textContent?.trim().split("/") ?? [];
   const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
@@ -837,9 +853,7 @@ export async function getSatellite(product: string, signal?: AbortSignal): Promi
   if (!def) throw new Error("Prodotto satellitare non supportato");
   const [layer, label, attribution, format, step, day] = def;
   const wms_url = `https://view.eumetsat.int/geoserver/mtg_fd/${layer.split(":").at(-1)}/ows`;
-  const capabilities = await fetch(`${wms_url}?service=WMS&request=GetCapabilities&version=1.3.0`, { cache: "no-cache", signal });
-  if (!capabilities.ok) throw new Error("Catalogo satellitare non disponibile");
-  const xml = new DOMParser().parseFromString(await capabilities.text(), "application/xml");
+  const xml = await getEumetCapabilities();
   const domain = satelliteDomain(xml, layer);
   // Read published times directly: probing 25 images delayed the first useful frame.
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");

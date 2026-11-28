@@ -64,7 +64,7 @@ it("opens the IR archive from published catalogue times with no image probes", a
   vi.stubGlobal("fetch", fetcher);
   const catalog = await getSatellite("ir105");
   expect(fetcher).toHaveBeenCalledOnce();
-  expect(fetcher.mock.calls[0][0]).toContain("/mtg_fd/ir105_hrfi/ows?service=WMS&request=GetCapabilities");
+  expect(fetcher.mock.calls[0][0]).toContain("/geoserver/ows?service=WMS&request=GetCapabilities&version=1.3.0");
   expect(catalog.frames).toHaveLength(19);
   expect(catalog.frames[0]).toBe("2026-11-18T09:00:00.000Z");
   expect(catalog.frames.at(-1)).toBe("2026-11-18T12:00:00.000Z");
