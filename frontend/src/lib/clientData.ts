@@ -688,7 +688,7 @@ async function getEumetCapabilities(): Promise<Document> {
   if (eumetCapabilitiesCache && eumetCapabilitiesCache.expiresAt > Date.now()) return eumetCapabilitiesCache.promise;
   const promise = fetch(EUMETVIEW_CAPABILITIES, { cache: "no-store", signal: AbortSignal.timeout(15_000) })
     .then(async (response) => {
-      if (!response.ok) throw new Error(\`EUMETView GetCapabilities HTTP \${response.status}\`);
+      if (!response.ok) throw new Error(`EUMETView GetCapabilities HTTP ${response.status}`);
       const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
       if (xml.getElementsByTagName("parsererror").length) throw new Error("Risposta GetCapabilities EUMETView non valida");
       return xml;
