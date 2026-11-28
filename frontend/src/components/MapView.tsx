@@ -108,6 +108,7 @@ export default function MapView(props: Props) {
   const radarPointRef = useRef<L.CircleMarker | null>(null);
   const radarPendingRef = useRef<L.GridLayer | null>(null);
   const aromeRef = useRef<L.ImageOverlay | null>(null);
+  const aromeBackRef = useRef<L.ImageOverlay | null>(null);
   const aromeTokenRef = useRef(0);
   const overlayGroupRef = useRef<string | null>(null);
   const firesRef = useRef<L.LayerGroup | null>(null);
@@ -374,7 +375,7 @@ export default function MapView(props: Props) {
     });
   }, [props.stations, props.param, props.selectedId]);
 
-  // DPC radar — the new frame is added on top and the old one removed only when every tile is ready
+  // Keep two radar surfaces mounted; reveal the replacement only after every tile is ready.
   useEffect(() => {
     const m = mapRef.current;
     if (!m) return;
@@ -387,24 +388,32 @@ export default function MapView(props: Props) {
     const { product, time } = props.radar;
     const layer: L.GridLayer = product === "OPERA"
       ? L.tileLayer(`${OPERA_TILE_BASE}${operaStamp(time)}/{z}/{x}/{y}.png`, {
-          pane: "weather", opacity: props.opacity, tileSize: 256, maxNativeZoom: 7, maxZoom: 15, updateWhenZooming: false, keepBuffer: 2,
+          pane: "weather", opacity: 0, tileSize: 256, maxNativeZoom: 7, maxZoom: 15, updateWhenZooming: false, keepBuffer: 2,
           bounds: L.latLngBounds([30, -15], [55, 28]), attribution: "Radar: EUMETNET OPERA NIMBUS · CC BY 4.0 · tiles RadarEU",
         })
-      : createDpcLayer(product, time, props.opacity, "weather");
+      : createDpcLayer(product, time, 0, "weather");
     radarPendingRef.current = layer;
     layer.once("load", () => {
       if (radarPendingRef.current !== layer) return;
-      radarRef.current?.remove();
+      layer.setOpacity(cb.current.opacity);
+      const previous = radarRef.current;
       radarRef.current = layer;
       radarPendingRef.current = null;
+      previous?.remove();
       cb.current.onLayerReady(radarFrameKey({ product, time }));
+    });
+    layer.on("tileerror", () => {
+      // Missing radar tiles are transparent gaps; the rest of the frame can display.
     });
     layer.addTo(m);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.radar?.product, props.radar?.time]);
 
-  // Image overlay (AROME lat/lon rasters → warped to Mercator; satellite WMS already in EPSG:3857).
-  // Swap only after the new image is ready (no blank flashes); failed frames are never shown.
+  useEffect(() => {
+    radarRef.current?.setOpacity(props.opacity);
+  }, [props.opacity]);
+
+  // Double-buffer image overlays so a frame changes atomically without remounting the map.
   const overlayUrl = props.overlay?.url;
   const overlayGroup = props.overlay?.group;
   const overlayBounds = props.overlay?.bounds.flat().join(",");
@@ -414,6 +423,7 @@ export default function MapView(props: Props) {
     const token = ++aromeTokenRef.current;
     if (!props.overlay) {
       aromeRef.current?.remove(); aromeRef.current = null;
+      aromeBackRef.current?.remove(); aromeBackRef.current = null;
       overlayGroupRef.current = null;
       return;
     }
@@ -422,24 +432,43 @@ export default function MapView(props: Props) {
     const nextGroup = group ?? "default";
     if (overlayGroupRef.current !== nextGroup) {
       aromeRef.current?.remove(); aromeRef.current = null;
+      aromeBackRef.current?.remove(); aromeBackRef.current = null;
     }
     overlayGroupRef.current = nextGroup;
     const controller = new AbortController();
     const current = () => !controller.signal.aborted && token === aromeTokenRef.current && mapRef.current === m && cb.current.overlay?.url === src;
     void preloadOverlayImage(warp ? mercatorImage(src, s, n) : src, controller.signal).then((image) => {
       if (!current()) return;
-      // Use the already loaded image: one displayed overlay and one cancellable preload.
-      const ov = preloadedImageOverlay(image, [[s, w], [n, e]], { pane: "weather", opacity: cb.current.opacity, interactive: false, attribution });
-      ov.addTo(m);
-      aromeRef.current?.remove();
-      aromeRef.current = ov;
-      cb.current.onLayerReady(`overlay:${src}`);
+      const next = preloadedImageOverlay(image, [[s, w], [n, e]], {
+        pane: "weather", opacity: 0, interactive: false, attribution,
+      });
+      next.addTo(m);
+      next.once("load", () => {
+        if (!current()) { next.remove(); return; }
+        next.setOpacity(cb.current.opacity);
+        const previous = aromeRef.current;
+        aromeRef.current = next;
+        aromeBackRef.current = previous;
+        if (previous) {
+          requestAnimationFrame(() => {
+            if (aromeRef.current === next) {
+              previous.remove();
+              aromeBackRef.current = null;
+            }
+          });
+        }
+        cb.current.onLayerReady(`overlay:${src}`);
+      });
     }).catch(() => {
       if (current()) cb.current.onLayerReady(`overlay-error:${src}`);
     });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlayUrl, overlayGroup, overlayBounds, props.overlay?.warp]);
+
+  useEffect(() => {
+    aromeRef.current?.setOpacity(props.opacity);
+  }, [props.opacity]);
 
   useEffect(() => {
     const m = mapRef.current;

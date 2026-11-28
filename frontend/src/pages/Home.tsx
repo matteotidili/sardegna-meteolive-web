@@ -1,6 +1,7 @@
 import { WEBCAMS } from "@/lib/webcams";
 import { useSatelliteStack } from "@/hooks/useSatelliteStack";
 import { satelliteCache, satelliteNeighbors, satelliteStackUrl, satelliteSandwichUrl, sandwichDay } from "@/lib/satelliteImages";
+import { preloadOverlayImage } from "@/lib/overlayImage";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Layers, List, RefreshCw, Map as MapIcon, Plus, Minus, LocateFixed, Box, MonitorPlay, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import OpsClock from "@/components/OpsClock";
@@ -314,62 +315,62 @@ export default function Home() {
   useEffect(() => { if (!radarProduct) setRadarPoint(null); }, [radarProduct]);
   useEffect(() => { setPlaying(false); setMarineIdx(null); }, [marineModel, marineParam, marineForcing, marine?.run_time]);
 
-  // playback: advance only once the current frame is fully drawn (no partial frames)
+  // Prepare the next frame before changing the selected timestamp.
   useEffect(() => {
     if (!playing || !frameReady) return;
-    const t = window.setTimeout(() => {
-      if (marineUrl) setMarineIdx((mIdx + 1) % marineFrames.length);
-      else if (radarLayer) setRadarIdx((rIdx + 1) % radarFrames.length);
-      else if (aromeUrl) setLeadIdx((lIdx + 1) % aromeFrames.length);
-      else if (satFrames.length) selectSatellite((sIdx + 1) % satFrames.length, 1);
-    }, BASE_DELAY / speed);
-    return () => window.clearTimeout(t);
+    let cancelled = false;
+    let timer: number | undefined;
+    const controller = new AbortController();
+    const marineNext = marineUrl ? (mIdx + 1) % marineFrames.length : -1;
+    const aromeNext = aromeUrl ? (lIdx + 1) % aromeFrames.length : -1;
+    const nextUrl = marineUrl ? marineUrlAt(marineNext) : aromeUrl ? aromeUrlAt(aromeNext) : null;
+    const prepare = async () => {
+      if (marineUrl && nextUrl) await preloadOverlayImage(nextUrl, controller.signal);
+      else if (aromeUrl && nextUrl && arome) {
+        const projected = await mercatorImage(nextUrl, arome.bounds[0][0], arome.bounds[1][0]);
+        if (projected) await preloadOverlayImage(projected, controller.signal);
+      } else if (satFrames.length > 1) {
+        const url = satUrls[(sIdx + 1) % satUrls.length];
+        if (url) await satelliteCache.prefetch(url, controller.signal);
+      }
+      if (cancelled) return;
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        if (marineUrl) setMarineIdx(marineNext);
+        else if (radarLayer) setRadarIdx((rIdx + 1) % radarFrames.length);
+        else if (aromeUrl) setLeadIdx(aromeNext);
+        else if (satFrames.length) selectSatellite((sIdx + 1) % satFrames.length, 1);
+      }, Math.max(0, BASE_DELAY / speed));
+    };
+    void prepare().catch(() => {});
+    return () => { cancelled = true; controller.abort(); if (timer !== undefined) window.clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, frameReady, speed, rIdx, lIdx, sIdx, mIdx, currentKey]);
 
-  // Prefetch the next projected AROME frames.
+  // Keep nearby satellite and AROME images decoded in the background.
   useEffect(() => {
-    if (anim === "arome" && arome) {
-      const [[s], [n]] = arome.bounds;
-      [1, 2].forEach((d) => { const u = aromeUrlAt((lIdx + d) % aromeFrames.length); if (u) void mercatorImage(u, s, n); });
-    }
-  }, [anim, arome, lIdx, aromeUrlAt, aromeFrames.length]);
-
-  useEffect(() => {
+    if (!satProduct || satUrls.length < 2) return;
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
-    const conserve = connection?.saveData || connection?.effectiveType?.endsWith("2g");
-    const wanted = new Set(satelliteNeighbors(sIdx, satUrls.length, satSelection?.direction ?? -1, playing, conserve)
-      .map((index) => satUrls[index]));
-    for (const [url, controller] of prefetching.current) {
-      if (wanted.has(url)) continue;
-      controller.abort();
-      prefetching.current.delete(url);
-    }
-    if (!satUrl || readyKey !== `overlay:${satUrl}`) return;
-    for (const url of wanted) {
-      if (prefetching.current.has(url)) continue;
-      const controller = new AbortController();
-      prefetching.current.set(url, controller);
-      void satelliteCache.prefetch(url, controller.signal).catch(() => {
-        if (prefetching.current.get(url) === controller) prefetching.current.delete(url);
-      });
-    }
-  }, [satUrls, satUrl, sIdx, satSelection?.direction, playing, readyKey]);
-  useEffect(() => {
-    const pending = prefetching.current;
-    return () => { for (const controller of pending.values()) controller.abort(); pending.clear(); };
-  }, []);
+    if (connection?.saveData || connection?.effectiveType?.endsWith("2g")) return;
+    const controller = new AbortController();
+    const jobs = [1, 2].map((step) => {
+      const url = satUrls[(sIdx + step) % satUrls.length];
+      return url ? satelliteCache.prefetch(url, controller.signal).catch(() => {}) : Promise.resolve();
+    });
+    return () => { controller.abort(); void Promise.allSettled(jobs); };
+  }, [satProduct, satUrls, sIdx]);
 
-  // Only one marine frame is prefetched, after the selected raster has loaded.
   useEffect(() => {
-    if (!marineUrl || readyKey !== `overlay:${marineUrl}` || marineFrames.length < 2) return;
-    const url = marineUrlAt((mIdx + 1) % marineFrames.length);
-    if (!url) return;
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    image.src = url;
-    return () => { image.onload = image.onerror = null; image.src = ""; };
-  }, [marineUrl, readyKey, marineUrlAt, mIdx, marineFrames.length]);
+    if (anim !== "arome" || !arome || !aromeFrames.length) return;
+    const controller = new AbortController();
+    const urls = [1, 2].map((step) => aromeUrlAt((lIdx + step) % aromeFrames.length)).filter((url): url is string => !!url);
+    const jobs = urls.map(async (url) => {
+      const projected = await mercatorImage(url, arome.bounds[0][0], arome.bounds[1][0]);
+      if (projected && !controller.signal.aborted) await preloadOverlayImage(projected, controller.signal);
+    });
+    void Promise.allSettled(jobs);
+    return () => controller.abort();
+  }, [anim, arome, aromeFrames.length, lIdx, aromeUrlAt]);
 
   const pick = (s: Station) => {
     setSelectedId(s.id);

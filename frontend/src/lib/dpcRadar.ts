@@ -108,7 +108,7 @@ function loadImage(url: string) {
   return p;
 }
 
-function tileUrl(product: string, iso: string, z: number, x: number, y: number) {
+export function dpcRadarTileUrl(product: string, iso: string, z: number, x: number, y: number) {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   const path = `${d.getUTCFullYear()}/${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}/${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
@@ -128,7 +128,7 @@ export function createDpcLayer(product: string, iso: string, opacity: number, pa
       const canvas = document.createElement("canvas");
       canvas.width = canvas.height = 256;
       const s = sourceTile(coords);
-      loadImage(tileUrl(product, iso, s.z, s.x, s.y)).then((im) => {
+      loadImage(dpcRadarTileUrl(product, iso, s.z, s.x, s.y)).then((im) => {
         if (im) {
           const ctx = canvas.getContext("2d", { willReadFrequently: true });
           if (ctx) {
