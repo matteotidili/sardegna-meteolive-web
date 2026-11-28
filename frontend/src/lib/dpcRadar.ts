@@ -279,7 +279,7 @@ function consumePng(key: string, job: PngJob, signal?: AbortSignal): Promise<Arr
 export async function dpcTilePng(product: string, iso: string, z: number, x: number, y: number, signal?: AbortSignal): Promise<ArrayBuffer> {
   if (signal?.aborted) throw abortError();
   const s = sourceTile({ z, x, y } as L.Coords);
-  const url = tileUrl(product, iso, s.z, s.x, s.y);
+  const url = dpcRadarTileUrl(product, iso, s.z, s.x, s.y);
   const key = `${url}|${s.scale}:${s.ox}:${s.oy}`;
   const cached = pngCache.get(key);
   if (cached) {
