@@ -357,18 +357,35 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, frameReady, speed, rIdx, lIdx, sIdx, mIdx, currentKey]);
 
-  // Keep nearby satellite and AROME images decoded in the background.
+  // Incremental satellite prefetch: keep requests that remain in the rolling
+  // window, cancel only frames that have fallen out, and never restart completed work.
   useEffect(() => {
-    if (!satProduct || satUrls.length < 2) return;
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
-    if (connection?.saveData || connection?.effectiveType?.endsWith("2g")) return;
-    const controller = new AbortController();
-    const jobs = [1, 2, 3, 4].map((step) => {
-      const url = satUrls[(sIdx + step) % satUrls.length];
-      return url ? satelliteCache.prefetch(url, controller.signal).catch(() => {}) : Promise.resolve();
-    });
-    return () => { controller.abort(); void Promise.allSettled(jobs); };
+    const conserve = connection?.saveData || connection?.effectiveType?.endsWith("2g");
+    const wanted = new Set(
+      !satProduct || conserve || satUrls.length < 2
+        ? []
+        : [1, 2, 3, 4].map((step) => satUrls[(sIdx + step) % satUrls.length]).filter(Boolean),
+    );
+    for (const [url, controller] of prefetching.current) {
+      if (!wanted.has(url)) {
+        controller.abort();
+        prefetching.current.delete(url);
+      }
+    }
+    for (const url of wanted) {
+      if (prefetching.current.has(url)) continue;
+      const controller = new AbortController();
+      prefetching.current.set(url, controller);
+      void satelliteCache.prefetch(url, controller.signal).catch(() => {}).finally(() => {
+        if (prefetching.current.get(url) === controller) prefetching.current.delete(url);
+      });
+    }
   }, [satProduct, satUrls, sIdx]);
+  useEffect(() => {
+    const pending = prefetching.current;
+    return () => { for (const controller of pending.values()) controller.abort(); pending.clear(); };
+  }, []);
 
   useEffect(() => {
     if (anim !== "arome" || !arome || !aromeFrames.length) return;
