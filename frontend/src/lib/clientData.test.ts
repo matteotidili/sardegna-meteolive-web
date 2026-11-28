@@ -70,6 +70,18 @@ it("opens the IR archive from published catalogue times with no image probes", a
   expect(catalog.frames.at(-1)).toBe("2026-11-18T12:00:00.000Z");
 });
 
+it("keeps the source-published satellite cadence and gaps in the rolling three-hour window", () => {
+  const { frames } = satelliteTimes(
+    "2026-11-28T12:00:00Z/2026-11-28T12:10:00Z/PT5M,2026-11-28T12:20:00Z/2026-11-28T15:00:00Z/PT5M",
+    180,
+    30,
+  );
+  expect(frames).toHaveLength(36);
+  expect(frames[0]).toBe("2026-11-28T12:00:00.000Z");
+  expect(frames).not.toContain("2026-11-28T12:15:00.000Z");
+  expect(frames.at(-1)).toBe("2026-11-28T15:00:00.000Z");
+});
+
 describe("AROME model-run changes", () => {
   it("reloads raster and wind assets when filenames are reused for a new run", async () => {
     let run = oldRun;

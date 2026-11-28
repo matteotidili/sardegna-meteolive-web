@@ -689,20 +689,24 @@ const SAT: Record<string, [string, string, string, string, number, boolean]> = {
 };
 
 export function satelliteTimes(text: string, retentionMinutes: number, _stepMinutes: number): { frames: string[] } {
-  const instants: number[] = [];
+  const instants = new Set<number>();
   for (const part of text.split(",").map((value) => value.trim()).filter(Boolean)) {
     const [first, last, duration] = part.split("/");
-    const start = Date.parse(first);
+    const start = Date.parse(first ?? "");
     if (!Number.isFinite(start)) continue;
-    if (!last) { instants.push(start); continue; }
+    if (!last) { instants.add(start); continue; }
     const end = Date.parse(last);
-    const minutes = Number(duration?.match(/^PT(\d+)M$/)?.[1]);
-    if (!Number.isFinite(end) || !minutes) continue;
-    for (let at = start; at <= end; at += minutes * 60_000) instants.push(at);
+    const match = duration?.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/);
+    if (!Number.isFinite(end) || !match) continue;
+    const intervalMs = (Number(match[1] ?? 0) * 3600 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0)) * 1000;
+    if (intervalMs <= 0 || end < start) continue;
+    // WMS intervals enumerate real source timestamps; never invent timestamps between observations.
+    for (let at = start; at <= end; at += intervalMs) instants.add(at);
   }
+  if (!instants.size) return { frames: [] };
   const latest = Math.max(...instants);
-  if (!Number.isFinite(latest)) return { frames: [] };
-  return { frames: [...new Set(instants.filter((at) => at >= latest - retentionMinutes * 60_000))]
+  const cutoff = latest - Math.max(0, retentionMinutes) * 60_000;
+  return { frames: [...instants].filter((at) => at >= cutoff && at <= latest)
     .sort((a, b) => a - b).map((at) => new Date(at).toISOString()) };
 }
 
@@ -790,13 +794,13 @@ async function getMsgRgbSatellite(product: "eview" | "airmass", signal?: AbortSi
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
   const parts = dimension?.textContent?.trim().split("/") ?? [];
   const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
-  const start = Date.parse(parts[0] ?? "");
-  if (!Number.isFinite(end) || parts[2] !== "PT15M") throw new Error("Catalogo temporale MSG RGB non valido");
-  const frames = Array.from({ length: 13 }, (_, i) => end - (12 - i) * 15 * 60000)
-    .filter((t) => !Number.isFinite(start) || t >= start).map((t) => new Date(t).toISOString());
+  if (!Number.isFinite(end)) throw new Error("Catalogo temporale MSG RGB non valido");
+  const frames = satelliteTimes(dimension?.textContent ?? "", 180, 15).frames.filter((time) => Date.parse(time) <= end);
+  if (!frames.length) throw new Error("Nessun fotogramma MSG RGB disponibile nelle ultime tre ore");
+  const cadence = frames.length > 1 ? Math.round((Date.parse(frames.at(-1)!) - Date.parse(frames.at(-2)!)) / 60000) : 15;
   return { product, label, layer, attribution: `© EUMETSAT · ${label}`,
-    format: "image/png", step_minutes: 15, wms_url, bounds: satelliteDomain(xml, layer), frames,
-    latest: new Date(end).toISOString(), daytime_only: false };
+    format: "image/png", step_minutes: cadence, wms_url, bounds: satelliteDomain(xml, layer), frames,
+    latest: frames.at(-1) ?? null, daytime_only: false };
 }
 
 export async function getSatellite(product: string, signal?: AbortSignal): Promise<SatelliteFrames> {
@@ -841,10 +845,11 @@ export async function getSatellite(product: string, signal?: AbortSignal): Promi
   const dimension = Array.from(xml.getElementsByTagNameNS("*", "Dimension")).find((n) => n.getAttribute("name") === "time");
   const parts = dimension?.textContent?.trim().split("/") ?? [];
   const end = Date.parse(dimension?.getAttribute("default") ?? parts[1] ?? "");
-  const start = Date.parse(parts[0] ?? "");
   const minutes = Number(parts[2]?.match(/^PT(\d+)M$/)?.[1]) || step;
   if (!Number.isFinite(end)) throw new Error("Catalogo temporale satellitare non valido");
-  const frames = Array.from({ length: Math.floor(180 / minutes) + 1 }, (_, i) => end - (Math.floor(180 / minutes) - i) * minutes * 60000)
-    .filter((time) => !Number.isFinite(start) || time >= start).map((time) => new Date(time).toISOString());
-  return { product, label, layer, attribution, format, step_minutes: minutes, wms_url, bounds: domain, frames, latest: new Date(end).toISOString(), daytime_only: day };
+  // Keep every timestamp enumerated by the source catalogue in the rolling 3-hour window.
+  const frames = satelliteTimes(dimension?.textContent ?? "", 180, minutes).frames.filter((time) => Date.parse(time) <= end);
+  if (!frames.length) throw new Error("Nessun fotogramma satellitare disponibile nelle ultime tre ore");
+  const cadence = frames.length > 1 ? Math.round((Date.parse(frames.at(-1)!) - Date.parse(frames.at(-2)!)) / 60000) : minutes;
+  return { product, label, layer, attribution, format, step_minutes: cadence, wms_url, bounds: domain, frames, latest: frames.at(-1) ?? null, daytime_only: day };
 }
