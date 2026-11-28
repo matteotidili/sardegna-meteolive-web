@@ -82,7 +82,7 @@ async function fromBlob(blob: Blob, signal: AbortSignal): Promise<Raster> {
   }
 }
 
-export function createSatelliteCache({ maxBytes = 192 * 1024 * 1024, maxImages = 56, concurrency = 3, timeout = 20_000 } = {}) {
+export function createSatelliteCache({ maxBytes = 256 * 1024 * 1024, maxImages = 72, concurrency = 4, timeout = 20_000 } = {}) {
   const images = new Map<string, Entry>();
   const queue: Download[] = [];
   let active = 0, activePrefetch = 0, bytes = 0;

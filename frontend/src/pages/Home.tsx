@@ -353,7 +353,7 @@ export default function Home() {
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
     if (connection?.saveData || connection?.effectiveType?.endsWith("2g")) return;
     const controller = new AbortController();
-    const jobs = [1, 2].map((step) => {
+    const jobs = [1, 2, 3, 4].map((step) => {
       const url = satUrls[(sIdx + step) % satUrls.length];
       return url ? satelliteCache.prefetch(url, controller.signal).catch(() => {}) : Promise.resolve();
     });
